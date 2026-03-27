@@ -1,9 +1,10 @@
 "use client";
 
+import { useRef, useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import type { Monster } from "@/lib/supabase/helpers";
-import type { Enemy } from "@/lib/types/game-state";
+import type { Enemy, CombatCard } from "@/lib/types/game-state";
 
 const supabase = createClient();
 
@@ -56,9 +57,10 @@ async function fetchBossData(enemyIds: string[]): Promise<Monster[]> {
 interface BossBriefingProps {
   enemies: Enemy[];
   ascension: number;
+  deckCards: CombatCard[];
 }
 
-export function BossBriefing({ enemies, ascension }: BossBriefingProps) {
+export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProps) {
   const enemyIds = enemies.map((e) => e.entity_id);
   const cacheKey = enemyIds.sort().join(",");
 
@@ -67,6 +69,52 @@ export function BossBriefing({ enemies, ascension }: BossBriefingProps) {
     () => fetchBossData(enemyIds),
     { revalidateOnFocus: false, dedupingInterval: 1000 * 60 * 60 }
   );
+
+  const [strategy, setStrategy] = useState<string | null>(null);
+  const [strategyLoading, setStrategyLoading] = useState(false);
+  const strategyFetched = useRef(false);
+
+  // Fetch strategy from Claude grounded in real move data
+  if (bossData && bossData.length > 0 && !strategyFetched.current && !strategyLoading && deckCards.length > 0) {
+    strategyFetched.current = true;
+    setStrategyLoading(true);
+
+    const bossMoveSummary = bossData
+      .map((b) => {
+        const moves = (b.moves as MoveInfo[] | null) ?? [];
+        const moveStr = moves
+          .map((m) => `${m.name}: ${formatMove(m, ascension)}`)
+          .join("; ");
+        return `${b.name} (${b.min_hp}HP): ${moveStr}`;
+      })
+      .join("\n");
+
+    const deckSummary = deckCards.map((c) => c.name).join(", ");
+
+    fetch("/api/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "map",
+        context: null,
+        mapPrompt: `You are fighting this boss in Slay the Spire 2. Based ONLY on the move data below and the player's deck, provide a concise 2-3 sentence strategy. Do NOT invent moves or mechanics not listed.
+
+Boss moves:
+${bossMoveSummary}
+
+Player deck: ${deckSummary}
+
+Respond as JSON:
+{"strategy": "2-3 sentences of grounded tactical advice based on the actual moves listed above"}`,
+        runId: null,
+        gameVersion: null,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => setStrategy(d.strategy ?? null))
+      .catch(() => setStrategy(null))
+      .finally(() => setStrategyLoading(false));
+  }
 
   if (!bossData || bossData.length === 0) return null;
 
@@ -98,6 +146,19 @@ export function BossBriefing({ enemies, ascension }: BossBriefingProps) {
           </div>
         );
       })}
+
+      {/* Strategy */}
+      {strategyLoading && (
+        <p className="text-xs text-zinc-500 animate-pulse">Analyzing strategy...</p>
+      )}
+      {strategy && (
+        <div className="border-t border-zinc-800 pt-3">
+          <h4 className="text-xs font-medium uppercase tracking-wide text-zinc-500 mb-1">
+            Strategy
+          </h4>
+          <p className="text-sm text-zinc-300 leading-relaxed">{strategy}</p>
+        </div>
+      )}
     </div>
   );
 }

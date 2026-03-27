@@ -105,7 +105,7 @@ function GameStateView({
   runState: import("@/features/connection/use-run-tracker").RunState;
 }) {
   if (isCombatState(state)) {
-    return <CombatView state={state} />;
+    return <CombatView state={state} deckCards={deckCards} />;
   }
 
   switch (state.state_type) {
@@ -149,7 +149,7 @@ function GameStateView({
 
 // ─── Combat View ───
 
-function CombatView({ state }: { state: CombatState }) {
+function CombatView({ state, deckCards }: { state: CombatState; deckCards: CombatCard[] }) {
   if (!state.battle?.player) {
     return <PlaceholderView title="Combat" state={state} />;
   }
@@ -238,7 +238,7 @@ function CombatView({ state }: { state: CombatState }) {
 
       {/* Boss briefing — real move data from DB, no hallucination */}
       {state.state_type === "boss" && (
-        <BossBriefing enemies={enemies} ascension={state.run.ascension} />
+        <BossBriefing enemies={enemies} ascension={state.run.ascension} deckCards={deckCards} />
       )}
 
       {/* Status effects */}
