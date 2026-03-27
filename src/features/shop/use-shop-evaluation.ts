@@ -1,10 +1,63 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ShopState, CombatCard } from "@/lib/types/game-state";
+import { useCallback, useRef, useState } from "react";
+import type { ShopState, ShopItem, CombatCard } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
+
+const CACHE_KEY = "sts2-shop-eval-cache";
+
+interface CachedEvaluation {
+  key: string;
+  evaluation: CardRewardEvaluation;
+}
+
+function getCached(key: string): CardRewardEvaluation | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(CACHE_KEY);
+    if (!stored) return null;
+    const cached: CachedEvaluation = JSON.parse(stored);
+    return cached.key === key ? cached.evaluation : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCache(key: string, evaluation: CardRewardEvaluation) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ key, evaluation }));
+  } catch {}
+}
+
+function getItemId(item: ShopItem): string {
+  switch (item.category) {
+    case "card": return item.card_id ?? `card_${item.index}`;
+    case "relic": return item.relic_id ?? `relic_${item.index}`;
+    case "potion": return item.potion_id ?? `potion_${item.index}`;
+    case "card_removal": return "CARD_REMOVAL";
+  }
+}
+
+function getItemName(item: ShopItem): string {
+  switch (item.category) {
+    case "card": return item.card_name ?? "Unknown Card";
+    case "relic": return item.relic_name ?? "Unknown Relic";
+    case "potion": return item.potion_name ?? "Unknown Potion";
+    case "card_removal": return "Card Removal";
+  }
+}
+
+function getItemDescription(item: ShopItem): string {
+  switch (item.category) {
+    case "card": return item.card_description ?? "";
+    case "relic": return item.relic_description ?? "";
+    case "potion": return item.potion_description ?? "";
+    case "card_removal": return "Remove a card from your deck";
+  }
+}
 
 interface UseShopEvaluationResult {
   evaluation: CardRewardEvaluation | null;
@@ -12,37 +65,35 @@ interface UseShopEvaluationResult {
   error: string | null;
 }
 
-/**
- * Triggers a holistic shop evaluation — all items + card removal
- * ranked in a single Claude call.
- */
 export function useShopEvaluation(
   state: ShopState,
   deckCards: CombatCard[],
   player: TrackedPlayer | null
 ): UseShopEvaluationResult {
-  const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(null);
+  const shopItems = state.shop.items.filter((i) => i.is_stocked);
+  const shopKey = shopItems.map((i) => getItemId(i)).sort().join(",");
+
+  const cachedRef = useRef<string | null>(null);
+  const initialEval = cachedRef.current !== shopKey ? getCached(shopKey) : null;
+
+  const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const evaluatedKey = useRef<string>("");
+  const evaluatedKey = useRef<string>(initialEval ? shopKey : "");
+
+  cachedRef.current = shopKey;
 
   const evaluate = useCallback(async () => {
-    const shop = state.shop;
+    if (shopKey === evaluatedKey.current) return;
 
-    // Build a key from all shop items to avoid re-evaluating same shop
-    const allIds = [
-      ...shop.cards.map((c) => c.id),
-      ...shop.relics.map((r) => r.id),
-      ...shop.potions.map((p) => p.id),
-      shop.card_removal ? "CARD_REMOVAL" : "",
-    ]
-      .filter(Boolean)
-      .sort()
-      .join(",");
+    const cached = getCached(shopKey);
+    if (cached) {
+      evaluatedKey.current = shopKey;
+      setEvaluation(cached);
+      return;
+    }
 
-    if (allIds === evaluatedKey.current) return;
-    evaluatedKey.current = allIds;
-
+    evaluatedKey.current = shopKey;
     setIsLoading(true);
     setError(null);
 
@@ -58,56 +109,14 @@ export function useShopEvaluation(
       return;
     }
 
-    // Build items list: cards + relics + potions + card removal
-    const items: {
-      id: string;
-      name: string;
-      description: string;
-      cost?: number;
-      type?: string;
-      rarity?: string;
-    }[] = [];
-
-    for (const card of shop.cards) {
-      items.push({
-        id: card.id,
-        name: card.name,
-        description: card.description,
-        cost: card.cost_gold,
-        type: card.type,
-        rarity: card.rarity,
-      });
-    }
-
-    for (const relic of shop.relics) {
-      items.push({
-        id: relic.id,
-        name: relic.name,
-        description: relic.description,
-        cost: relic.cost_gold,
-        type: "Relic",
-      });
-    }
-
-    for (const potion of shop.potions) {
-      items.push({
-        id: potion.id,
-        name: potion.name,
-        description: potion.description,
-        cost: potion.cost_gold,
-        type: "Potion",
-      });
-    }
-
-    if (shop.card_removal) {
-      items.push({
-        id: "CARD_REMOVAL",
-        name: "Card Removal",
-        description: `Remove a card from your deck. Cost: ${shop.card_removal.cost}g`,
-        cost: shop.card_removal.cost,
-        type: "Service",
-      });
-    }
+    const items = shopItems.map((item) => ({
+      id: getItemId(item),
+      name: getItemName(item),
+      description: getItemDescription(item),
+      cost: item.cost,
+      type: item.category === "card" ? item.card_type : item.category,
+      rarity: item.category === "card" ? item.card_rarity : undefined,
+    }));
 
     try {
       const res = await fetch("/api/evaluate", {
@@ -128,16 +137,19 @@ export function useShopEvaluation(
 
       const data: CardRewardEvaluation = await res.json();
       setEvaluation(data);
+      setCache(shopKey, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player]);
+  }, [state, deckCards, player, shopItems, shopKey]);
 
-  useEffect(() => {
+  if (shopKey !== evaluatedKey.current && !isLoading) {
     evaluate();
-  }, [evaluate]);
+  }
 
   return { evaluation, isLoading, error };
 }
+
+export { getItemId, getItemName, getItemDescription };

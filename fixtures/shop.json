@@ -1,0 +1,237 @@
+{
+    "state_type": "shop",
+    "shop": {
+        "player": {
+            "character": "The Ironclad",
+            "hp": 80,
+            "max_hp": 80,
+            "gold": 263,
+            "potion_slots": 2,
+            "open_potion_slots": 2
+        },
+        "items": [
+            {
+                "index": 0,
+                "category": "card",
+                "cost": 74,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": false,
+                "card_id": "BULLY",
+                "card_name": "Bully",
+                "card_type": "Attack",
+                "card_rarity": "Uncommon",
+                "card_description": "Deal 4 damage. Deals 2 additional damage for each Vulnerable on the enemy.",
+                "keywords": [
+                    {
+                        "name": "Vulnerable",
+                        "description": "Vulnerable creatures take 50% more damage from Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 1,
+                "category": "card",
+                "cost": 51,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": false,
+                "card_id": "THUNDERCLAP",
+                "card_name": "Thunderclap",
+                "card_type": "Attack",
+                "card_rarity": "Common",
+                "card_description": "Deal 4 damage and apply 1 Vulnerable to ALL enemies.",
+                "keywords": [
+                    {
+                        "name": "Vulnerable",
+                        "description": "Vulnerable creatures take 50% more damage from Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 2,
+                "category": "card",
+                "cost": 25,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": true,
+                "card_id": "BLOODLETTING",
+                "card_name": "Bloodletting",
+                "card_type": "Skill",
+                "card_rarity": "Common",
+                "card_description": "Lose 3 HP. Gain [ironclad_energy_icon.png][ironclad_energy_icon.png].",
+                "keywords": [
+                    {
+                        "name": "Energy",
+                        "description": "Energy is used to play cards from your Hand."
+                    }
+                ]
+            },
+            {
+                "index": 3,
+                "category": "card",
+                "cost": 78,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": false,
+                "card_id": "BATTLE_TRANCE",
+                "card_name": "Battle Trance",
+                "card_type": "Skill",
+                "card_rarity": "Uncommon",
+                "card_description": "Draw 3 cards. You cannot draw additional cards this turn.",
+                "keywords": []
+            },
+            {
+                "index": 4,
+                "category": "card",
+                "cost": 145,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": false,
+                "card_id": "HELLRAISER",
+                "card_name": "Hellraiser",
+                "card_type": "Power",
+                "card_rarity": "Rare",
+                "card_description": "Whenever you draw a card containing \u201cStrike\u201d, it is played against a random enemy.",
+                "keywords": []
+            },
+            {
+                "index": 5,
+                "category": "card",
+                "cost": 86,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": false,
+                "card_id": "AUTOMATION",
+                "card_name": "Automation",
+                "card_type": "Power",
+                "card_rarity": "Uncommon",
+                "card_description": "Every 10 cards you draw, gain [ironclad_energy_icon.png].",
+                "keywords": [
+                    {
+                        "name": "Energy",
+                        "description": "Energy is used to play cards from your Hand."
+                    }
+                ]
+            },
+            {
+                "index": 6,
+                "category": "card",
+                "cost": 174,
+                "is_stocked": true,
+                "can_afford": true,
+                "on_sale": false,
+                "card_id": "ROLLING_BOULDER",
+                "card_name": "Rolling Boulder",
+                "card_type": "Power",
+                "card_rarity": "Rare",
+                "card_description": "At the start of your turn, deal 5 damage to ALL enemies and increase this damage by 5.",
+                "keywords": []
+            },
+            {
+                "index": 7,
+                "category": "relic",
+                "cost": 242,
+                "is_stocked": true,
+                "can_afford": true,
+                "relic_id": "ORNAMENTAL_FAN",
+                "relic_name": "Ornamental Fan",
+                "relic_description": "Every time you play 3 Attacks in a single turn, gain 4 Block.",
+                "keywords": [
+                    {
+                        "name": "Block",
+                        "description": "Until next turn, prevents damage."
+                    }
+                ]
+            },
+            {
+                "index": 8,
+                "category": "relic",
+                "cost": 228,
+                "is_stocked": true,
+                "can_afford": true,
+                "relic_id": "RED_SKULL",
+                "relic_name": "Red Skull",
+                "relic_description": "While your HP is at or below 50%, you have 3 additional Strength.",
+                "keywords": [
+                    {
+                        "name": "Strength",
+                        "description": "Strength adds additional damage to Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 9,
+                "category": "relic",
+                "cost": 209,
+                "is_stocked": true,
+                "can_afford": true,
+                "relic_id": "DOLLYS_MIRROR",
+                "relic_name": "Dolly's Mirror",
+                "relic_description": "Upon pickup, obtain an additional copy of a card in your Deck.",
+                "keywords": []
+            },
+            {
+                "index": 10,
+                "category": "potion",
+                "cost": 51,
+                "is_stocked": true,
+                "can_afford": true,
+                "potion_id": "BLOCK_POTION",
+                "potion_name": "Block Potion",
+                "potion_description": "Gain 12 Block.",
+                "keywords": [
+                    {
+                        "name": "Block",
+                        "description": "Until next turn, prevents damage."
+                    }
+                ]
+            },
+            {
+                "index": 11,
+                "category": "potion",
+                "cost": 48,
+                "is_stocked": true,
+                "can_afford": true,
+                "potion_id": "STRENGTH_POTION",
+                "potion_name": "Strength Potion",
+                "potion_description": "Gain 2 Strength.",
+                "keywords": [
+                    {
+                        "name": "Strength",
+                        "description": "Strength adds additional damage to Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 12,
+                "category": "potion",
+                "cost": 51,
+                "is_stocked": true,
+                "can_afford": true,
+                "potion_id": "DEXTERITY_POTION",
+                "potion_name": "Dexterity Potion",
+                "potion_description": "Gain 2 Dexterity.",
+                "keywords": [
+                    {
+                        "name": "Dexterity",
+                        "description": "Dexterity improves Block gained from cards."
+                    }
+                ]
+            },
+            {
+                "index": 13,
+                "category": "card_removal",
+                "cost": 75,
+                "is_stocked": true,
+                "can_afford": true
+            }
+        ],
+        "can_proceed": false
+    },
+    "run": {
+        "act": 1,
+        "floor": 14,
+        "ascension": 6
+    }
+}

@@ -91,7 +91,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
     });
   }
 
-  if (gameState.state_type === "shop" && "shop" in gameState) {
+  if (gameState.state_type === "shop") {
     const p = gameState.shop.player;
     setPlayer(player, {
       character: p.character,

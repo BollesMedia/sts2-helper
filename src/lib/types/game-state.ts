@@ -178,14 +178,37 @@ export interface MapState {
   run: RunInfo;
 }
 
+export interface ShopItem {
+  index: number;
+  category: "card" | "relic" | "potion" | "card_removal";
+  cost: number;
+  is_stocked: boolean;
+  can_afford: boolean;
+  on_sale?: boolean;
+  // Card fields
+  card_id?: string;
+  card_name?: string;
+  card_type?: string;
+  card_rarity?: string;
+  card_description?: string;
+  // Relic fields
+  relic_id?: string;
+  relic_name?: string;
+  relic_description?: string;
+  // Potion fields
+  potion_id?: string;
+  potion_name?: string;
+  potion_description?: string;
+  // Shared
+  keywords?: KeywordInfo[];
+}
+
 export interface ShopState {
   state_type: "shop";
   shop: {
     player: PlayerSummary;
-    cards: (DetailedCard & { cost_gold: number; on_sale: boolean; affordable: boolean })[];
-    relics: (GameRelic & { index: number; cost_gold: number; affordable: boolean })[];
-    potions: { index: number; id: string; name: string; description: string; cost_gold: number; affordable: boolean }[];
-    card_removal: { cost: number; affordable: boolean } | null;
+    items: ShopItem[];
+    can_proceed: boolean;
   };
   run: RunInfo;
 }
