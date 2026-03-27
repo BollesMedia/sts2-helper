@@ -96,6 +96,11 @@ export function useMapEvaluation(
       return;
     }
 
+    // Override context gold/HP with map state's player data (most current)
+    const mapPlayer = state.map.player;
+    ctx.gold = mapPlayer.gold;
+    ctx.hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+
     const contextStr = buildPromptContext(ctx);
 
     const optionsStr = options
@@ -128,8 +133,11 @@ export function useMapEvaluation(
           context: ctx,
           mapPrompt: `${contextStr}
 
+Current HP: ${mapPlayer.hp}/${mapPlayer.max_hp} (${Math.round((mapPlayer.hp / Math.max(1, mapPlayer.max_hp)) * 100)}%)
+Gold: ${mapPlayer.gold}g ${mapPlayer.gold < 75 ? "(too low for most shop purchases or card removal)" : mapPlayer.gold < 150 ? "(enough for card removal or 1-2 cheap cards)" : "(healthy gold reserve)"}
+
 Map overview (remaining nodes ahead): ${mapOverview}
-Boss at row ${state.map.boss.row}, currently at row ${currentRow}
+Boss at row ${state.map.boss.row}, currently at row ${currentRow}, ${state.map.boss.row - currentRow} floors to boss
 
 Available paths:
 ${optionsStr}
@@ -138,8 +146,9 @@ Evaluate each path option. Consider:
 - HP safety (do I need healing before hard fights?)
 - Rest site proximity to elites (heal then fight)
 - Deck readiness (is the deck strong enough for elites?)
-- Gold and shop value
+- Gold and shop value (shops are only valuable if gold > 75g for card removal)
 - Total fights on path (fragile decks want fewer)
+- Distance to boss and preparation needed
 
 Respond as JSON:
 {
