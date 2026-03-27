@@ -77,6 +77,7 @@ export function buildPromptContext(ctx: EvaluationContext): string {
       ? ctx.relics.map((r) => `  - ${r.name}: ${r.description}`)
       : ["  none"]),
     `Potions: ${ctx.potionNames.length > 0 ? ctx.potionNames.join(", ") : "empty"}`,
+    `Available gold: ${ctx.gold}g`,
   ];
 
   if (ctx.archetypes.length > 0) {

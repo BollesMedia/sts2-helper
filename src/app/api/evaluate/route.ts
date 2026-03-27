@@ -27,7 +27,7 @@ Evaluate cards by asking:
 4. Is the deck at a size where adding ANY card is a net negative?
 5. Am I evaluating synergy with cards that will be removed (Strike/Defend)?
 
-For shop evaluations: card removal is often the highest-value action. Removing a Strike or Defend frequently outperforms buying a new card. Include a "spending_plan" field with your recommended gold allocation.
+For shop evaluations: card removal is often the highest-value action. Removing a Strike or Defend frequently outperforms buying a new card. Include a "spending_plan" field with a CONCISE recommended gold allocation — only list what the player CAN afford. Do NOT list items that exceed the budget or deliberate about impossible options. One clear recommendation, no alternatives.
 
 Respond in JSON only — no markdown, no code fences.
 IMPORTANT: You MUST include ALL items in your rankings array. Keep reasoning to 1 sentence max for shop evaluations with many items.

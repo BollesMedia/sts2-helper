@@ -140,7 +140,8 @@ export function useMapEvaluation(
           mapPrompt: `${contextStr}
 
 Current HP: ${mapPlayer.hp}/${mapPlayer.max_hp} (${Math.round((mapPlayer.hp / Math.max(1, mapPlayer.max_hp)) * 100)}%)
-Gold: ${mapPlayer.gold}g ${mapPlayer.gold < 75 ? "(too low for most shop purchases or card removal)" : mapPlayer.gold < 150 ? "(enough for card removal or 1-2 cheap cards)" : "(healthy gold reserve)"}
+Gold: ${mapPlayer.gold}g ${mapPlayer.gold < 75 ? "(too low for most shop purchases)" : mapPlayer.gold < 150 ? "(enough for card removal or 1-2 cheap cards)" : "(healthy gold reserve)"}
+Card removal cost: ${player?.cardRemovalCost != null ? `${player.cardRemovalCost}g` : "unknown"} ${player?.cardRemovalCost != null && mapPlayer.gold < player.cardRemovalCost ? "(can't afford)" : ""}
 
 Map overview (remaining nodes ahead): ${mapOverview}
 Boss at row ${state.map.boss.row}, currently at row ${currentRow}, ${state.map.boss.row - currentRow} floors to boss

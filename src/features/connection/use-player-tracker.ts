@@ -13,6 +13,7 @@ export interface TrackedPlayer {
   gold: number;
   maxEnergy: number;
   relics: { id: string; name: string; description: string }[];
+  cardRemovalCost: number | null;
 }
 
 function loadFromStorage(): TrackedPlayer | null {
@@ -64,6 +65,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: p.max_energy,
       relics: p.relics,
+      cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
 
@@ -76,6 +78,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
 
@@ -88,11 +91,15 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
 
   if (gameState.state_type === "shop") {
     const p = gameState.shop.player;
+    const removalItem = gameState.shop.items.find(
+      (i) => i.category === "card_removal"
+    );
     setPlayer(player, {
       character: p.character,
       hp: p.hp,
@@ -100,6 +107,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      cardRemovalCost: removalItem?.cost ?? player.current?.cardRemovalCost ?? null,
     });
   }
 
@@ -112,6 +120,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
 
@@ -124,6 +133,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
 
