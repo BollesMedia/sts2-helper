@@ -52,7 +52,10 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   prevStateType.current = currentType;
 
   // ─── COMBAT: Ground truth sync ───
-  if (isCombatState(gameState) && gameState.battle?.player) {
+  // Only sync on round 1 to avoid counting temporary status/token cards
+  // that enemies add during combat. At round 1 the piles contain only
+  // the player's real deck cards.
+  if (isCombatState(gameState) && gameState.battle?.player && gameState.battle.round <= 1) {
     const p = gameState.battle.player;
     const combatDeck = [
       ...(p.hand ?? []),
