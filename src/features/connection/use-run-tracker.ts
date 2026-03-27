@@ -79,6 +79,15 @@ export function useRunTracker(gameState: GameState | null): string | null {
       }),
     }).catch(console.error);
 
+    // Clear stale deck data from previous run
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("sts2-deck");
+      localStorage.removeItem("sts2-eval-cache");
+      localStorage.removeItem("sts2-shop-eval-cache");
+      localStorage.removeItem("sts2-map-eval-cache");
+      localStorage.removeItem("sts2-event-eval-cache");
+    }
+
     console.log("[RunTracker] New run started:", newRunId, character);
   }
 
