@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import type { Run, Choice } from "@/lib/supabase/helpers";
@@ -17,7 +18,6 @@ async function fetchRuns(): Promise<(Run & { choices: Choice[] })[]> {
   if (error) throw error;
   if (!runs || runs.length === 0) return [];
 
-  // Fetch choices for all runs
   const runIds = runs.map((r) => r.run_id);
   const { data: choices } = await supabase
     .from("choices")
@@ -49,7 +49,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function RunsPage() {
-  const { data: runs, isLoading, error } = useSWR("runs-history", fetchRuns, {
+  const { data: runs, isLoading, error, mutate } = useSWR("runs-history", fetchRuns, {
     revalidateOnFocus: false,
   });
 
@@ -104,7 +104,7 @@ export default function RunsPage() {
 
           <div className="space-y-3">
             {runs?.map((run) => (
-              <RunCard key={run.id} run={run} choices={run.choices} />
+              <RunCard key={run.id} run={run} choices={run.choices} onUpdate={mutate} />
             ))}
           </div>
         </div>
@@ -116,23 +116,30 @@ export default function RunsPage() {
 function RunCard({
   run,
   choices,
+  onUpdate,
 }: {
   run: Run;
   choices: Choice[];
+  onUpdate: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [notes, setNotes] = useState(run.notes ?? "");
+  const [victory, setVictory] = useState(run.victory);
+  const [saving, setSaving] = useState(false);
+
   const outcome =
-    run.victory === true
+    victory === true
       ? "Victory"
-      : run.victory === false
+      : victory === false
         ? "Defeat"
         : run.ended_at
           ? "Quit"
           : "In Progress";
 
   const outcomeColor =
-    run.victory === true
+    victory === true
       ? "text-emerald-400"
-      : run.victory === false
+      : victory === false
         ? "text-red-400"
         : "text-zinc-500";
 
@@ -143,6 +150,23 @@ function RunCard({
   const shopPurchases = choices.filter(
     (c) => c.choice_type === "shop_purchase"
   );
+
+  const handleSave = async () => {
+    setSaving(true);
+    await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "end",
+        runId: run.run_id,
+        victory,
+        notes: notes.trim() || null,
+      }),
+    });
+    setSaving(false);
+    setEditing(false);
+    onUpdate();
+  };
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
@@ -162,9 +186,48 @@ function RunCard({
               Co-op
             </span>
           )}
-          <span className={cn("text-sm font-medium", outcomeColor)}>
-            {outcome}
-          </span>
+
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVictory(true)}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                  victory === true
+                    ? "bg-emerald-400/20 text-emerald-400 border border-emerald-400/40"
+                    : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                Victory
+              </button>
+              <button
+                onClick={() => setVictory(false)}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                  victory === false
+                    ? "bg-red-400/20 text-red-400 border border-red-400/40"
+                    : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                Defeat
+              </button>
+              <button
+                onClick={() => setVictory(null)}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                  victory === null
+                    ? "bg-zinc-700 text-zinc-300 border border-zinc-600"
+                    : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                Quit
+              </button>
+            </div>
+          ) : (
+            <span className={cn("text-sm font-medium", outcomeColor)}>
+              {outcome}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3 text-xs text-zinc-600">
           {run.final_floor && (
@@ -175,6 +238,34 @@ function RunCard({
           )}
           {run.started_at && (
             <span>{formatDuration(run.started_at, run.ended_at)}</span>
+          )}
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-400 hover:bg-blue-500/30 transition-colors"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  setNotes(run.notes ?? "");
+                  setVictory(run.victory);
+                }}
+                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            >
+              Edit
+            </button>
           )}
         </div>
       </div>
@@ -195,10 +286,20 @@ function RunCard({
       )}
 
       {/* Notes */}
-      {run.notes && (
-        <p className="text-sm text-zinc-400 italic leading-relaxed">
-          &ldquo;{run.notes}&rdquo;
-        </p>
+      {editing ? (
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="What went wrong? What would you do differently?"
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+          rows={2}
+        />
+      ) : (
+        run.notes && (
+          <p className="text-sm text-zinc-400 italic leading-relaxed">
+            &ldquo;{run.notes}&rdquo;
+          </p>
+        )
       )}
 
       {/* Card picks detail */}
