@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     try {
       const message = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: mapPromptWithBosses }],
       });
@@ -119,15 +119,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "No response" }, { status: 502 });
       }
 
-      let jsonText = textBlock.text.trim();
-      if (jsonText.startsWith("```")) {
-        jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+      // Extract JSON object from response — find first { to last }
+      const rawText = textBlock.text;
+      const firstBrace = rawText.indexOf("{");
+      const lastBrace = rawText.lastIndexOf("}");
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        return NextResponse.json(
+          { error: "No JSON found in response", detail: rawText.slice(0, 200) },
+          { status: 502 }
+        );
       }
-      // Strip any trailing text after the JSON object
-      const lastBrace = jsonText.lastIndexOf("}");
-      if (lastBrace !== -1 && lastBrace < jsonText.length - 1) {
-        jsonText = jsonText.slice(0, lastBrace + 1);
-      }
+      const jsonText = rawText.slice(firstBrace, lastBrace + 1);
 
       return NextResponse.json(JSON.parse(jsonText));
     } catch (error) {
