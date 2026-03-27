@@ -1,32 +1,48 @@
 "use client";
 
+import { useRef } from "react";
 import { useGameState, ConnectionBanner } from "@/features/connection";
-import type { GameState } from "@/lib/types/game-state";
+import { CardPickView } from "@/features/card-pick/card-pick-view";
+import type { GameState, GameCard, CardRewardState } from "@/lib/types/game-state";
 import { isCombatState, hasPlayer } from "@/lib/types/game-state";
 
-function StateDebugView({ state }: { state: GameState }) {
-  return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="flex items-center gap-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-        <span className="text-sm font-medium text-zinc-300">Connected</span>
-        <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
-          {state.state_type}
-        </span>
-      </div>
-      <GameStateView state={state} />
-    </div>
-  );
+/**
+ * Maintains a reference to the last known deck cards.
+ * Many states (card_reward, combat_rewards) don't include the full deck,
+ * so we capture it from states that do (combat, map, shop, etc).
+ */
+function useDeckTracker(gameState: GameState | null): GameCard[] {
+  const deckCards = useRef<GameCard[]>([]);
+
+  if (gameState && isCombatState(gameState)) {
+    // During combat, hand + draw + discard + exhaust = full deck
+    // But we only have the hand and pile counts, not full contents
+    // For now, store hand cards as a partial signal
+    deckCards.current = gameState.hand;
+  }
+
+  // States with card_select often show the full deck
+  if (gameState?.state_type === "card_select") {
+    deckCards.current = gameState.cards;
+  }
+
+  return deckCards.current;
 }
 
-function GameStateView({ state }: { state: GameState }) {
+function GameStateView({
+  state,
+  deckCards,
+}: {
+  state: GameState;
+  deckCards: GameCard[];
+}) {
   if (isCombatState(state)) {
     return <CombatPlaceholder state={state} />;
   }
 
   switch (state.state_type) {
     case "card_reward":
-      return <PlaceholderView title="Card Reward" state={state} />;
+      return <CardPickView state={state} deckCards={deckCards} />;
     case "shop":
       return <PlaceholderView title="Shop" state={state} />;
     case "map":
@@ -64,7 +80,6 @@ function CombatPlaceholder({
       </h2>
 
       <div className="grid grid-cols-2 gap-4">
-        {/* Player */}
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <h3 className="mb-2 text-sm font-medium text-zinc-400">Player</h3>
           <p className="text-zinc-200">
@@ -76,7 +91,6 @@ function CombatPlaceholder({
           </p>
         </div>
 
-        {/* Enemies */}
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <h3 className="mb-2 text-sm font-medium text-zinc-400">
             Enemies ({state.enemies.length})
@@ -97,7 +111,6 @@ function CombatPlaceholder({
         </div>
       </div>
 
-      {/* Hand */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
         <h3 className="mb-2 text-sm font-medium text-zinc-400">
           Hand ({state.hand.length} cards)
@@ -159,10 +172,22 @@ function PlaceholderView({
 
 export default function Dashboard() {
   const { gameState, connectionStatus } = useGameState();
+  const deckCards = useDeckTracker(gameState);
 
   if (connectionStatus !== "connected" || !gameState) {
     return <ConnectionBanner status={connectionStatus} />;
   }
 
-  return <StateDebugView state={gameState} />;
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="flex items-center gap-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+        <span className="text-sm font-medium text-zinc-300">Connected</span>
+        <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
+          {gameState.state_type}
+        </span>
+      </div>
+      <GameStateView state={gameState} deckCards={deckCards} />
+    </div>
+  );
 }
