@@ -3,6 +3,8 @@
 import { useGameState, ConnectionBanner } from "@/features/connection";
 import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@/features/connection/use-player-tracker";
+import { useRunTracker } from "@/features/connection/use-run-tracker";
+import { useChoiceTracker } from "@/evaluation/choice-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
 import { MapView } from "@/features/map/map-view";
@@ -90,10 +92,12 @@ function GameStateView({
   state,
   deckCards,
   player,
+  runId,
 }: {
   state: GameState;
   deckCards: CombatCard[];
   player: TrackedPlayer | null;
+  runId: string | null;
 }) {
   if (isCombatState(state)) {
     return <CombatView state={state} />;
@@ -101,9 +105,9 @@ function GameStateView({
 
   switch (state.state_type) {
     case "card_reward":
-      return <CardPickView state={state} deckCards={deckCards} player={player} />;
+      return <CardPickView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "shop":
-      return <ShopView state={state} deckCards={deckCards} player={player} />;
+      return <ShopView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "map":
       return <MapView state={state} player={player} deckCards={deckCards} />;
     case "combat_rewards":
@@ -144,9 +148,7 @@ function CombatView({ state }: { state: CombatState }) {
             <HpBar current={player.hp} max={player.max_hp} />
             <div className="flex items-center gap-3 text-sm font-mono tabular-nums">
               <span className="text-blue-400">{player.energy}/{player.max_energy} E</span>
-              {player.block > 0 && (
-                <span className="text-cyan-400">{player.block} B</span>
-              )}
+              <span className="text-cyan-400">{player.block} B</span>
             </div>
           </div>
         </div>
@@ -309,6 +311,8 @@ export default function Dashboard() {
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
+  const runId = useRunTracker(gameState);
+  useChoiceTracker(gameState, deckCards, runId);
 
   if (connectionStatus !== "connected" || !gameState) {
     return <ConnectionBanner status={connectionStatus} />;
@@ -318,7 +322,7 @@ export default function Dashboard() {
     <div className="flex flex-1 flex-col">
       <AppHeader gameState={gameState} player={player} />
       <main className="flex-1 p-6">
-        <GameStateView state={gameState} deckCards={deckCards} player={player} />
+        <GameStateView state={gameState} deckCards={deckCards} player={player} runId={runId} />
       </main>
     </div>
   );

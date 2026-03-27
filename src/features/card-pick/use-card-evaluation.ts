@@ -48,7 +48,8 @@ interface UseCardEvaluationResult {
 export function useCardEvaluation(
   state: CardRewardState,
   deckCards: CombatCard[],
-  player: TrackedPlayer | null
+  player: TrackedPlayer | null,
+  runId: string | null = null
 ): UseCardEvaluationResult {
   const cards = state.card_reward.cards;
   const cardKey = cards.map((c) => c.id).sort().join(",");
@@ -109,7 +110,7 @@ export function useCardEvaluation(
             type: card.type,
             rarity: card.rarity,
           })),
-          runId: null,
+          runId,
           gameVersion: null,
         }),
       });
@@ -126,7 +127,7 @@ export function useCardEvaluation(
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player, cards, cardKey]);
+  }, [state, deckCards, player, cards, cardKey, runId]);
 
   // Trigger evaluation (not in useEffect — runs during render check)
   if (cardKey !== evaluatedKey.current && !isLoading) {

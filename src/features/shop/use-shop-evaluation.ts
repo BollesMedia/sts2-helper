@@ -68,7 +68,8 @@ interface UseShopEvaluationResult {
 export function useShopEvaluation(
   state: ShopState,
   deckCards: CombatCard[],
-  player: TrackedPlayer | null
+  player: TrackedPlayer | null,
+  runId: string | null = null
 ): UseShopEvaluationResult {
   const shopItems = state.shop.items.filter((i) => i.is_stocked);
   const shopKey = shopItems.map((i) => getItemId(i)).sort().join(",");
@@ -126,7 +127,7 @@ export function useShopEvaluation(
           type: "shop",
           context: ctx,
           items,
-          runId: null,
+          runId,
           gameVersion: null,
         }),
       });
@@ -143,7 +144,7 @@ export function useShopEvaluation(
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player, shopItems, shopKey]);
+  }, [state, deckCards, player, shopItems, shopKey, runId]);
 
   if (shopKey !== evaluatedKey.current && !isLoading) {
     evaluate();

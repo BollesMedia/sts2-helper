@@ -15,13 +15,15 @@ interface ShopViewProps {
   state: ShopState;
   deckCards: CombatCard[];
   player: TrackedPlayer | null;
+  runId: string | null;
 }
 
-export function ShopView({ state, deckCards, player }: ShopViewProps) {
+export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
   const { evaluation, isLoading, error } = useShopEvaluation(
     state,
     deckCards,
-    player
+    player,
+    runId
   );
 
   const items = state.shop.items.filter((i) => i.is_stocked);
