@@ -161,13 +161,20 @@ ${responseFormat}`;
     const parsed = JSON.parse(jsonText);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
-    // Update item IDs and names from our items array (Claude may return different casing)
+    // Update item IDs and names from our items array
+    // Claude may return different casing, add/remove "+" suffix, or use underscored names
     for (const ranking of evaluation.rankings) {
+      const normalize = (s: string) =>
+        s.toLowerCase().replace(/[+\s]/g, "").replace(/_/g, "");
+
       const matchingItem = items.find(
-        (item) => item.id.toLowerCase() === ranking.itemId.toLowerCase()
+        (item) =>
+          item.id.toLowerCase() === ranking.itemId.toLowerCase() ||
+          normalize(item.name) === normalize(ranking.itemId) ||
+          normalize(item.id) === normalize(ranking.itemId)
       );
       if (matchingItem) {
-        ranking.itemId = matchingItem.id; // normalize to game's casing
+        ranking.itemId = matchingItem.id;
         ranking.itemName = matchingItem.name;
       }
     }
