@@ -4,6 +4,7 @@ import { useGameState, ConnectionBanner } from "@/features/connection";
 import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@/features/connection/use-player-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
+import { ShopView } from "@/features/shop/shop-view";
 import type {
   GameState,
   CombatState,
@@ -29,7 +30,7 @@ function GameStateView({
     case "card_reward":
       return <CardPickView state={state} deckCards={deckCards} player={player} />;
     case "shop":
-      return <PlaceholderView title="Shop" state={state} />;
+      return <ShopView state={state} deckCards={deckCards} player={player} />;
     case "map":
       return <MapPlaceholder state={state} />;
     case "event":
