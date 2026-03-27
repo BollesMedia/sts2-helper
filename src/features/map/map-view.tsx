@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import type { MapState } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
@@ -9,6 +9,7 @@ import { NODE_TYPE_ICONS } from "./map-scoring";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
+import { RefineInput } from "@/components/refine-input";
 import type { TierLetter } from "@/evaluation/tier-utils";
 
 interface MapViewProps {
@@ -282,6 +283,17 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
           })}
         </svg>
       </div>
+
+      {/* Refine */}
+      {evaluation && (
+        <RefineInput
+          originalContext={`Map evaluation for ${player?.character ?? "unknown"} at Act ${state.run.act}, Floor ${state.run.floor}. HP: ${state.map.player.hp}/${state.map.player.max_hp}. Gold: ${state.map.player.gold}g. Path options: ${next_options.map((o) => o.type).join(", ")}.`}
+          originalResponse={[
+            evaluation.overallAdvice,
+            ...evaluation.rankings.map((r) => `#${r.optionIndex} ${r.nodeType}: ${r.reasoning}`),
+          ].filter(Boolean).join(" ")}
+        />
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
