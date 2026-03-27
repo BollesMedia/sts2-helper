@@ -88,26 +88,55 @@ export function useRestEvaluation(
       return;
     }
 
-    // Override HP from rest site state (most current)
     const restPlayer = state.rest_site.player;
     ctx.hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
     ctx.gold = restPlayer.gold;
 
-    const items = options.map((opt) => ({
-      id: opt.id,
-      name: opt.name,
-      description: opt.description,
-      type: "Rest Site Option",
-    }));
+    const contextStr = buildPromptContext(ctx);
+    const optionsStr = options
+      .map((o, i) => `${i + 1}. ${o.name} (${o.id}): ${o.description}`)
+      .join("\n");
 
     try {
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "card_reward",
+          type: "map",
           context: ctx,
-          items,
+          mapPrompt: `${contextStr}
+
+Current HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%)
+Missing HP: ${restPlayer.max_hp - restPlayer.hp}
+
+REST SITE — you must choose EXACTLY ONE option:
+${optionsStr}
+
+This is an exclusive choice. Rank the options — only #1 is the recommendation.
+Consider:
+- HP threshold: only rest if below ~50% HP or if upcoming path has elites/boss with no other rest
+- Upgrading a key card can be more valuable than healing 20-30 HP
+- At high HP (>70%), almost always upgrade unless boss is next
+- Max HP increase from rest compounds over the run
+
+Respond as JSON:
+{
+  "rankings": [
+    {
+      "item_id": "OPTION_ID",
+      "rank": 1,
+      "tier": "S|A|B|C|D|F",
+      "synergy_score": 0-100,
+      "confidence": 0-100,
+      "recommendation": "strong_pick|good_pick|situational|skip",
+      "reasoning": "1 sentence"
+    }
+  ],
+  "skip_recommended": false,
+  "skip_reasoning": null
+}
+
+The #1 ranked option should be "strong_pick". The other option(s) should be "situational" or "skip" — they are the alternatives you're NOT recommending.`,
           runId,
           gameVersion: null,
         }),
@@ -117,9 +146,48 @@ export function useRestEvaluation(
         throw new Error(`Evaluation failed: ${res.status}`);
       }
 
-      const data: CardRewardEvaluation = await res.json();
-      setEvaluation(data);
-      setCache(restKey, data);
+      const data = await res.json();
+
+      // Parse map-style response into CardRewardEvaluation format
+      const rankings = (data.rankings ?? []).map((r: { item_id: string; rank: number; tier: string; synergy_score: number; confidence: number; recommendation: string; reasoning: string }, i: number) => ({
+        itemId: r.item_id,
+        itemName: r.item_id,
+        itemIndex: i,
+        rank: r.rank,
+        tier: r.tier,
+        tierValue: { S: 6, A: 5, B: 4, C: 3, D: 2, F: 1 }[r.tier] ?? 3,
+        synergyScore: r.synergy_score,
+        confidence: r.confidence,
+        recommendation: r.recommendation,
+        reasoning: r.reasoning,
+        source: "claude" as const,
+      }));
+
+      // Match back to options by ID
+      for (const ranking of rankings) {
+        const rId = ranking.itemId.toLowerCase();
+        const matchIdx = options.findIndex(
+          (o) =>
+            o.id.toLowerCase() === rId ||
+            o.name.toLowerCase() === rId ||
+            rId.includes(o.id.toLowerCase()) ||
+            rId.includes(o.name.toLowerCase())
+        );
+        if (matchIdx !== -1) {
+          ranking.itemId = options[matchIdx].id;
+          ranking.itemName = options[matchIdx].name;
+          ranking.itemIndex = matchIdx;
+        }
+      }
+
+      const evaluation: CardRewardEvaluation = {
+        rankings,
+        skipRecommended: data.skip_recommended ?? false,
+        skipReasoning: data.skip_reasoning ?? null,
+      };
+
+      setEvaluation(evaluation);
+      setCache(restKey, evaluation);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {
