@@ -3,7 +3,7 @@
 import { useGameState, ConnectionBanner } from "@/features/connection";
 import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@/features/connection/use-player-tracker";
-import { useRunTracker } from "@/features/connection/use-run-tracker";
+import { useRunTracker, confirmRunOutcome } from "@/features/connection/use-run-tracker";
 import { useChoiceTracker } from "@/evaluation/choice-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
@@ -94,11 +94,13 @@ function GameStateView({
   deckCards,
   player,
   runId,
+  runState,
 }: {
   state: GameState;
   deckCards: CombatCard[];
   player: TrackedPlayer | null;
   runId: string | null;
+  runState: import("@/features/connection/use-run-tracker").RunState;
 }) {
   if (isCombatState(state)) {
     return <CombatView state={state} />;
@@ -116,7 +118,7 @@ function GameStateView({
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
     case "menu":
-      return <MenuView />;
+      return <MenuView runState={runState} />;
     default:
       return <PlaceholderView title={STATE_LABELS[state.state_type] ?? state.state_type} state={state} />;
   }
@@ -269,16 +271,57 @@ function CombatRewardsView({
 
 // ─── Menu View ───
 
-function MenuView() {
+function MenuView({
+  runState,
+}: {
+  runState: import("@/features/connection/use-run-tracker").RunState;
+}) {
   return (
     <div className="flex flex-1 items-center justify-center">
-      <div className="text-center space-y-3">
-        <h2 className="text-2xl font-semibold text-zinc-200">
-          Waiting for run
-        </h2>
-        <p className="text-sm text-zinc-500">
-          Start a new run in Slay the Spire 2
-        </p>
+      <div className="text-center space-y-4">
+        {runState.pendingOutcome ? (
+          <>
+            <h2 className="text-2xl font-semibold text-zinc-200">
+              Run ended on floor {runState.finalFloor}
+            </h2>
+            <p className="text-sm text-zinc-500">
+              How did it go?
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => {
+                  if (runState.endedRunId) confirmRunOutcome(runState.endedRunId, true);
+                }}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-6 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+              >
+                Victory
+              </button>
+              <button
+                onClick={() => {
+                  if (runState.endedRunId) confirmRunOutcome(runState.endedRunId, false);
+                }}
+                className="rounded-lg border border-red-500/40 bg-red-500/10 px-6 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
+              >
+                Defeat
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-semibold text-zinc-200">
+              Waiting for run
+            </h2>
+            <p className="text-sm text-zinc-500">
+              Start a new run in Slay the Spire 2
+            </p>
+          </>
+        )}
+        <a
+          href="/runs"
+          className="inline-block text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+        >
+          View run history
+        </a>
       </div>
     </div>
   );
@@ -314,8 +357,8 @@ export default function Dashboard() {
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
-  const runId = useRunTracker(gameState);
-  useChoiceTracker(gameState, deckCards, runId);
+  const runState = useRunTracker(gameState);
+  useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {
     return <ConnectionBanner status={connectionStatus} />;
@@ -325,7 +368,7 @@ export default function Dashboard() {
     <div className="flex flex-1 flex-col">
       <AppHeader gameState={gameState} player={player} />
       <main className="flex-1 p-6">
-        <GameStateView state={gameState} deckCards={deckCards} player={player} runId={runId} />
+        <GameStateView state={gameState} deckCards={deckCards} player={player} runId={runState.runId} runState={runState} />
       </main>
     </div>
   );

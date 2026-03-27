@@ -54,18 +54,31 @@ function inferOutcome(
   return null;
 }
 
+export interface RunState {
+  runId: string | null;
+  /** True when the run just ended and we're waiting for user to confirm outcome */
+  pendingOutcome: boolean;
+  /** The run ID of the ended run (for confirming outcome) */
+  endedRunId: string | null;
+  inferredOutcome: boolean | null;
+  finalFloor: number;
+}
+
 /**
  * Tracks run lifecycle: detects new run start (menu → in-run),
  * creates a run record in Supabase, and detects run end (back to menu).
  * Infers victory/death from the last known game state.
  */
-export function useRunTracker(gameState: GameState | null): string | null {
+export function useRunTracker(gameState: GameState | null): RunState {
   const runId = useRef<string | null>(null);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
   const runStarted = useRef(false);
   const lastFloor = useRef(0);
   const lastWasBoss = useRef(false);
+  const pendingOutcome = useRef(false);
+  const pendingRunId = useRef<string | null>(null);
+  const inferredOutcome = useRef<boolean | null>(null);
 
   if (!initialized.current) {
     initialized.current = true;
@@ -73,7 +86,13 @@ export function useRunTracker(gameState: GameState | null): string | null {
     runStarted.current = runId.current !== null;
   }
 
-  if (!gameState) return runId.current;
+  if (!gameState) return {
+    runId: runId.current,
+    pendingOutcome: pendingOutcome.current,
+    endedRunId: pendingRunId.current,
+    inferredOutcome: inferredOutcome.current,
+    finalFloor: lastFloor.current,
+  };
 
   const currentType = gameState.state_type;
   const prevType = prevStateType.current;
@@ -137,8 +156,13 @@ export function useRunTracker(gameState: GameState | null): string | null {
     const endedRunId = runId.current;
     if (endedRunId) {
       const victory = inferOutcome(prevType, lastWasBoss.current);
-      const outcomeLabel = victory === true ? "VICTORY" : victory === false ? "DEATH" : "QUIT";
 
+      // Set pending outcome for UI buttons
+      pendingOutcome.current = true;
+      pendingRunId.current = endedRunId;
+      inferredOutcome.current = victory;
+
+      // Log end with inferred outcome (user can override via buttons)
       fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -150,6 +174,7 @@ export function useRunTracker(gameState: GameState | null): string | null {
         }),
       }).catch(console.error);
 
+      const outcomeLabel = victory === true ? "VICTORY" : victory === false ? "DEATH" : "QUIT";
       console.log(`[RunTracker] Run ended (${outcomeLabel}):`, endedRunId, `floor ${lastFloor.current}`);
     }
 
@@ -159,7 +184,35 @@ export function useRunTracker(gameState: GameState | null): string | null {
     saveRunId(null);
   }
 
-  return runId.current;
+  // ─── Clear pending when new run starts ───
+  if (isInRun && pendingOutcome.current) {
+    pendingOutcome.current = false;
+    pendingRunId.current = null;
+    inferredOutcome.current = null;
+  }
+
+  return {
+    runId: runId.current,
+    pendingOutcome: pendingOutcome.current,
+    endedRunId: pendingRunId.current,
+    inferredOutcome: inferredOutcome.current,
+    finalFloor: lastFloor.current,
+  };
+}
+
+/**
+ * Call this to confirm or override the run outcome.
+ */
+export function confirmRunOutcome(runId: string, victory: boolean) {
+  fetch("/api/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "end",
+      runId,
+      victory,
+    }),
+  }).catch(console.error);
 }
 
 function getCharacter(state: GameState): string | null {
