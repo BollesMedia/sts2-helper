@@ -30,7 +30,7 @@ Evaluate cards by asking:
 For shop evaluations: card removal is often the highest-value action. Removing a Strike or Defend frequently outperforms buying a new card. Include a "spending_plan" field with a CONCISE recommended gold allocation — only list what the player CAN afford. Do NOT list items that exceed the budget or deliberate about impossible options. One clear recommendation, no alternatives.
 
 Respond in JSON only — no markdown, no code fences.
-IMPORTANT: You MUST include ALL items in your rankings array. Keep reasoning to 1 sentence max for shop evaluations with many items.
+CRITICAL: Your rankings array MUST contain EXACTLY one entry for EVERY item listed. Do not omit any item, even if it's a skip. Every item gets a tier, score, and reasoning. Missing items is a failure. Keep reasoning to 1 sentence max for shop evaluations with many items.
 
 Confidence calibration:
 - 90-100: Clear-cut (e.g., key archetype card the deck is missing)
@@ -224,23 +224,54 @@ ${responseFormat}`;
       }
     }
 
-    // Fill in any items Claude omitted from its rankings
-    for (let i = 0; i < items.length; i++) {
-      const hasRanking = evaluation.rankings.some((r) => r.itemIndex === i);
-      if (!hasRanking) {
-        evaluation.rankings.push({
-          itemId: items[i].id,
-          itemName: items[i].name,
-          itemIndex: i,
-          rank: evaluation.rankings.length + 1,
-          tier: "C" as const,
-          tierValue: 3,
-          synergyScore: 0,
-          confidence: 0,
-          recommendation: "skip" as const,
-          reasoning: "Not evaluated — likely a low-priority option.",
-          source: "claude" as const,
+    // If Claude omitted items, re-evaluate just the missing ones
+    const missingItems = items.filter(
+      (_, i) => !evaluation.rankings.some((r) => r.itemIndex === i)
+    );
+
+    if (missingItems.length > 0) {
+      try {
+        const retryPrompt = `You missed evaluating these items. Evaluate each one NOW in the same context.
+
+${contextStr}
+
+Missing items:
+${missingItems.map((item, i) => `${i + 1}. ${item.name} (${item.cost ?? ""} ${item.type ?? ""}) — ${item.description}`).join("\n")}
+
+Respond as JSON with ONLY the rankings array for these items:
+{"rankings": [{"item_id": "ID", "rank": 1, "tier": "S|A|B|C|D|F", "synergy_score": 0-100, "confidence": 0-100, "recommendation": "strong_pick|good_pick|situational|skip", "reasoning": "1 sentence"}]}`;
+
+        const retryMsg = await anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: retryPrompt }],
         });
+
+        const retryText = retryMsg.content.find((b) => b.type === "text");
+        if (retryText && retryText.type === "text") {
+          let retryJson = retryText.text.trim();
+          if (retryJson.startsWith("```")) {
+            retryJson = retryJson.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+          }
+          const retryParsed = parseClaudeCardRewardResponse(JSON.parse(retryJson));
+
+          for (const ranking of retryParsed.rankings) {
+            const matchIdx = items.findIndex(
+              (item) =>
+                item.id.toLowerCase() === ranking.itemId.toLowerCase() ||
+                normalize(item.name) === normalize(ranking.itemId)
+            );
+            if (matchIdx !== -1) {
+              ranking.itemId = items[matchIdx].id;
+              ranking.itemName = items[matchIdx].name;
+              ranking.itemIndex = matchIdx;
+              evaluation.rankings.push(ranking);
+            }
+          }
+        }
+      } catch (retryError) {
+        console.error("Retry evaluation failed:", retryError);
       }
     }
 
