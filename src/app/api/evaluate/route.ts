@@ -122,6 +122,11 @@ export async function POST(request: Request) {
       if (jsonText.startsWith("```")) {
         jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
       }
+      // Strip any trailing text after the JSON object
+      const lastBrace = jsonText.lastIndexOf("}");
+      if (lastBrace !== -1 && lastBrace < jsonText.length - 1) {
+        jsonText = jsonText.slice(0, lastBrace + 1);
+      }
 
       return NextResponse.json(JSON.parse(jsonText));
     } catch (error) {
@@ -241,10 +246,14 @@ ${responseFormat}`;
       );
     }
 
-    // Strip markdown code fences if Claude wraps the response
+    // Strip markdown code fences and trailing text after JSON
     let jsonText = textBlock.text.trim();
     if (jsonText.startsWith("```")) {
       jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+    }
+    const lastBrace = jsonText.lastIndexOf("}");
+    if (lastBrace !== -1 && lastBrace < jsonText.length - 1) {
+      jsonText = jsonText.slice(0, lastBrace + 1);
     }
 
     const parsed = JSON.parse(jsonText);
