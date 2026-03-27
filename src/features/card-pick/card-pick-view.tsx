@@ -11,10 +11,11 @@ interface CardPickViewProps {
   deckCards: CombatCard[];
   player: TrackedPlayer | null;
   runId: string | null;
+  exclusive?: boolean;
 }
 
-export function CardPickView({ state, deckCards, player, runId }: CardPickViewProps) {
-  const { evaluation, isLoading, error } = useCardEvaluation(state, deckCards, player, runId);
+export function CardPickView({ state, deckCards, player, runId, exclusive = true }: CardPickViewProps) {
+  const { evaluation, isLoading, error } = useCardEvaluation(state, deckCards, player, runId, exclusive);
   const cards = state.card_reward.cards;
 
   return (

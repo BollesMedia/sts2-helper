@@ -120,9 +120,12 @@ function GameStateView({
       return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "rest_site":
       return <RestSiteView state={state} deckCards={deckCards} player={player} runId={runId} />;
-    case "card_select":
-      if (state.card_select.screen_type === "simple_select" || state.card_select.screen_type === "choose") {
-        // Treat as a card reward evaluation — same cards, same decision
+    case "card_select": {
+      const screenType = state.card_select.screen_type;
+      if (screenType === "simple_select" || screenType === "choose") {
+        // simple_select from events/mystery nodes can be multi-pick
+        // card_reward is always exclusive (handled separately)
+        const isMultiSelect = screenType === "simple_select";
         const asCardReward = {
           state_type: "card_reward" as const,
           card_reward: {
@@ -134,11 +137,12 @@ function GameStateView({
         return (
           <div className="flex flex-col gap-6">
             <p className="text-sm text-zinc-400">{state.card_select.prompt}</p>
-            <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} />
+            <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
           </div>
         );
       }
       return <PlaceholderView title="Card Select" state={state} />;
+    }
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
     case "menu":

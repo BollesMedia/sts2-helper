@@ -49,7 +49,8 @@ export function useCardEvaluation(
   state: CardRewardState,
   deckCards: CombatCard[],
   player: TrackedPlayer | null,
-  runId: string | null = null
+  runId: string | null = null,
+  exclusive: boolean = true
 ): UseCardEvaluationResult {
   const cards = state.card_reward.cards;
   const cardKey = cards.map((c) => c.id).sort().join(",");
@@ -101,6 +102,7 @@ export function useCardEvaluation(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "card_reward",
+          exclusive,
           context: ctx,
           items: cards.map((card) => ({
             id: card.id,
@@ -127,7 +129,7 @@ export function useCardEvaluation(
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player, cards, cardKey, runId]);
+  }, [state, deckCards, player, cards, cardKey, runId, exclusive]);
 
   // Trigger evaluation (not in useEffect — runs during render check)
   if (cardKey !== evaluatedKey.current && !isLoading) {

@@ -77,6 +77,7 @@ Confidence calibration:
 interface EvaluateRequest {
   type: "card_reward" | "shop" | "map";
   context: EvaluationContext;
+  exclusive?: boolean;
   items?: {
     id: string;
     name: string;
@@ -188,9 +189,16 @@ export async function POST(request: Request) {
     )
     .join("\n");
 
+  const isExclusive = body.exclusive !== false; // default true for card_reward
+
+  const exclusiveInstructions = isExclusive
+    ? `\nThis is an EXCLUSIVE choice — you can only pick ONE card (or skip). Rank them against each other. Only the #1 pick should be "strong_pick" or "good_pick". Lower-ranked options should be "situational" or "skip" since they are alternatives you're NOT recommending.`
+    : `\nYou may select MULTIPLE cards here. Evaluate each card independently — multiple cards can be "strong_pick" if they're all worth adding.`;
+
   const responseFormat =
     type === "card_reward"
-      ? `{
+      ? `${exclusiveInstructions}
+{
   "rankings": [
     {
       "item_id": "CARD_ID",
@@ -203,7 +211,7 @@ export async function POST(request: Request) {
     }
   ],
   "skip_recommended": false,
-  "skip_reasoning": "Only if skip is better than all options"
+  "skip_reasoning": "Only if skip/none is better than all options"
 }`
       : `{
   "rankings": [
