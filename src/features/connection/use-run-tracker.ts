@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { GameState } from "@/lib/types/game-state";
 import { hasRun, isCombatState } from "@/lib/types/game-state";
 
@@ -62,6 +62,8 @@ export interface RunState {
   endedRunId: string | null;
   inferredOutcome: boolean | null;
   finalFloor: number;
+  /** Call to confirm the outcome and dismiss the buttons */
+  confirmOutcome: (victory: boolean) => void;
 }
 
 /**
@@ -76,9 +78,11 @@ export function useRunTracker(gameState: GameState | null): RunState {
   const runStarted = useRef(false);
   const lastFloor = useRef(0);
   const lastWasBoss = useRef(false);
-  const pendingOutcome = useRef(false);
-  const pendingRunId = useRef<string | null>(null);
-  const inferredOutcome = useRef<boolean | null>(null);
+  const [pending, setPending] = useState<{
+    active: boolean;
+    runId: string | null;
+    inferred: boolean | null;
+  }>({ active: false, runId: null, inferred: null });
 
   if (!initialized.current) {
     initialized.current = true;
@@ -86,12 +90,20 @@ export function useRunTracker(gameState: GameState | null): RunState {
     runStarted.current = runId.current !== null;
   }
 
+  const confirmOutcome = useCallback((victory: boolean) => {
+    if (pending.runId) {
+      confirmRunOutcome(pending.runId, victory);
+    }
+    setPending({ active: false, runId: null, inferred: null });
+  }, [pending.runId]);
+
   if (!gameState) return {
     runId: runId.current,
-    pendingOutcome: pendingOutcome.current,
-    endedRunId: pendingRunId.current,
-    inferredOutcome: inferredOutcome.current,
+    pendingOutcome: pending.active,
+    endedRunId: pending.runId,
+    inferredOutcome: pending.inferred,
     finalFloor: lastFloor.current,
+    confirmOutcome,
   };
 
   const currentType = gameState.state_type;
@@ -158,9 +170,7 @@ export function useRunTracker(gameState: GameState | null): RunState {
       const victory = inferOutcome(prevType, lastWasBoss.current);
 
       // Set pending outcome for UI buttons
-      pendingOutcome.current = true;
-      pendingRunId.current = endedRunId;
-      inferredOutcome.current = victory;
+      setPending({ active: true, runId: endedRunId, inferred: victory });
 
       // Log end with inferred outcome (user can override via buttons)
       fetch("/api/run", {
@@ -185,18 +195,17 @@ export function useRunTracker(gameState: GameState | null): RunState {
   }
 
   // ─── Clear pending when new run starts ───
-  if (isInRun && pendingOutcome.current) {
-    pendingOutcome.current = false;
-    pendingRunId.current = null;
-    inferredOutcome.current = null;
+  if (isInRun && pending.active) {
+    setPending({ active: false, runId: null, inferred: null });
   }
 
   return {
     runId: runId.current,
-    pendingOutcome: pendingOutcome.current,
-    endedRunId: pendingRunId.current,
-    inferredOutcome: inferredOutcome.current,
+    pendingOutcome: pending.active,
+    endedRunId: pending.runId,
+    inferredOutcome: pending.inferred,
     finalFloor: lastFloor.current,
+    confirmOutcome,
   };
 }
 

@@ -3,7 +3,7 @@
 import { useGameState, ConnectionBanner } from "@/features/connection";
 import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@/features/connection/use-player-tracker";
-import { useRunTracker, confirmRunOutcome } from "@/features/connection/use-run-tracker";
+import { useRunTracker } from "@/features/connection/use-run-tracker";
 import { useChoiceTracker } from "@/evaluation/choice-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
@@ -289,17 +289,13 @@ function MenuView({
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
-                onClick={() => {
-                  if (runState.endedRunId) confirmRunOutcome(runState.endedRunId, true);
-                }}
+                onClick={() => runState.confirmOutcome(true)}
                 className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-6 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
               >
                 Victory
               </button>
               <button
-                onClick={() => {
-                  if (runState.endedRunId) confirmRunOutcome(runState.endedRunId, false);
-                }}
+                onClick={() => runState.confirmOutcome(false)}
                 className="rounded-lg border border-red-500/40 bg-red-500/10 px-6 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
               >
                 Defeat
