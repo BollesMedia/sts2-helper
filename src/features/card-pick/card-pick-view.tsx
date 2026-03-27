@@ -58,10 +58,15 @@ export function CardPickView({ state, deckCards, player }: CardPickViewProps) {
           </>
         ) : (
           cards.map((card) => {
+            const normalize = (s: string) =>
+              s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
             const cardEval = evaluation?.rankings.find(
               (r) =>
                 r.itemId.toLowerCase() === card.id.toLowerCase() ||
-                r.itemName.toLowerCase() === card.name.toLowerCase()
+                r.itemName.toLowerCase() === card.name.toLowerCase() ||
+                normalize(r.itemId) === normalize(card.id) ||
+                normalize(r.itemId) === normalize(card.name) ||
+                normalize(r.itemName) === normalize(card.name)
             );
             return (
               <CardRating
