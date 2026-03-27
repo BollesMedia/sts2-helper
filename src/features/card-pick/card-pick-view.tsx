@@ -5,6 +5,7 @@ import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "@/components/loading-skeleton";
+import { RefineInput } from "@/components/refine-input";
 
 interface CardPickViewProps {
   state: CardRewardState;
@@ -80,6 +81,16 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
 
       {error && (
         <p className="text-sm text-red-400">{error}</p>
+      )}
+
+      {evaluation && !isLoading && (
+        <RefineInput
+          originalContext={`Card reward: ${cards.map((c) => c.name).join(", ")}. Deck size: ${deckCards.length}. Character: ${player?.character ?? "unknown"}.`}
+          originalResponse={[
+            evaluation.skipRecommended ? `Skip recommended: ${evaluation.skipReasoning}` : null,
+            ...evaluation.rankings.map((r) => `#${r.rank} ${r.itemName}: ${r.reasoning}`),
+          ].filter(Boolean).join(" ")}
+        />
       )}
 
       {state.card_reward.can_skip && !evaluation?.skipRecommended && (

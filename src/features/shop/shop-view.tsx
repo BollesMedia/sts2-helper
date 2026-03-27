@@ -10,6 +10,7 @@ import {
 } from "./use-shop-evaluation";
 import { ShopItemCard } from "./shop-item-card";
 import { CardSkeleton } from "@/components/loading-skeleton";
+import { RefineInput } from "@/components/refine-input";
 
 interface ShopViewProps {
   state: ShopState;
@@ -173,6 +174,16 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
             </div>
           )}
         </>
+      )}
+
+      {evaluation && !isLoading && (
+        <RefineInput
+          originalContext={`Shop with ${items.length} items. Gold: ${state.shop.player.gold}g. Items: ${items.map((i) => getItemName(i)).join(", ")}.`}
+          originalResponse={[
+            evaluation.spendingPlan,
+            ...evaluation.rankings.map((r) => `#${r.rank} ${r.itemName}: ${r.reasoning}`),
+          ].filter(Boolean).join(" ")}
+        />
       )}
     </div>
   );

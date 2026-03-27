@@ -9,6 +9,7 @@ import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { TierLetter } from "@/evaluation/tier-utils";
 import { useRestEvaluation } from "./use-rest-evaluation";
 import { CardSkeleton } from "@/components/loading-skeleton";
+import { RefineInput } from "@/components/refine-input";
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
   strong_pick: "border-emerald-500/40",
@@ -153,6 +154,13 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
           })
         )}
       </div>
+
+      {evaluation && !isLoading && (
+        <RefineInput
+          originalContext={`Rest site. HP: ${restPlayer.hp}/${restPlayer.max_hp}. Options: ${options.map((o) => o.name).join(", ")}.`}
+          originalResponse={evaluation.rankings.map((r) => `#${r.rank} ${r.itemName}: ${r.reasoning}`).join(" ")}
+        />
+      )}
     </div>
   );
 }

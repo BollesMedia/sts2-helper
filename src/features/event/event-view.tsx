@@ -8,6 +8,7 @@ import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { TierLetter } from "@/evaluation/tier-utils";
 import { useEventEvaluation } from "./use-event-evaluation";
 import { CardSkeleton } from "@/components/loading-skeleton";
+import { RefineInput } from "@/components/refine-input";
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
   strong_pick: "border-emerald-500/40",
@@ -150,6 +151,13 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
           })
         )}
       </div>
+
+      {evaluation && !isLoading && (
+        <RefineInput
+          originalContext={`Event: ${state.event.event_name}. Options: ${options.map((o) => o.title).join(", ")}.`}
+          originalResponse={evaluation.rankings.map((r) => `#${r.rank} ${r.itemName}: ${r.reasoning}`).join(" ")}
+        />
+      )}
     </div>
   );
 }
