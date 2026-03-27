@@ -461,11 +461,16 @@ export type Database = {
       }
       runs: {
         Row: {
+          act_reached: number | null
           ascension_level: number | null
           bosses_fought: string[] | null
+          cause_of_death: string | null
           character: string
           ended_at: string | null
+          final_deck: string[] | null
+          final_deck_size: number | null
           final_floor: number | null
+          final_relics: string[] | null
           game_mode: string
           game_version: string | null
           id: string
@@ -475,11 +480,16 @@ export type Database = {
           victory: boolean | null
         }
         Insert: {
+          act_reached?: number | null
           ascension_level?: number | null
           bosses_fought?: string[] | null
+          cause_of_death?: string | null
           character: string
           ended_at?: string | null
+          final_deck?: string[] | null
+          final_deck_size?: number | null
           final_floor?: number | null
+          final_relics?: string[] | null
           game_mode?: string
           game_version?: string | null
           id?: string
@@ -489,11 +499,16 @@ export type Database = {
           victory?: boolean | null
         }
         Update: {
+          act_reached?: number | null
           ascension_level?: number | null
           bosses_fought?: string[] | null
+          cause_of_death?: string | null
           character?: string
           ended_at?: string | null
+          final_deck?: string[] | null
+          final_deck_size?: number | null
           final_floor?: number | null
+          final_relics?: string[] | null
           game_mode?: string
           game_version?: string | null
           id?: string

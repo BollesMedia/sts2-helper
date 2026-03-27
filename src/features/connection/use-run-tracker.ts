@@ -30,55 +30,68 @@ function saveRunId(runId: string | null) {
   } catch {}
 }
 
-/**
- * Infer run outcome from the last known state before returning to menu.
- *
- * - Death: last state was combat (monster/elite/boss)
- * - Victory: last state was boss combat or combat_rewards after a boss
- * - Quit: anything else (map, shop, event, etc.)
- */
 function inferOutcome(
   lastStateType: string | null,
-  lastWasBoss: boolean
+  lastWasBoss: boolean,
+  lastPlayerHp: number,
+  lastEnemiesAllDead: boolean
 ): boolean | null {
   if (!lastStateType) return null;
 
-  // Victory: was in boss fight or collecting boss rewards
-  if (lastWasBoss) return true;
+  // Victory: boss fight ended and we moved to combat_rewards (enemies died)
+  if (lastWasBoss && lastEnemiesAllDead) return true;
   if (lastStateType === "combat_rewards" && lastWasBoss) return true;
 
-  // Death: was in any combat
+  // Death: player HP hit 0 in combat
+  if (
+    ["monster", "elite", "boss"].includes(lastStateType) &&
+    lastPlayerHp <= 0
+  ) {
+    return false;
+  }
+
+  // Death: was in combat (but HP might not have updated in time)
   if (["monster", "elite", "boss"].includes(lastStateType)) return false;
 
   // Quit or unknown
   return null;
 }
 
+/**
+ * Call this to confirm or override the run outcome.
+ */
+export function confirmRunOutcome(runId: string, victory: boolean) {
+  fetch("/api/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "end", runId, victory }),
+  }).catch(console.error);
+}
+
 export interface RunState {
   runId: string | null;
-  /** True when the run just ended and we're waiting for user to confirm outcome */
   pendingOutcome: boolean;
-  /** The run ID of the ended run (for confirming outcome) */
   endedRunId: string | null;
   inferredOutcome: boolean | null;
   finalFloor: number;
-  /** Call to confirm the outcome and dismiss the buttons */
   confirmOutcome: (victory: boolean) => void;
 }
 
-/**
- * Tracks run lifecycle: detects new run start (menu → in-run),
- * creates a run record in Supabase, and detects run end (back to menu).
- * Infers victory/death from the last known game state.
- */
 export function useRunTracker(gameState: GameState | null): RunState {
   const runId = useRef<string | null>(null);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
   const runStarted = useRef(false);
   const lastFloor = useRef(0);
+  const lastAct = useRef(1);
   const lastWasBoss = useRef(false);
   const bossesFought = useRef<Set<string>>(new Set());
+  const lastPlayerHp = useRef(0);
+  const lastEnemiesAllDead = useRef(false);
+  const lastDeckNames = useRef<string[]>([]);
+  const lastRelicNames = useRef<string[]>([]);
+  const lastCombatEnemyName = useRef<string | null>(null);
+
   const [pending, setPending] = useState<{
     active: boolean;
     runId: string | null;
@@ -91,58 +104,108 @@ export function useRunTracker(gameState: GameState | null): RunState {
     runStarted.current = runId.current !== null;
   }
 
-  const confirmOutcome = useCallback((victory: boolean) => {
-    if (pending.runId) {
-      confirmRunOutcome(pending.runId, victory);
-    }
-    setPending({ active: false, runId: null, inferred: null });
-  }, [pending.runId]);
+  const confirmOutcome = useCallback(
+    (victory: boolean) => {
+      if (pending.runId) {
+        confirmRunOutcome(pending.runId, victory);
+      }
+      setPending({ active: false, runId: null, inferred: null });
+    },
+    [pending.runId]
+  );
 
-  if (!gameState) return {
-    runId: runId.current,
-    pendingOutcome: pending.active,
-    endedRunId: pending.runId,
-    inferredOutcome: pending.inferred,
-    finalFloor: lastFloor.current,
-    confirmOutcome,
-  };
+  if (!gameState)
+    return {
+      runId: runId.current,
+      pendingOutcome: pending.active,
+      endedRunId: pending.runId,
+      inferredOutcome: pending.inferred,
+      finalFloor: lastFloor.current,
+      confirmOutcome,
+    };
 
   const currentType = gameState.state_type;
   const prevType = prevStateType.current;
   prevStateType.current = currentType;
 
-  // Track floor and boss state for outcome inference
+  // ─── Track run state for analytics ───
   if (hasRun(gameState)) {
     lastFloor.current = gameState.run.floor;
+    lastAct.current = gameState.run.act;
   }
-  if (currentType === "boss" && isCombatState(gameState) && gameState.battle?.enemies) {
+
+  // Track player HP and enemy state for outcome detection
+  if (isCombatState(gameState) && gameState.battle?.player) {
+    lastPlayerHp.current = gameState.battle.player.hp;
+    lastEnemiesAllDead.current = gameState.battle.enemies.every(
+      (e) => e.hp <= 0
+    );
+    // Track combat enemy for cause of death
+    if (gameState.battle.enemies.length > 0) {
+      const mainEnemy = gameState.battle.enemies.find(
+        (e) => !e.status?.some((s) => s.name === "Minion")
+      );
+      lastCombatEnemyName.current =
+        mainEnemy?.name ?? gameState.battle.enemies[0].name;
+    }
+  }
+
+  // Track deck and relics from any state that has them
+  if (isCombatState(gameState) && gameState.battle?.player) {
+    const p = gameState.battle.player;
+    const deck = [
+      ...(p.hand ?? []),
+      ...(p.draw_pile ?? []),
+      ...(p.discard_pile ?? []),
+      ...(p.exhaust_pile ?? []),
+    ];
+    if (deck.length > 0) {
+      lastDeckNames.current = deck.map((c) => c.name);
+    }
+    if (p.relics.length > 0) {
+      lastRelicNames.current = p.relics.map((r) => r.name);
+    }
+  }
+
+  // Track bosses
+  if (
+    currentType === "boss" &&
+    isCombatState(gameState) &&
+    gameState.battle?.enemies
+  ) {
     lastWasBoss.current = true;
     for (const enemy of gameState.battle.enemies) {
-      // Strip numeric suffix and "Minion" tagged enemies
-      const isMinion = enemy.status?.some((s) => s.id === "MINION" || s.name === "Minion");
+      const isMinion = enemy.status?.some(
+        (s) => s.id === "MINION" || s.name === "Minion"
+      );
       if (!isMinion) {
         bossesFought.current.add(enemy.name);
       }
     }
   }
-  // Reset boss flag when moving to non-combat after boss rewards
-  if (
-    prevType === "combat_rewards" &&
-    !["monster", "elite", "boss"].includes(currentType)
-  ) {
-    // Keep lastWasBoss if we just beat a boss and are collecting rewards
+
+  // Boss victory: moved from boss combat to combat_rewards
+  if (prevType === "boss" && currentType === "combat_rewards") {
+    lastEnemiesAllDead.current = true;
   }
 
   const isInRun = currentType !== "menu";
   const wasInMenu = prevType === "menu" || prevType === null;
 
-  // ─── New run detected: was in menu, now in a run ───
+  // ─── New run detected ───
   if (isInRun && wasInMenu && !runStarted.current) {
     const newRunId = generateRunId();
     runId.current = newRunId;
     runStarted.current = true;
     lastWasBoss.current = false;
     lastFloor.current = 0;
+    lastAct.current = 1;
+    lastPlayerHp.current = 0;
+    lastEnemiesAllDead.current = false;
+    lastDeckNames.current = [];
+    lastRelicNames.current = [];
+    lastCombatEnemyName.current = null;
+    bossesFought.current = new Set();
     saveRunId(newRunId);
 
     const character = getCharacter(gameState);
@@ -160,7 +223,6 @@ export function useRunTracker(gameState: GameState | null): RunState {
       }),
     }).catch(console.error);
 
-    // Clear stale data from previous run
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
       localStorage.removeItem("sts2-eval-cache");
@@ -173,16 +235,30 @@ export function useRunTracker(gameState: GameState | null): RunState {
     console.log("[RunTracker] New run started:", newRunId, character);
   }
 
-  // ─── Run ended: was in a run, now in menu ───
-  if (currentType === "menu" && prevType !== "menu" && prevType !== null && runStarted.current) {
+  // ─── Run ended ───
+  if (
+    currentType === "menu" &&
+    prevType !== "menu" &&
+    prevType !== null &&
+    runStarted.current
+  ) {
     const endedRunId = runId.current;
     if (endedRunId) {
-      const victory = inferOutcome(prevType, lastWasBoss.current);
+      const victory = inferOutcome(
+        prevType,
+        lastWasBoss.current,
+        lastPlayerHp.current,
+        lastEnemiesAllDead.current
+      );
 
-      // Set pending outcome for UI buttons
+      // Determine cause of death
+      let causeOfDeath: string | null = null;
+      if (victory === false && lastCombatEnemyName.current) {
+        causeOfDeath = lastCombatEnemyName.current;
+      }
+
       setPending({ active: true, runId: endedRunId, inferred: victory });
 
-      // Log end with inferred outcome (user can override via buttons)
       const bossNames = [...bossesFought.current];
 
       fetch("/api/run", {
@@ -194,11 +270,27 @@ export function useRunTracker(gameState: GameState | null): RunState {
           victory,
           finalFloor: lastFloor.current,
           bossesFought: bossNames.length > 0 ? bossNames : null,
+          finalDeck: lastDeckNames.current.length > 0 ? lastDeckNames.current : null,
+          finalRelics: lastRelicNames.current.length > 0 ? lastRelicNames.current : null,
+          finalDeckSize: lastDeckNames.current.length || null,
+          actReached: lastAct.current,
+          causeOfDeath,
         }),
       }).catch(console.error);
 
-      const outcomeLabel = victory === true ? "VICTORY" : victory === false ? "DEATH" : "QUIT";
-      console.log(`[RunTracker] Run ended (${outcomeLabel}):`, endedRunId, `floor ${lastFloor.current}`, bossNames);
+      const outcomeLabel =
+        victory === true
+          ? "VICTORY"
+          : victory === false
+            ? "DEATH"
+            : "QUIT";
+      console.log(
+        `[RunTracker] Run ended (${outcomeLabel}):`,
+        endedRunId,
+        `floor ${lastFloor.current}`,
+        causeOfDeath ? `killed by ${causeOfDeath}` : "",
+        `deck: ${lastDeckNames.current.length} cards`
+      );
     }
 
     runId.current = null;
@@ -208,7 +300,7 @@ export function useRunTracker(gameState: GameState | null): RunState {
     saveRunId(null);
   }
 
-  // ─── Clear pending when new run starts ───
+  // Clear pending when new run starts
   if (isInRun && pending.active) {
     setPending({ active: false, runId: null, inferred: null });
   }
@@ -221,21 +313,6 @@ export function useRunTracker(gameState: GameState | null): RunState {
     finalFloor: lastFloor.current,
     confirmOutcome,
   };
-}
-
-/**
- * Call this to confirm or override the run outcome.
- */
-export function confirmRunOutcome(runId: string, victory: boolean) {
-  fetch("/api/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "end",
-      runId,
-      victory,
-    }),
-  }).catch(console.error);
 }
 
 function getCharacter(state: GameState): string | null {

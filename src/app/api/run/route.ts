@@ -26,7 +26,10 @@ export async function POST(request: Request) {
   }
 
   if (action === "end") {
-    const { runId, victory, finalFloor, notes, bossesFought } = body;
+    const {
+      runId, victory, finalFloor, notes, bossesFought,
+      finalDeck, finalRelics, finalDeckSize, actReached, causeOfDeath,
+    } = body;
 
     const update: Record<string, unknown> = {
       ended_at: new Date().toISOString(),
@@ -35,6 +38,11 @@ export async function POST(request: Request) {
     if (finalFloor !== undefined) update.final_floor = finalFloor;
     if (notes !== undefined) update.notes = notes;
     if (bossesFought !== undefined) update.bosses_fought = bossesFought;
+    if (finalDeck !== undefined) update.final_deck = finalDeck;
+    if (finalRelics !== undefined) update.final_relics = finalRelics;
+    if (finalDeckSize !== undefined) update.final_deck_size = finalDeckSize;
+    if (actReached !== undefined) update.act_reached = actReached;
+    if (causeOfDeath !== undefined) update.cause_of_death = causeOfDeath;
 
     const { error } = await supabase
       .from("runs")
