@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CardRewardState, GameCard } from "@/lib/types/game-state";
+import type { CardRewardState, CombatCard } from "@/lib/types/game-state";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
 
@@ -17,7 +17,7 @@ interface UseCardEvaluationResult {
  */
 export function useCardEvaluation(
   state: CardRewardState,
-  deckCards: GameCard[]
+  deckCards: CombatCard[]
 ): UseCardEvaluationResult {
   const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +27,8 @@ export function useCardEvaluation(
   const evaluatedKey = useRef<string>("");
 
   const evaluate = useCallback(async () => {
-    const cardKey = state.cards.map((c) => c.id).sort().join(",");
+    const cards = state.card_reward.cards;
+    const cardKey = cards.map((c) => c.id).sort().join(",");
     if (cardKey === evaluatedKey.current) return;
 
     evaluatedKey.current = cardKey;
@@ -35,8 +36,6 @@ export function useCardEvaluation(
     setError(null);
 
     const ctx: EvaluationContext | null = buildEvaluationContext(
-      // card_reward doesn't have player, so we need deck cards passed in
-      // We'll build a minimal context
       state,
       deckCards
     );
@@ -54,7 +53,7 @@ export function useCardEvaluation(
         body: JSON.stringify({
           type: "card_reward",
           context: ctx,
-          items: state.cards.map((card) => ({
+          items: cards.map((card) => ({
             id: card.id,
             name: card.name,
             description: card.description,
@@ -62,7 +61,7 @@ export function useCardEvaluation(
             type: card.type,
             rarity: card.rarity,
           })),
-          runId: null, // TODO: wire up run tracking
+          runId: null,
           gameVersion: null,
         }),
       });

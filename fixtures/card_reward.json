@@ -1,0 +1,64 @@
+{
+    "state_type": "card_reward",
+    "card_reward": {
+        "cards": [
+            {
+                "index": 0,
+                "id": "SETUP_STRIKE",
+                "name": "Setup Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 7 damage. Gain 2 Strength this turn.",
+                "rarity": "Common",
+                "is_upgraded": false,
+                "keywords": [
+                    {
+                        "name": "Strength",
+                        "description": "Strength adds additional damage to Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 1,
+                "id": "TREMBLE",
+                "name": "Tremble",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Apply 2 Vulnerable.",
+                "rarity": "Common",
+                "is_upgraded": false,
+                "keywords": [
+                    {
+                        "name": "Vulnerable",
+                        "description": "Vulnerable creatures take 50% more damage from Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 2,
+                "id": "BLOOD_WALL",
+                "name": "Blood Wall",
+                "type": "Skill",
+                "cost": "2",
+                "star_cost": null,
+                "description": "Lose 2 HP. Gain 16 Block.",
+                "rarity": "Common",
+                "is_upgraded": false,
+                "keywords": [
+                    {
+                        "name": "Block",
+                        "description": "Until next turn, prevents damage."
+                    }
+                ]
+            }
+        ],
+        "can_skip": true
+    },
+    "run": {
+        "act": 1,
+        "floor": 1,
+        "ascension": 0
+    }
+}

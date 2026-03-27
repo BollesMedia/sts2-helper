@@ -1,0 +1,32 @@
+{
+    "state_type": "combat_rewards",
+    "rewards": {
+        "player": {
+            "character": "The Ironclad",
+            "hp": 80,
+            "max_hp": 80,
+            "gold": 99,
+            "potion_slots": 3,
+            "open_potion_slots": 3
+        },
+        "items": [
+            {
+                "index": 0,
+                "type": "gold",
+                "description": "14 Gold",
+                "gold_amount": 14
+            },
+            {
+                "index": 1,
+                "type": "card",
+                "description": "Add a card to your deck."
+            }
+        ],
+        "can_proceed": true
+    },
+    "run": {
+        "act": 1,
+        "floor": 1,
+        "ascension": 0
+    }
+}

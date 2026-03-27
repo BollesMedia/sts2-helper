@@ -1,0 +1,9 @@
+{
+    "state_type": "monster",
+    "message": "Combat ended. Waiting for rewards...",
+    "run": {
+        "act": 1,
+        "floor": 2,
+        "ascension": 0
+    }
+}

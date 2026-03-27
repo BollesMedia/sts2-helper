@@ -1,55 +1,62 @@
 // Types for the STS2MCP mod REST API (localhost:15526)
-// Source of truth: https://github.com/Gennadiyev/STS2MCP/blob/main/docs/raw_api.md
+// Based on live fixture data captured from v0.3.0
 
 // ============================================
 // Shared sub-types
 // ============================================
 
+export interface KeywordInfo {
+  name: string;
+  description: string;
+}
+
 export interface StatusEffect {
   id: string;
   name: string;
   amount: number;
-  description?: string;
-  keywords?: string[];
+  type: string;
+  description: string;
+  keywords?: KeywordInfo[];
 }
 
-export interface GameCard {
+export interface GameCardBase {
+  name: string;
+  description: string;
+  keywords?: KeywordInfo[];
+}
+
+/** Card in hand/draw/discard during combat — no ID or cost info */
+export interface CombatCard extends GameCardBase {}
+
+/** Card in reward/shop/select screens — has full metadata */
+export interface DetailedCard extends GameCardBase {
   index: number;
   id: string;
-  name: string;
   type: string;
-  cost: number;
-  star_cost?: number | null;
-  description: string;
-  rarity?: string;
-  upgraded: boolean;
-  keywords?: string[];
-  target?: string;
+  cost: string;
+  star_cost: string | null;
+  rarity: string;
+  is_upgraded: boolean;
 }
 
 export interface GameRelic {
   id: string;
   name: string;
   description: string;
-  keywords?: string[];
-}
-
-export interface GamePotion {
-  slot: number;
-  id: string;
-  name: string;
-  description: string;
-  keywords?: string[];
+  counter: number | null;
+  keywords?: KeywordInfo[];
 }
 
 export interface EnemyIntent {
-  title: string;
+  type: string;
   label: string;
+  title: string;
   description: string;
 }
 
 export interface Enemy {
   entity_id: string;
+  combat_id: number;
   name: string;
   hp: number;
   max_hp: number;
@@ -58,40 +65,64 @@ export interface Enemy {
   intents: EnemyIntent[];
 }
 
-export interface Orb {
-  id: string;
-  name: string;
-  passive_amount: number;
-  evoke_amount: number;
+/** Player info during combat — full detail */
+export interface BattlePlayer {
+  character: string;
+  hp: number;
+  max_hp: number;
+  block: number;
+  energy: number;
+  max_energy: number;
+  hand: CombatCard[];
+  draw_pile_count: number;
+  discard_pile_count: number;
+  exhaust_pile_count: number;
+  draw_pile: CombatCard[];
+  discard_pile: CombatCard[];
+  exhaust_pile: CombatCard[];
+  gold: number;
+  status: StatusEffect[];
+  relics: GameRelic[];
+  potions: unknown[];
+  stars?: number | null;
 }
 
+/** Player summary on non-combat screens */
 export interface PlayerSummary {
   character: string;
   hp: number;
   max_hp: number;
   gold: number;
-  block: number;
-  energy: number;
-  max_energy: number;
-  stars?: number | null;
-  relics: GameRelic[];
-  potions: (GamePotion | null)[];
-  status: StatusEffect[];
+  potion_slots?: number;
+  open_potion_slots?: number;
+}
+
+export interface RunInfo {
+  act: number;
+  floor: number;
+  ascension: number;
+}
+
+// ============================================
+// Map types
+// ============================================
+
+export interface MapNodePosition {
+  col: number;
+  row: number;
+  type: string;
+}
+
+export interface MapNextOption extends MapNodePosition {
+  index: number;
+  leads_to: MapNodePosition[];
 }
 
 export interface MapNode {
-  x: number;
-  y: number;
+  col: number;
+  row: number;
   type: string;
-  children: { x: number; y: number }[];
-}
-
-export interface MapNextOption {
-  index: number;
-  x: number;
-  y: number;
-  type: string;
-  children_types: string[];
+  children: [number, number][];
 }
 
 // ============================================
@@ -100,156 +131,159 @@ export interface MapNextOption {
 
 export interface CombatState {
   state_type: "monster" | "elite" | "boss";
-  game_mode: "singleplayer";
-  player: PlayerSummary;
-  hand: GameCard[];
-  draw_pile_count: number;
-  discard_pile_count: number;
-  exhaust_pile_count: number;
-  enemies: Enemy[];
-  orbs?: Orb[];
-}
-
-export interface HandSelectState {
-  state_type: "hand_select";
-  game_mode: "singleplayer";
-  mode: "simple_select" | "upgrade_select";
-  prompt: string;
-  selectable_cards: GameCard[];
-  selected_cards: { index: number; name: string }[];
-  confirm_enabled: boolean;
-  player: PlayerSummary;
-  enemies: Enemy[];
-}
-
-export interface CombatRewardsState {
-  state_type: "combat_rewards";
-  game_mode: "singleplayer";
-  player: PlayerSummary;
-  rewards: {
-    index: number;
-    type: string;
-    description: string;
-    [key: string]: unknown;
-  }[];
-  can_proceed: boolean;
+  battle: {
+    round: number;
+    turn: string;
+    is_play_phase: boolean;
+    player: BattlePlayer;
+    enemies: Enemy[];
+  };
+  run: RunInfo;
 }
 
 export interface CardRewardState {
   state_type: "card_reward";
-  game_mode: "singleplayer";
-  cards: GameCard[];
-  can_skip: boolean;
+  card_reward: {
+    cards: DetailedCard[];
+    can_skip: boolean;
+  };
+  run: RunInfo;
+}
+
+export interface CombatRewardsState {
+  state_type: "combat_rewards";
+  rewards: {
+    player: PlayerSummary;
+    items: {
+      index: number;
+      type: string;
+      description: string;
+      gold_amount?: number;
+    }[];
+    can_proceed: boolean;
+  };
+  run: RunInfo;
 }
 
 export interface MapState {
   state_type: "map";
-  game_mode: "singleplayer";
-  player: PlayerSummary;
-  current_position: { x: number; y: number } | null;
-  visited_path: { x: number; y: number }[];
-  next_options: MapNextOption[];
-  map_dag: MapNode[];
-}
-
-export interface ShopItem {
-  index: number;
-  id: string;
-  name: string;
-  description?: string;
-  cost: number;
-  stocked: boolean;
-  affordable: boolean;
-  on_sale?: boolean;
-  keywords?: string[];
-  type?: string;
-  rarity?: string;
-  energy_cost?: number;
+  map: {
+    player: PlayerSummary;
+    current_position: MapNodePosition | null;
+    visited: MapNodePosition[];
+    next_options: MapNextOption[];
+    nodes: MapNode[];
+    boss: { col: number; row: number };
+  };
+  run: RunInfo;
 }
 
 export interface ShopState {
   state_type: "shop";
-  game_mode: "singleplayer";
-  player: PlayerSummary;
-  cards: ShopItem[];
-  relics: ShopItem[];
-  potions: ShopItem[];
-  card_removal: { cost: number; affordable: boolean } | null;
-}
-
-export interface EventOption {
-  index: number;
-  title: string;
-  description: string;
-  locked: boolean;
-  is_proceed: boolean;
-  chosen: boolean;
-  relic?: GameRelic;
-  keywords?: string[];
+  shop: {
+    player: PlayerSummary;
+    cards: (DetailedCard & { cost_gold: number; on_sale: boolean; affordable: boolean })[];
+    relics: (GameRelic & { index: number; cost_gold: number; affordable: boolean })[];
+    potions: { index: number; id: string; name: string; description: string; cost_gold: number; affordable: boolean }[];
+    card_removal: { cost: number; affordable: boolean } | null;
+  };
+  run: RunInfo;
 }
 
 export interface EventState {
   state_type: "event";
-  game_mode: "singleplayer";
-  event_id: string;
-  event_name: string;
-  is_ancient: boolean;
-  in_dialogue: boolean;
-  player: PlayerSummary;
-  options: EventOption[];
+  event: {
+    id: string;
+    name: string;
+    is_ancient: boolean;
+    in_dialogue: boolean;
+    player: PlayerSummary;
+    options: {
+      index: number;
+      title: string;
+      description: string;
+      locked: boolean;
+      is_proceed: boolean;
+      chosen: boolean;
+      relic?: GameRelic;
+      keywords?: KeywordInfo[];
+    }[];
+  };
+  run: RunInfo;
 }
 
 export interface RestSiteState {
   state_type: "rest_site";
-  game_mode: "singleplayer";
-  player: PlayerSummary;
-  options: {
-    index: number;
-    id: string;
-    name: string;
-    description: string;
-    enabled: boolean;
-  }[];
-  can_proceed: boolean;
+  rest_site: {
+    player: PlayerSummary;
+    options: {
+      index: number;
+      id: string;
+      name: string;
+      description: string;
+      enabled: boolean;
+    }[];
+    can_proceed: boolean;
+  };
+  run: RunInfo;
 }
 
 export interface CardSelectState {
   state_type: "card_select";
-  game_mode: "singleplayer";
-  screen_type: "transform" | "upgrade" | "select" | "simple_select" | "choose";
-  prompt: string;
-  player: PlayerSummary;
-  cards: GameCard[];
-  can_confirm: boolean;
-  can_cancel: boolean;
+  card_select: {
+    screen_type: string;
+    prompt: string;
+    player: PlayerSummary;
+    cards: DetailedCard[];
+    can_confirm: boolean;
+    can_cancel: boolean;
+  };
+  run: RunInfo;
+}
+
+export interface HandSelectState {
+  state_type: "hand_select";
+  hand_select: {
+    mode: string;
+    prompt: string;
+    selectable_cards: DetailedCard[];
+    selected_cards: { index: number; name: string }[];
+    confirm_enabled: boolean;
+  };
+  battle: {
+    round: number;
+    turn: string;
+    is_play_phase: boolean;
+    player: BattlePlayer;
+    enemies: Enemy[];
+  };
+  run: RunInfo;
 }
 
 export interface RelicSelectState {
   state_type: "relic_select";
-  game_mode: "singleplayer";
-  prompt: string;
-  player: PlayerSummary;
-  relics: (GameRelic & { index: number })[];
-  can_skip: boolean;
+  relic_select: {
+    prompt: string;
+    player: PlayerSummary;
+    relics: (GameRelic & { index: number })[];
+    can_skip: boolean;
+  };
+  run: RunInfo;
 }
 
 export interface TreasureState {
   state_type: "treasure";
-  game_mode: "singleplayer";
-  player: PlayerSummary;
-  relics: (GameRelic & { index: number; rarity: string })[];
-  can_proceed: boolean;
-}
-
-export interface OverlayState {
-  state_type: "overlay";
-  game_mode: "singleplayer";
-  [key: string]: unknown;
+  treasure: {
+    player: PlayerSummary;
+    relics: (GameRelic & { index: number; rarity: string })[];
+    can_proceed: boolean;
+  };
+  run: RunInfo;
 }
 
 export interface MenuState {
   state_type: "menu";
-  game_mode: "singleplayer";
+  message: string;
 }
 
 export type GameState =
@@ -264,7 +298,6 @@ export type GameState =
   | CardSelectState
   | RelicSelectState
   | TreasureState
-  | OverlayState
   | MenuState;
 
 // ============================================
@@ -279,8 +312,8 @@ export function isCombatState(state: GameState): state is CombatState {
   );
 }
 
-export function hasPlayer(
+export function hasRun(
   state: GameState
-): state is GameState & { player: PlayerSummary } {
-  return "player" in state && state.player !== undefined;
+): state is GameState & { run: RunInfo } {
+  return "run" in state;
 }

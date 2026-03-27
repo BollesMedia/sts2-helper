@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { GameState, GameCard } from "@/lib/types/game-state";
-import { hasPlayer } from "@/lib/types/game-state";
+import type { GameState, CombatCard } from "@/lib/types/game-state";
 
 interface PendingChoice {
   choiceType: string;
@@ -20,7 +19,7 @@ interface PendingChoice {
  */
 export function useChoiceTracker(
   gameState: GameState | null,
-  deckCards: GameCard[]
+  deckCards: CombatCard[]
 ) {
   const pendingChoice = useRef<PendingChoice | null>(null);
   const previousStateType = useRef<string | null>(null);
@@ -37,11 +36,11 @@ export function useChoiceTracker(
       const state = gameState as Extract<GameState, { state_type: "card_reward" }>;
       pendingChoice.current = {
         choiceType: "card_reward",
-        offeredItemIds: state.cards.map((c) => c.id),
+        offeredItemIds: state.card_reward.cards.map((c) => c.id),
         evaluationIds: [],
-        floor: 0, // TODO: get from context
-        act: 1,
-        previousDeckIds: new Set(deckCards.map((c) => c.id)),
+        floor: state.run.floor,
+        act: state.run.act,
+        previousDeckIds: new Set(deckCards.map((c) => c.name)),
       };
     }
 
@@ -49,12 +48,11 @@ export function useChoiceTracker(
     if (prevType === "card_reward" && currentType !== "card_reward") {
       const pending = pendingChoice.current;
       if (pending) {
-        const currentDeckIds = new Set(deckCards.map((c) => c.id));
         const newCards = deckCards.filter(
-          (c) => !pending.previousDeckIds.has(c.id)
+          (c) => !pending.previousDeckIds.has(c.name)
         );
 
-        const chosenItemId = newCards.length > 0 ? newCards[0].id : null;
+        const chosenItemId = newCards.length > 0 ? newCards[0].name : null;
 
         // Log choice async
         logChoice({

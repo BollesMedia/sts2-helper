@@ -1,17 +1,18 @@
 "use client";
 
-import type { CardRewardState, GameCard } from "@/lib/types/game-state";
+import type { CardRewardState, CombatCard } from "@/lib/types/game-state";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "@/components/loading-skeleton";
 
 interface CardPickViewProps {
   state: CardRewardState;
-  deckCards: GameCard[];
+  deckCards: CombatCard[];
 }
 
 export function CardPickView({ state, deckCards }: CardPickViewProps) {
   const { evaluation, isLoading, error } = useCardEvaluation(state, deckCards);
+  const cards = state.card_reward.cards;
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -54,7 +55,7 @@ export function CardPickView({ state, deckCards }: CardPickViewProps) {
             <CardSkeleton />
           </>
         ) : (
-          state.cards.map((card) => {
+          cards.map((card) => {
             const cardEval = evaluation?.rankings.find(
               (r) => r.itemId === card.id
             );
@@ -76,8 +77,7 @@ export function CardPickView({ state, deckCards }: CardPickViewProps) {
         </p>
       )}
 
-      {/* Can skip indicator */}
-      {state.can_skip && (
+      {state.card_reward.can_skip && (
         <p className="text-xs text-zinc-600">You can skip this reward</p>
       )}
     </div>

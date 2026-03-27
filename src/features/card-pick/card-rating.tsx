@@ -2,10 +2,10 @@ import { cn } from "@/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import type { CardEvaluation } from "@/evaluation/types";
-import type { GameCard } from "@/lib/types/game-state";
+import type { DetailedCard } from "@/lib/types/game-state";
 
 interface CardRatingProps {
-  card: GameCard;
+  card: DetailedCard;
   evaluation: CardEvaluation | null;
   rank?: number;
 }
@@ -39,7 +39,7 @@ export function CardRating({ card, evaluation, rank }: CardRatingProps) {
             )}
             <h3 className="font-semibold text-zinc-100 truncate">
               {card.name}
-              {card.upgraded && (
+              {card.is_upgraded && (
                 <span className="ml-1 text-emerald-400">+</span>
               )}
             </h3>
@@ -56,7 +56,7 @@ export function CardRating({ card, evaluation, rank }: CardRatingProps) {
             )}
             <span>·</span>
             <span>{card.cost} energy</span>
-            {card.star_cost != null && card.star_cost > 0 && (
+            {card.star_cost != null && card.star_cost !== "0" && (
               <>
                 <span>+</span>
                 <span>{card.star_cost} star</span>

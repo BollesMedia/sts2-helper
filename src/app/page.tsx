@@ -3,27 +3,28 @@
 import { useRef } from "react";
 import { useGameState, ConnectionBanner } from "@/features/connection";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
-import type { GameState, GameCard, CardRewardState } from "@/lib/types/game-state";
-import { isCombatState, hasPlayer } from "@/lib/types/game-state";
+import type {
+  GameState,
+  CombatState,
+  CombatCard,
+} from "@/lib/types/game-state";
+import { isCombatState, hasRun } from "@/lib/types/game-state";
 
 /**
  * Maintains a reference to the last known deck cards.
- * Many states (card_reward, combat_rewards) don't include the full deck,
- * so we capture it from states that do (combat, map, shop, etc).
+ * During combat we have access to all piles (draw + discard + exhaust + hand).
  */
-function useDeckTracker(gameState: GameState | null): GameCard[] {
-  const deckCards = useRef<GameCard[]>([]);
+function useDeckTracker(gameState: GameState | null): CombatCard[] {
+  const deckCards = useRef<CombatCard[]>([]);
 
   if (gameState && isCombatState(gameState)) {
-    // During combat, hand + draw + discard + exhaust = full deck
-    // But we only have the hand and pile counts, not full contents
-    // For now, store hand cards as a partial signal
-    deckCards.current = gameState.hand;
-  }
-
-  // States with card_select often show the full deck
-  if (gameState?.state_type === "card_select") {
-    deckCards.current = gameState.cards;
+    const p = gameState.battle.player;
+    deckCards.current = [
+      ...p.hand,
+      ...p.draw_pile,
+      ...p.discard_pile,
+      ...p.exhaust_pile,
+    ];
   }
 
   return deckCards.current;
@@ -34,7 +35,7 @@ function GameStateView({
   deckCards,
 }: {
   state: GameState;
-  deckCards: GameCard[];
+  deckCards: CombatCard[];
 }) {
   if (isCombatState(state)) {
     return <CombatPlaceholder state={state} />;
@@ -46,13 +47,13 @@ function GameStateView({
     case "shop":
       return <PlaceholderView title="Shop" state={state} />;
     case "map":
-      return <PlaceholderView title="Map" state={state} />;
+      return <MapPlaceholder state={state} />;
     case "event":
       return <PlaceholderView title="Event" state={state} />;
     case "rest_site":
       return <PlaceholderView title="Rest Site" state={state} />;
     case "combat_rewards":
-      return <PlaceholderView title="Combat Rewards" state={state} />;
+      return <CombatRewardsPlaceholder state={state} />;
     case "card_select":
       return <PlaceholderView title="Card Select" state={state} />;
     case "relic_select":
@@ -68,34 +69,32 @@ function GameStateView({
   }
 }
 
-function CombatPlaceholder({
-  state,
-}: {
-  state: Extract<GameState, { state_type: "monster" | "elite" | "boss" }>;
-}) {
+function CombatPlaceholder({ state }: { state: CombatState }) {
+  const { player, enemies } = state.battle;
+
   return (
     <div className="flex flex-1 flex-col gap-4">
       <h2 className="text-lg font-semibold text-zinc-100">
-        Combat ({state.state_type})
+        Combat ({state.state_type}) — Round {state.battle.round}
       </h2>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <h3 className="mb-2 text-sm font-medium text-zinc-400">Player</h3>
           <p className="text-zinc-200">
-            {state.player.character} — {state.player.hp}/{state.player.max_hp} HP
+            {player.character} — {player.hp}/{player.max_hp} HP
           </p>
           <p className="text-sm text-zinc-500">
-            Energy: {state.player.energy}/{state.player.max_energy} | Block:{" "}
-            {state.player.block} | Gold: {state.player.gold}
+            Energy: {player.energy}/{player.max_energy} | Block:{" "}
+            {player.block} | Gold: {player.gold}
           </p>
         </div>
 
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
           <h3 className="mb-2 text-sm font-medium text-zinc-400">
-            Enemies ({state.enemies.length})
+            Enemies ({enemies.length})
           </h3>
-          {state.enemies.map((enemy) => (
+          {enemies.map((enemy) => (
             <div key={enemy.entity_id} className="mb-1">
               <span className="text-zinc-200">{enemy.name}</span>
               <span className="ml-2 text-sm text-zinc-500">
@@ -113,20 +112,82 @@ function CombatPlaceholder({
 
       <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
         <h3 className="mb-2 text-sm font-medium text-zinc-400">
-          Hand ({state.hand.length} cards)
+          Hand ({player.hand.length} cards)
         </h3>
         <div className="flex flex-wrap gap-2">
-          {state.hand.map((card) => (
+          {player.hand.map((card, i) => (
             <span
-              key={card.index}
+              key={i}
               className="rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-300"
             >
-              {card.name}{" "}
-              <span className="text-zinc-500">({card.cost})</span>
+              {card.name}
             </span>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CombatRewardsPlaceholder({
+  state,
+}: {
+  state: Extract<GameState, { state_type: "combat_rewards" }>;
+}) {
+  return (
+    <div className="flex flex-1 flex-col gap-4">
+      <h2 className="text-lg font-semibold text-zinc-100">Combat Rewards</h2>
+      <div className="space-y-2">
+        {state.rewards.items.map((item) => (
+          <div
+            key={item.index}
+            className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3"
+          >
+            <span className="text-sm text-zinc-300">{item.description}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MapPlaceholder({
+  state,
+}: {
+  state: Extract<GameState, { state_type: "map" }>;
+}) {
+  return (
+    <div className="flex flex-1 flex-col gap-4">
+      <h2 className="text-lg font-semibold text-zinc-100">Map</h2>
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <p className="text-sm text-zinc-400">
+          {state.map.player.character} — {state.map.player.hp}/
+          {state.map.player.max_hp} HP | Gold: {state.map.player.gold}
+        </p>
+      </div>
+      <div>
+        <h3 className="mb-2 text-sm font-medium text-zinc-400">
+          Next options
+        </h3>
+        <div className="flex gap-2">
+          {state.map.next_options.map((opt) => (
+            <div
+              key={opt.index}
+              className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3"
+            >
+              <span className="text-sm font-medium text-zinc-200">
+                {opt.type}
+              </span>
+              <p className="mt-1 text-xs text-zinc-500">
+                Leads to: {opt.leads_to.map((l) => l.type).join(", ")}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="text-sm text-zinc-500">
+        Full map view coming soon. {state.map.nodes.length} nodes total.
+      </p>
     </div>
   );
 }
@@ -156,12 +217,10 @@ function PlaceholderView({
   return (
     <div className="flex flex-1 flex-col gap-4">
       <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
-      {hasPlayer(state) && (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <p className="text-sm text-zinc-400">
-            {state.player.character} — {state.player.hp}/{state.player.max_hp} HP
-          </p>
-        </div>
+      {hasRun(state) && (
+        <p className="text-xs text-zinc-600">
+          Act {state.run.act}, Floor {state.run.floor}
+        </p>
       )}
       <p className="text-sm text-zinc-500">
         Feature view coming soon. State type: {state.state_type}
@@ -186,6 +245,11 @@ export default function Dashboard() {
         <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
           {gameState.state_type}
         </span>
+        {hasRun(gameState) && (
+          <span className="text-xs text-zinc-600">
+            Act {gameState.run.act} · Floor {gameState.run.floor}
+          </span>
+        )}
       </div>
       <GameStateView state={gameState} deckCards={deckCards} />
     </div>

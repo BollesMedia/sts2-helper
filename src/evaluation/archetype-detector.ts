@@ -1,4 +1,4 @@
-import type { GameCard, GameRelic } from "@/lib/types/game-state";
+import type { CombatCard, GameRelic } from "@/lib/types/game-state";
 import type { ArchetypeScore } from "./types";
 
 // Card keywords/tags that signal archetypes
@@ -39,8 +39,8 @@ const RELIC_ARCHETYPE_SIGNALS: Record<string, { archetype: string; weight: numbe
 };
 
 export function detectArchetypes(
-  deckCards: GameCard[],
-  relics: GameRelic[]
+  deckCards: CombatCard[],
+  relics: { id: string; name: string }[]
 ): ArchetypeScore[] {
   const scores: Record<string, number> = {};
   const deckSize = deckCards.length;
@@ -48,7 +48,7 @@ export function detectArchetypes(
   // Score cards against archetype signals
   for (const card of deckCards) {
     const cardNameLower = card.name.toLowerCase();
-    const cardKeywords = (card.keywords ?? []).map((k) => k.toLowerCase());
+    const cardKeywords = (card.keywords ?? []).map((k) => k.name.toLowerCase());
 
     for (const [archetype, signals] of Object.entries(ARCHETYPE_SIGNALS)) {
       for (const signal of signals) {
@@ -86,7 +86,7 @@ export function detectArchetypes(
 }
 
 // Check if deck has scaling sources (powers, passive damage, etc.)
-export function hasScalingSources(deckCards: GameCard[]): boolean {
+export function hasScalingSources(deckCards: CombatCard[]): boolean {
   const scalingKeywords = [
     "demon form", "noxious fumes", "afterimage", "thousand cuts",
     "electrodynamics", "defragment", "focus", "biased cognition",
@@ -95,15 +95,12 @@ export function hasScalingSources(deckCards: GameCard[]): boolean {
 
   return deckCards.some((card) => {
     const nameLower = card.name.toLowerCase();
-    return (
-      card.type === "Power" ||
-      scalingKeywords.some((k) => nameLower.includes(k))
-    );
+    return scalingKeywords.some((k) => nameLower.includes(k));
   });
 }
 
 // Get draw source card names from deck
-export function getDrawSources(deckCards: GameCard[]): string[] {
+export function getDrawSources(deckCards: CombatCard[]): string[] {
   const drawKeywords = [
     "draw", "acrobatics", "backflip", "offering", "battle trance",
     "pommel strike", "shrug it off", "prepared", "adrenaline",
@@ -119,7 +116,7 @@ export function getDrawSources(deckCards: GameCard[]): string[] {
 }
 
 // Get scaling source card names from deck
-export function getScalingSources(deckCards: GameCard[]): string[] {
+export function getScalingSources(deckCards: CombatCard[]): string[] {
   const scalingKeywords = [
     "demon form", "noxious fumes", "afterimage", "thousand cuts",
     "electrodynamics", "defragment", "biased cognition",
