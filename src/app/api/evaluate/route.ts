@@ -10,6 +10,7 @@ import {
 } from "@/evaluation/evaluation-service";
 import { tierToValue } from "@/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
+import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
 
 const anthropic = new Anthropic();
 
@@ -101,10 +102,14 @@ export async function POST(request: Request) {
   // Load contextual data
   const bosses = await getBossReference();
   const runHistory = await getRunHistoryContext();
+  const characterStrategy = body.context
+    ? getCharacterStrategy(body.context.character)
+    : null;
 
   // ─── MAP EVALUATION ───
   if (type === "map" && body.mapPrompt) {
     let mapPromptFull = body.mapPrompt;
+    if (characterStrategy) mapPromptFull += `\n\nCharacter strategy guide:\n${characterStrategy}`;
     if (bosses) mapPromptFull += `\n\nBoss reference (these are the bosses you may face):\n${bosses}`;
     if (runHistory) mapPromptFull += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes. Tailor advice to this player's patterns.`;
 
@@ -183,6 +188,9 @@ export async function POST(request: Request) {
 
   // Build prompt for Claude
   let contextStr = buildPromptContext(context);
+  if (characterStrategy) {
+    contextStr += `\n\nCharacter strategy guide:\n${characterStrategy}`;
+  }
   if (bosses) {
     contextStr += `\n\nBoss reference:\n${bosses}`;
   }
