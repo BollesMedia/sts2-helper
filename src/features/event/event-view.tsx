@@ -72,6 +72,10 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
         <p className="text-sm text-red-400">{error}</p>
       )}
 
+      {options.length === 0 && (
+        <p className="text-sm text-zinc-500">Waiting for selection...</p>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         {isLoading && !evaluation ? (
           <>
