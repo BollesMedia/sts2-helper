@@ -1,22 +1,48 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { GameState, CombatCard } from "@/lib/types/game-state";
 import { isCombatState } from "@/lib/types/game-state";
 
+const STORAGE_KEY = "sts2-deck";
+
+function loadFromStorage(): CombatCard[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(cards: CombatCard[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+  } catch {
+    // storage full or unavailable
+  }
+}
+
 /**
- * Maintains a running deck list that stays accurate between combats.
+ * Maintains a running deck list that stays accurate between combats
+ * and persists through page reloads via localStorage.
  *
  * Ground truth: During combat, the mod exposes all piles. This is always
  * authoritative and overwrites any local tracking.
- *
- * Between combats: Deck is marked unverified. On next combat entry,
- * we reconcile against the real deck and log any mismatches.
  */
 export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const deckCards = useRef<CombatCard[]>([]);
   const isVerified = useRef(false);
   const prevStateType = useRef<string | null>(null);
+  const initialized = useRef(false);
+
+  // Load from localStorage on first render
+  if (!initialized.current) {
+    initialized.current = true;
+    deckCards.current = loadFromStorage();
+  }
 
   if (!gameState) return deckCards.current;
 
@@ -35,7 +61,6 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     ];
 
     if (combatDeck.length > 0) {
-      // Reconcile: check if our tracked deck matches combat reality
       if (deckCards.current.length > 0 && !isVerified.current) {
         const trackedNames = deckCards.current.map((c) => c.name).sort();
         const actualNames = combatDeck.map((c) => c.name).sort();
@@ -56,6 +81,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
 
       deckCards.current = combatDeck;
       isVerified.current = true;
+      saveToStorage(combatDeck);
     }
   }
 
@@ -72,12 +98,14 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   ) {
     const selectCards = gameState.card_select.cards;
     if (selectCards.length > 0) {
-      deckCards.current = selectCards.map((c) => ({
+      const mapped = selectCards.map((c) => ({
         name: c.name,
         description: c.description,
         keywords: c.keywords,
       }));
+      deckCards.current = mapped;
       isVerified.current = true;
+      saveToStorage(mapped);
     }
   }
 

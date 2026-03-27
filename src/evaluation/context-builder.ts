@@ -19,9 +19,16 @@ export function buildEvaluationContext(
 ): EvaluationContext | null {
   const run = hasRun(state) ? state.run : null;
 
-  if (!trackedPlayer) return null;
+  const player = trackedPlayer ?? {
+    character: "Unknown",
+    hp: 0,
+    maxHp: 1,
+    gold: 0,
+    maxEnergy: 3,
+    relics: [],
+  };
 
-  const archetypes = detectArchetypes(deckCards, trackedPlayer.relics);
+  const archetypes = detectArchetypes(deckCards, player.relics);
   const primaryArchetype =
     archetypes.length > 0 ? archetypes[0].archetype : null;
 
@@ -30,26 +37,24 @@ export function buildEvaluationContext(
   );
 
   return {
-    character: trackedPlayer.character.toLowerCase(),
+    character: player.character.toLowerCase(),
     archetypes,
     primaryArchetype,
     act: run?.act ?? 1,
     floor: run?.floor ?? 1,
     deckSize: deckCards.length,
     hpPercent:
-      trackedPlayer.maxHp > 0
-        ? trackedPlayer.hp / trackedPlayer.maxHp
-        : 1,
-    gold: trackedPlayer.gold,
-    energy: trackedPlayer.maxEnergy,
-    relicIds: trackedPlayer.relics.map((r) => r.id),
+      player.maxHp > 0 ? player.hp / player.maxHp : 1,
+    gold: player.gold,
+    energy: player.maxEnergy,
+    relicIds: player.relics.map((r) => r.id),
     hasScaling: hasScalingSources(deckCards),
     curseCount: curseCards.length,
     deckCardNames: deckCards.map((c) => c.name),
     drawSources: getDrawSources(deckCards),
     scalingSources: getScalingSources(deckCards),
     curseNames: curseCards.map((c) => c.name),
-    relicNames: trackedPlayer.relics.map((r) => r.name),
+    relicNames: player.relics.map((r) => r.name),
     potionNames: [],
   };
 }
