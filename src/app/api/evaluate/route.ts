@@ -139,7 +139,7 @@ ${responseFormat}`;
   try {
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
+      max_tokens: items.length > 5 ? 4096 : 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
