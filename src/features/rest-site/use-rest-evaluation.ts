@@ -118,6 +118,7 @@ Consider:
 - Upgrading a key card can be more valuable than healing 20-30 HP
 - At high HP (>70%), almost always upgrade unless boss is next
 - Max HP increase from rest compounds over the run
+- If recommending Smith (upgrade), NAME THE SPECIFIC CARD to upgrade and why
 
 Respond as JSON:
 {
@@ -129,7 +130,7 @@ Respond as JSON:
       "synergy_score": 0-100,
       "confidence": 0-100,
       "recommendation": "strong_pick|good_pick|situational|skip",
-      "reasoning": "1 sentence"
+      "reasoning": "1-2 sentences. If Smith, specify which card to upgrade."
     }
   ],
   "skip_recommended": false,
