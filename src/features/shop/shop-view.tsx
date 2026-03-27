@@ -64,6 +64,13 @@ export function ShopView({ state, deckCards, player }: ShopViewProps) {
         )}
       </div>
 
+      {/* Spending plan */}
+      {evaluation?.spendingPlan && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 px-4 py-3">
+          <p className="text-sm text-blue-300">{evaluation.spendingPlan}</p>
+        </div>
+      )}
+
       {error && (
         <p className="text-sm text-red-400">Evaluation error: {error}</p>
       )}

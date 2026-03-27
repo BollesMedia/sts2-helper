@@ -23,6 +23,7 @@ interface ClaudeCardRewardResponse {
   rankings: ClaudeCardEvaluation[];
   skip_recommended: boolean;
   skip_reasoning: string | null;
+  spending_plan?: string | null;
 }
 
 /**
@@ -212,5 +213,6 @@ export function parseClaudeCardRewardResponse(
     })),
     skipRecommended: raw.skip_recommended,
     skipReasoning: raw.skip_reasoning,
+    spendingPlan: raw.spending_plan ?? null,
   };
 }

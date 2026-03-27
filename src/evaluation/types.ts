@@ -43,6 +43,7 @@ export interface CardRewardEvaluation {
   rankings: CardEvaluation[];
   skipRecommended: boolean;
   skipReasoning: string | null;
+  spendingPlan?: string | null;
 }
 
 export interface ShopEvaluation {
