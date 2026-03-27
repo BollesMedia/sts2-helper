@@ -118,6 +118,25 @@ function GameStateView({
       return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "rest_site":
       return <RestSiteView state={state} deckCards={deckCards} player={player} runId={runId} />;
+    case "card_select":
+      if (state.card_select.screen_type === "simple_select" || state.card_select.screen_type === "choose") {
+        // Treat as a card reward evaluation — same cards, same decision
+        const asCardReward = {
+          state_type: "card_reward" as const,
+          card_reward: {
+            cards: state.card_select.cards,
+            can_skip: !!state.card_select.can_cancel,
+          },
+          run: state.run,
+        };
+        return (
+          <div className="flex flex-col gap-6">
+            <p className="text-sm text-zinc-400">{state.card_select.prompt}</p>
+            <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} />
+          </div>
+        );
+      }
+      return <PlaceholderView title="Card Select" state={state} />;
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
     case "menu":
