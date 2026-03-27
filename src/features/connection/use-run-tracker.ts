@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { GameState } from "@/lib/types/game-state";
-import { hasRun } from "@/lib/types/game-state";
+import { hasRun, isCombatState } from "@/lib/types/game-state";
 
 const STORAGE_KEY = "sts2-run-id";
 
@@ -31,19 +31,45 @@ function saveRunId(runId: string | null) {
 }
 
 /**
+ * Infer run outcome from the last known state before returning to menu.
+ *
+ * - Death: last state was combat (monster/elite/boss)
+ * - Victory: last state was boss combat or combat_rewards after a boss
+ * - Quit: anything else (map, shop, event, etc.)
+ */
+function inferOutcome(
+  lastStateType: string | null,
+  lastWasBoss: boolean
+): boolean | null {
+  if (!lastStateType) return null;
+
+  // Victory: was in boss fight or collecting boss rewards
+  if (lastWasBoss) return true;
+  if (lastStateType === "combat_rewards" && lastWasBoss) return true;
+
+  // Death: was in any combat
+  if (["monster", "elite", "boss"].includes(lastStateType)) return false;
+
+  // Quit or unknown
+  return null;
+}
+
+/**
  * Tracks run lifecycle: detects new run start (menu → in-run),
  * creates a run record in Supabase, and detects run end (back to menu).
+ * Infers victory/death from the last known game state.
  */
 export function useRunTracker(gameState: GameState | null): string | null {
   const runId = useRef<string | null>(null);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
   const runStarted = useRef(false);
+  const lastFloor = useRef(0);
+  const lastWasBoss = useRef(false);
 
   if (!initialized.current) {
     initialized.current = true;
     runId.current = loadRunId();
-    // If we have a saved run ID, the run was in progress
     runStarted.current = runId.current !== null;
   }
 
@@ -53,6 +79,21 @@ export function useRunTracker(gameState: GameState | null): string | null {
   const prevType = prevStateType.current;
   prevStateType.current = currentType;
 
+  // Track floor and boss state for outcome inference
+  if (hasRun(gameState)) {
+    lastFloor.current = gameState.run.floor;
+  }
+  if (currentType === "boss") {
+    lastWasBoss.current = true;
+  }
+  // Reset boss flag when moving to non-combat after boss rewards
+  if (
+    prevType === "combat_rewards" &&
+    !["monster", "elite", "boss"].includes(currentType)
+  ) {
+    // Keep lastWasBoss if we just beat a boss and are collecting rewards
+  }
+
   const isInRun = currentType !== "menu";
   const wasInMenu = prevType === "menu" || prevType === null;
 
@@ -61,13 +102,13 @@ export function useRunTracker(gameState: GameState | null): string | null {
     const newRunId = generateRunId();
     runId.current = newRunId;
     runStarted.current = true;
+    lastWasBoss.current = false;
+    lastFloor.current = 0;
     saveRunId(newRunId);
 
-    // Get character and ascension from game state
     const character = getCharacter(gameState);
     const ascension = hasRun(gameState) ? gameState.run.ascension : 0;
 
-    // Create run record async
     fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,7 +120,7 @@ export function useRunTracker(gameState: GameState | null): string | null {
       }),
     }).catch(console.error);
 
-    // Clear stale deck data from previous run
+    // Clear stale data from previous run
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
       localStorage.removeItem("sts2-eval-cache");
@@ -95,22 +136,26 @@ export function useRunTracker(gameState: GameState | null): string | null {
   if (currentType === "menu" && prevType !== "menu" && prevType !== null && runStarted.current) {
     const endedRunId = runId.current;
     if (endedRunId) {
-      // We can't easily detect victory vs death from the menu state
-      // Log the end with floor info from what we last saw
+      const victory = inferOutcome(prevType, lastWasBoss.current);
+      const outcomeLabel = victory === true ? "VICTORY" : victory === false ? "DEATH" : "QUIT";
+
       fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "end",
           runId: endedRunId,
+          victory,
+          finalFloor: lastFloor.current,
         }),
       }).catch(console.error);
 
-      console.log("[RunTracker] Run ended:", endedRunId);
+      console.log(`[RunTracker] Run ended (${outcomeLabel}):`, endedRunId, `floor ${lastFloor.current}`);
     }
 
     runId.current = null;
     runStarted.current = false;
+    lastWasBoss.current = false;
     saveRunId(null);
   }
 
@@ -118,16 +163,17 @@ export function useRunTracker(gameState: GameState | null): string | null {
 }
 
 function getCharacter(state: GameState): string | null {
-  if ("battle" in state && state.battle?.player) {
+  if (isCombatState(state) && state.battle?.player) {
     return state.battle.player.character;
   }
-  if ("map" in state && "map" in state) {
-    const mapState = state as { map: { player: { character: string } } };
-    return mapState.map?.player?.character ?? null;
+  if (state.state_type === "map") {
+    return state.map.player.character;
   }
-  if ("rewards" in state) {
-    const rewardsState = state as { rewards: { player: { character: string } } };
-    return rewardsState.rewards?.player?.character ?? null;
+  if (state.state_type === "combat_rewards") {
+    return state.rewards.player.character;
+  }
+  if (state.state_type === "event") {
+    return state.event.player.character;
   }
   return null;
 }
