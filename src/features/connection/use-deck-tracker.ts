@@ -3,9 +3,10 @@
 import { useRef } from "react";
 import type { GameState, CombatCard } from "@/lib/types/game-state";
 import { isCombatState } from "@/lib/types/game-state";
-
+import { createClient } from "@/lib/supabase/client";
 
 const STORAGE_KEY = "sts2-deck";
+const VALID_CARDS_KEY = "sts2-valid-cards";
 
 function loadFromStorage(): CombatCard[] {
   if (typeof window === "undefined") return [];
@@ -21,17 +22,69 @@ function saveToStorage(cards: CombatCard[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-  } catch {
-    // storage full or unavailable
+  } catch {}
+}
+
+/**
+ * Set of valid player card names (lowercase) loaded from Supabase.
+ * Includes character-specific, colorless, and curse cards.
+ * Excludes Status type cards which are enemy-generated.
+ */
+let validCardNames: Set<string> | null = null;
+let validCardsLoading = false;
+
+async function loadValidCardNames(): Promise<Set<string>> {
+  // Check localStorage cache first
+  if (typeof window !== "undefined") {
+    try {
+      const cached = localStorage.getItem(VALID_CARDS_KEY);
+      if (cached) {
+        const parsed: string[] = JSON.parse(cached);
+        return new Set(parsed);
+      }
+    } catch {}
   }
+
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("cards")
+    .select("name, type")
+    .neq("type", "Status");
+
+  const names = new Set(
+    (data ?? []).map((c) => c.name.toLowerCase())
+  );
+
+  // Also add upgraded variants (name+)
+  const withUpgrades = new Set(names);
+  for (const name of names) {
+    withUpgrades.add(`${name}+`);
+  }
+
+  // Cache in localStorage
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        VALID_CARDS_KEY,
+        JSON.stringify([...withUpgrades])
+      );
+    } catch {}
+  }
+
+  return withUpgrades;
+}
+
+function isPlayerCard(card: CombatCard): boolean {
+  if (!validCardNames) return true; // haven't loaded yet, don't filter
+  return validCardNames.has(card.name.toLowerCase());
 }
 
 /**
  * Maintains a running deck list that stays accurate between combats
  * and persists through page reloads via localStorage.
  *
- * Ground truth: During combat, the mod exposes all piles. This is always
- * authoritative and overwrites any local tracking.
+ * Filters out enemy-generated Status cards by checking against the
+ * known card list from Supabase (loaded once, cached in localStorage).
  */
 export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const deckCards = useRef<CombatCard[]>([]);
@@ -39,10 +92,18 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
 
-  // Load from localStorage on first render
+  // Load deck from localStorage and valid card names on first render
   if (!initialized.current) {
     initialized.current = true;
     deckCards.current = loadFromStorage();
+
+    if (!validCardNames && !validCardsLoading) {
+      validCardsLoading = true;
+      loadValidCardNames().then((names) => {
+        validCardNames = names;
+        validCardsLoading = false;
+      });
+    }
   }
 
   if (!gameState) return deckCards.current;
@@ -52,9 +113,6 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   prevStateType.current = currentType;
 
   // ─── COMBAT: Ground truth sync ───
-  // Only sync on round 1 to avoid counting temporary status/token cards
-  // that enemies add during combat. At round 1 the piles contain only
-  // the player's real deck cards.
   if (isCombatState(gameState) && gameState.battle?.player && gameState.battle.round <= 1) {
     const p = gameState.battle.player;
     const combatDeck = [
@@ -62,7 +120,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
       ...(p.draw_pile ?? []),
       ...(p.discard_pile ?? []),
       ...(p.exhaust_pile ?? []),
-    ];
+    ].filter(isPlayerCard);
 
     if (combatDeck.length > 0) {
       if (deckCards.current.length > 0 && !isVerified.current) {
