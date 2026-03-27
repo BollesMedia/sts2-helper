@@ -35,9 +35,9 @@ Confidence calibration:
 - Below 40: Insufficient information or unfamiliar STS2 mechanic`;
 
 interface EvaluateRequest {
-  type: "card_reward" | "shop";
+  type: "card_reward" | "shop" | "map";
   context: EvaluationContext;
-  items: {
+  items?: {
     id: string;
     name: string;
     description: string;
@@ -45,6 +45,7 @@ interface EvaluateRequest {
     type?: string;
     rarity?: string;
   }[];
+  mapPrompt?: string;
   runId: string | null;
   gameVersion: string | null;
 }
@@ -54,6 +55,42 @@ export async function POST(request: Request) {
   const { type, context, items, runId, gameVersion } = body;
 
   const supabase = createServiceClient();
+
+  // ─── MAP EVALUATION ───
+  if (type === "map" && body.mapPrompt) {
+    try {
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: body.mapPrompt }],
+      });
+
+      const textBlock = message.content.find((b) => b.type === "text");
+      if (!textBlock || textBlock.type !== "text") {
+        return NextResponse.json({ error: "No response" }, { status: 502 });
+      }
+
+      let jsonText = textBlock.text.trim();
+      if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+      }
+
+      return NextResponse.json(JSON.parse(jsonText));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Map evaluation failed:", message);
+      return NextResponse.json(
+        { error: "Map evaluation failed", detail: message },
+        { status: 500 }
+      );
+    }
+  }
+
+  // ─── CARD/SHOP EVALUATION ───
+  if (!items || items.length === 0) {
+    return NextResponse.json({ error: "No items to evaluate" }, { status: 400 });
+  }
 
   // Check statistical cache for each item
   const cachedResults = await Promise.all(

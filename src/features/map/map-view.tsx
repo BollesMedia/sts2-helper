@@ -2,10 +2,14 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/cn";
-import type { MapState, MapNode } from "@/lib/types/game-state";
+import type { MapState } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { CombatCard } from "@/lib/types/game-state";
-import { scoreNextOptions, NODE_TYPE_ICONS } from "./map-scoring";
+import { NODE_TYPE_ICONS } from "./map-scoring";
+import { useMapEvaluation } from "./use-map-evaluation";
+import { TierBadge } from "@/components/tier-badge";
+import { ConfidenceIndicator } from "@/components/confidence-indicator";
+import type { TierLetter } from "@/evaluation/tier-utils";
 
 interface MapViewProps {
   state: MapState;
@@ -13,7 +17,6 @@ interface MapViewProps {
   deckCards: CombatCard[];
 }
 
-// SVG layout constants
 const NODE_RADIUS = 14;
 const COL_SPACING = 80;
 const ROW_SPACING = 48;
@@ -25,7 +28,6 @@ function nodeX(col: number): number {
 }
 
 function nodeY(row: number, maxRow: number): number {
-  // Invert so row 0 is at bottom, boss at top
   return PADDING_Y + (maxRow - row) * ROW_SPACING;
 }
 
@@ -39,8 +41,16 @@ const NODE_FILL: Record<string, string> = {
   Unknown: "#a1a1aa",
 };
 
+const RECOMMENDATION_BORDER: Record<string, string> = {
+  strong_pick: "border-emerald-500/50",
+  good_pick: "border-blue-500/50",
+  situational: "border-amber-500/50",
+  skip: "border-zinc-700",
+};
+
 export function MapView({ state, player, deckCards }: MapViewProps) {
   const { nodes, current_position, visited, next_options, boss } = state.map;
+  const { evaluation, isLoading, error } = useMapEvaluation(state, deckCards, player);
 
   const maxRow = useMemo(
     () => Math.max(...nodes.map((n) => n.row), boss.row),
@@ -64,70 +74,96 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     [next_options]
   );
 
-  const pathScores = useMemo(
-    () => scoreNextOptions(state.map, player, deckCards.length),
-    [state.map, player, deckCards.length]
-  );
+  // Find best option from Claude evaluation
+  const bestOptionIndex = useMemo(() => {
+    if (!evaluation?.rankings.length) return null;
+    const best = evaluation.rankings.reduce((a, b) => {
+      const tierOrder = ["S", "A", "B", "C", "D", "F"];
+      return tierOrder.indexOf(a.tier) <= tierOrder.indexOf(b.tier) ? a : b;
+    });
+    return best.optionIndex;
+  }, [evaluation]);
 
-  const bestOption = useMemo(() => {
-    if (pathScores.length === 0) return null;
-    return pathScores.reduce((best, curr) =>
-      curr.score > best.score ? curr : best
-    );
-  }, [pathScores]);
-
-  const bestOptionKey = bestOption
-    ? `${bestOption.option.col},${bestOption.option.row}`
-    : null;
+  const bestOptionKey = useMemo(() => {
+    if (bestOptionIndex == null) return null;
+    const opt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+    return opt ? `${opt.col},${opt.row}` : null;
+  }, [bestOptionIndex, next_options]);
 
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-100">Map</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-zinc-100">Map</h2>
+        {isLoading && (
+          <span className="text-xs text-zinc-500 animate-pulse">
+            Evaluating paths...
+          </span>
+        )}
+      </div>
+
+      {/* Overall advice */}
+      {evaluation?.overallAdvice && (
+        <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2">
+          <p className="text-sm text-zinc-300">{evaluation.overallAdvice}</p>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-sm text-red-400">Evaluation error: {error}</p>
+      )}
 
       {/* Path recommendations */}
       <div className="grid grid-cols-3 gap-3">
-        {pathScores
-          .sort((a, b) => b.score - a.score)
-          .map((ps) => {
-            const isBest = bestOptionKey === `${ps.option.col},${ps.option.row}`;
-            return (
-              <div
-                key={ps.option.index}
-                className={cn(
-                  "rounded-lg border bg-zinc-900 p-3",
-                  isBest
+        {next_options.map((opt, i) => {
+          const evalData = evaluation?.rankings.find(
+            (r) => r.optionIndex === i + 1
+          );
+          const isBest = bestOptionIndex === i + 1;
+
+          return (
+            <div
+              key={opt.index}
+              className={cn(
+                "rounded-lg border bg-zinc-900 p-3",
+                evalData
+                  ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
+                  : isBest
                     ? "border-emerald-500/50"
                     : "border-zinc-800"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                {evalData && (
+                  <TierBadge tier={evalData.tier as TierLetter} size="sm" />
                 )}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">
-                    {NODE_TYPE_ICONS[ps.option.type] ?? "•"}
+                <span className="text-lg">
+                  {NODE_TYPE_ICONS[opt.type] ?? "•"}
+                </span>
+                <span className="font-medium text-zinc-100 text-sm">
+                  {opt.type}
+                </span>
+                {isBest && (
+                  <span className="rounded bg-emerald-400/10 px-1.5 py-0.5 text-xs font-medium text-emerald-400">
+                    Best
                   </span>
-                  <span className="font-medium text-zinc-100 text-sm">
-                    {ps.option.type}
-                  </span>
-                  {isBest && (
-                    <span className="rounded bg-emerald-400/10 px-1.5 py-0.5 text-xs font-medium text-emerald-400">
-                      Best
-                    </span>
-                  )}
-                </div>
-                {ps.option.leads_to && ps.option.leads_to.length > 0 && (
-                  <p className="mt-1 text-xs text-zinc-500">
-                    → {ps.option.leads_to.map((l) => `${NODE_TYPE_ICONS[l.type] ?? ""} ${l.type}`).join(", ")}
-                  </p>
                 )}
-                <div className="mt-2 space-y-1">
-                  {ps.reasons.map((r, i) => (
-                    <p key={i} className="text-xs text-zinc-400">
-                      {r}
-                    </p>
-                  ))}
-                </div>
               </div>
-            );
-          })}
+
+              {opt.leads_to && opt.leads_to.length > 0 && (
+                <p className="mt-1 text-xs text-zinc-500">
+                  → {opt.leads_to.map((l) => `${NODE_TYPE_ICONS[l.type] ?? ""} ${l.type}`).join(", ")}
+                </p>
+              )}
+
+              {evalData && (
+                <div className="mt-2 space-y-1.5">
+                  <p className="text-xs text-zinc-300">{evalData.reasoning}</p>
+                  <ConfidenceIndicator confidence={evalData.confidence} />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* SVG Map */}
@@ -188,11 +224,11 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
             const x = nodeX(node.col);
             const y = nodeY(node.row, maxRow);
             const key = `${node.col},${node.row}`;
-            const isVisited = visitedSet.has(key);
             const isCurrent =
               current_position &&
               node.col === current_position.col &&
               node.row === current_position.row;
+            const isVisited = visitedSet.has(key);
             const isNext = nextOptionSet.has(key);
             const isBest = bestOptionKey === key;
 
@@ -201,7 +237,6 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
             return (
               <g key={key}>
-                {/* Glow for best option */}
                 {isBest && (
                   <circle
                     cx={x}
@@ -213,7 +248,6 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                     opacity={0.5}
                   />
                 )}
-                {/* Current position ring */}
                 {isCurrent && (
                   <circle
                     cx={x}
