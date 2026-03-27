@@ -224,6 +224,26 @@ ${responseFormat}`;
       }
     }
 
+    // Fill in any items Claude omitted from its rankings
+    for (let i = 0; i < items.length; i++) {
+      const hasRanking = evaluation.rankings.some((r) => r.itemIndex === i);
+      if (!hasRanking) {
+        evaluation.rankings.push({
+          itemId: items[i].id,
+          itemName: items[i].name,
+          itemIndex: i,
+          rank: evaluation.rankings.length + 1,
+          tier: "C" as const,
+          tierValue: 3,
+          synergyScore: 0,
+          confidence: 0,
+          recommendation: "skip" as const,
+          reasoning: "Not evaluated — likely a low-priority option.",
+          source: "claude" as const,
+        });
+      }
+    }
+
     // Log evaluations async (don't block response)
     Promise.all(
       evaluation.rankings.map((ranking) =>
