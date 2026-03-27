@@ -5,6 +5,7 @@ import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@/features/connection/use-player-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
+import { MapView } from "@/features/map/map-view";
 import type {
   GameState,
   CombatState,
@@ -32,7 +33,7 @@ function GameStateView({
     case "shop":
       return <ShopView state={state} deckCards={deckCards} player={player} />;
     case "map":
-      return <MapPlaceholder state={state} />;
+      return <MapView state={state} player={player} deckCards={deckCards} />;
     case "event":
       return <PlaceholderView title="Event" state={state} />;
     case "rest_site":
@@ -139,46 +140,6 @@ function CombatRewardsPlaceholder({
   );
 }
 
-function MapPlaceholder({
-  state,
-}: {
-  state: Extract<GameState, { state_type: "map" }>;
-}) {
-  return (
-    <div className="flex flex-1 flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-100">Map</h2>
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-        <p className="text-sm text-zinc-400">
-          {state.map.player.character} — {state.map.player.hp}/
-          {state.map.player.max_hp} HP | Gold: {state.map.player.gold}
-        </p>
-      </div>
-      <div>
-        <h3 className="mb-2 text-sm font-medium text-zinc-400">
-          Next options
-        </h3>
-        <div className="flex gap-2">
-          {state.map.next_options.map((opt) => (
-            <div
-              key={opt.index}
-              className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3"
-            >
-              <span className="text-sm font-medium text-zinc-200">
-                {opt.type}
-              </span>
-              <p className="mt-1 text-xs text-zinc-500">
-                Leads to: {opt.leads_to?.map((l) => l.type).join(", ") ?? "unknown"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-      <p className="text-sm text-zinc-500">
-        Full map view coming soon. {state.map.nodes.length} nodes total.
-      </p>
-    </div>
-  );
-}
 
 function MenuView() {
   return (
