@@ -26,56 +26,68 @@ function saveToStorage(cards: CombatCard[]) {
 }
 
 /**
- * Set of valid player card names (lowercase) loaded from Supabase.
- * Includes character-specific, colorless, and curse cards.
- * Excludes Status type cards which are enemy-generated.
+ * Load valid card names synchronously from localStorage,
+ * and trigger an async refresh from Supabase.
  */
 let validCardNames: Set<string> | null = null;
 let validCardsLoading = false;
 
-async function loadValidCardNames(): Promise<Set<string>> {
-  // Check localStorage cache first
+function initValidCardNames(): Set<string> | null {
+  // Try sync load from localStorage first
+  if (validCardNames) return validCardNames;
+
   if (typeof window !== "undefined") {
     try {
       const cached = localStorage.getItem(VALID_CARDS_KEY);
       if (cached) {
-        const parsed: string[] = JSON.parse(cached);
-        return new Set(parsed);
+        validCardNames = new Set(JSON.parse(cached) as string[]);
+        return validCardNames;
       }
     } catch {}
   }
 
-  const supabase = createClient();
-  const { data } = await supabase
-    .from("cards")
-    .select("name, type")
-    .neq("type", "Status");
+  // Trigger async load if not cached
+  if (!validCardsLoading) {
+    validCardsLoading = true;
+    const supabase = createClient();
+    supabase
+      .from("cards")
+      .select("name, type")
+      .neq("type", "Status")
+      .then(({ data }) => {
+        const names = new Set(
+          (data ?? []).map((c) => c.name.toLowerCase())
+        );
+        // Add upgraded variants
+        for (const name of [...names]) {
+          names.add(`${name}+`);
+        }
+        validCardNames = names;
+        validCardsLoading = false;
 
-  const names = new Set(
-    (data ?? []).map((c) => c.name.toLowerCase())
-  );
-
-  // Also add upgraded variants (name+)
-  const withUpgrades = new Set(names);
-  for (const name of names) {
-    withUpgrades.add(`${name}+`);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(VALID_CARDS_KEY, JSON.stringify([...names]));
+          } catch {}
+        }
+      });
   }
 
-  // Cache in localStorage
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(
-        VALID_CARDS_KEY,
-        JSON.stringify([...withUpgrades])
-      );
-    } catch {}
-  }
-
-  return withUpgrades;
+  return null;
 }
 
 function isPlayerCard(card: CombatCard): boolean {
-  if (!validCardNames) return true; // haven't loaded yet, don't filter
+  // If valid names haven't loaded, reject unknown cards conservatively
+  // by checking if the name looks like a status card
+  if (!validCardNames) {
+    const lowerName = card.name.toLowerCase();
+    const knownStatus = [
+      "wound", "burn", "dazed", "slimed", "void", "debris",
+      "beckon", "disintegration", "frantic escape", "infection",
+      "mind rot", "sloth", "soot", "toxic", "waste away",
+    ];
+    return !knownStatus.includes(lowerName);
+  }
   return validCardNames.has(card.name.toLowerCase());
 }
 
@@ -88,22 +100,13 @@ function isPlayerCard(card: CombatCard): boolean {
  */
 export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const deckCards = useRef<CombatCard[]>([]);
-  const isVerified = useRef(false);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
 
-  // Load deck from localStorage and valid card names on first render
   if (!initialized.current) {
     initialized.current = true;
     deckCards.current = loadFromStorage();
-
-    if (!validCardNames && !validCardsLoading) {
-      validCardsLoading = true;
-      loadValidCardNames().then((names) => {
-        validCardNames = names;
-        validCardsLoading = false;
-      });
-    }
+    initValidCardNames();
   }
 
   if (!gameState) return deckCards.current;
@@ -112,11 +115,9 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const prevType = prevStateType.current;
   prevStateType.current = currentType;
 
-  // ─── COMBAT: Ground truth sync ───
-  // Sync on every combat poll, but filter to valid player cards only.
-  // Only update if the filtered set is larger than what we have
-  // (combat adds temporary cards but never removes real ones).
-  if (isCombatState(gameState) && gameState.battle?.player) {
+  // ─── COMBAT: Ground truth sync (round 1 only) ───
+  // Round 1 is the cleanest snapshot — no exhaust, no enemy-added cards yet
+  if (isCombatState(gameState) && gameState.battle?.player && gameState.battle.round <= 1) {
     const p = gameState.battle.player;
     const allPiles = [
       ...(p.hand ?? []),
@@ -126,9 +127,8 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     ];
     const combatDeck = allPiles.filter(isPlayerCard);
 
-    // Only update if we got a meaningful deck (>= current tracked size)
-    // This prevents enemy status cards from shrinking the deck count
-    if (combatDeck.length > 0 && combatDeck.length >= deckCards.current.length) {
+    // Only update if we got a meaningful deck
+    if (combatDeck.length > 0) {
       const newNames = combatDeck.map((c) => c.name).sort().join(",");
       const oldNames = deckCards.current.map((c) => c.name).sort().join(",");
 
@@ -136,35 +136,29 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
         console.log("[DeckTracker] Deck updated:", {
           from: deckCards.current.length,
           to: combatDeck.length,
+          filtered: allPiles.length - combatDeck.length,
           round: gameState.battle.round,
         });
         deckCards.current = combatDeck;
-        isVerified.current = true;
         saveToStorage(combatDeck);
       }
     }
   }
 
-  // ─── LEAVING card_reward: mark unverified ───
-  if (prevType === "card_reward" && currentType !== "card_reward") {
-    isVerified.current = false;
-  }
-
-  // ─── card_select: use as truth source (shows full deck) ───
+  // ─── card_select: use as truth source (shows real deck cards) ───
   if (
     currentType === "card_select" &&
     prevType !== "card_select" &&
     "card_select" in gameState
   ) {
     const selectCards = gameState.card_select.cards;
-    if (selectCards.length > 0) {
+    if (selectCards.length > deckCards.current.length) {
       const mapped = selectCards.map((c) => ({
         name: c.name,
         description: c.description,
         keywords: c.keywords,
       }));
       deckCards.current = mapped;
-      isVerified.current = true;
       saveToStorage(mapped);
     }
   }
