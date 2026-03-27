@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
 import { useGameState, ConnectionBanner } from "@/features/connection";
+import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import type {
   GameState,
@@ -9,31 +9,6 @@ import type {
   CombatCard,
 } from "@/lib/types/game-state";
 import { isCombatState, hasRun } from "@/lib/types/game-state";
-
-/**
- * Maintains a reference to the last known deck cards.
- * During combat we have access to all piles (draw + discard + exhaust + hand).
- * This persists across state transitions so card_reward screens have deck context.
- */
-function useDeckTracker(gameState: GameState | null): CombatCard[] {
-  const deckCards = useRef<CombatCard[]>([]);
-
-  if (gameState && isCombatState(gameState) && gameState.battle?.player) {
-    const p = gameState.battle.player;
-    const fullDeck = [
-      ...(p.hand ?? []),
-      ...(p.draw_pile ?? []),
-      ...(p.discard_pile ?? []),
-      ...(p.exhaust_pile ?? []),
-    ];
-    // Only update if we got actual cards (avoid clearing on transitional states)
-    if (fullDeck.length > 0) {
-      deckCards.current = fullDeck;
-    }
-  }
-
-  return deckCards.current;
-}
 
 function GameStateView({
   state,
@@ -187,7 +162,7 @@ function MapPlaceholder({
                 {opt.type}
               </span>
               <p className="mt-1 text-xs text-zinc-500">
-                Leads to: {opt.leads_to.map((l) => l.type).join(", ")}
+                Leads to: {opt.leads_to?.map((l) => l.type).join(", ") ?? "unknown"}
               </p>
             </div>
           ))}
