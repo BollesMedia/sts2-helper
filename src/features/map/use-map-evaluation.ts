@@ -73,6 +73,12 @@ export function useMapEvaluation(
   const evaluate = useCallback(async () => {
     if (mapKey === evaluatedKey.current) return;
 
+    // Only one path — no decision to make
+    if (options.length <= 1) {
+      evaluatedKey.current = mapKey;
+      return;
+    }
+
     const cached = getCached(mapKey);
     if (cached) {
       evaluatedKey.current = mapKey;
