@@ -1,10 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { CardRewardState, CombatCard } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
+
+const CACHE_KEY = "sts2-eval-cache";
+
+interface CachedEvaluation {
+  key: string;
+  evaluation: CardRewardEvaluation;
+}
+
+function getCachedEvaluation(key: string): CardRewardEvaluation | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(CACHE_KEY);
+    if (!stored) return null;
+    const cached: CachedEvaluation = JSON.parse(stored);
+    return cached.key === key ? cached.evaluation : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedEvaluation(key: string, evaluation: CardRewardEvaluation) {
+  if (typeof window === "undefined") return;
+  try {
+    const cached: CachedEvaluation = { key, evaluation };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+  } catch {
+    // storage full or unavailable
+  }
+}
 
 interface UseCardEvaluationResult {
   evaluation: CardRewardEvaluation | null;
@@ -14,24 +43,40 @@ interface UseCardEvaluationResult {
 
 /**
  * Triggers a holistic card evaluation when a card_reward state is detected.
- * Sends all offered cards to /api/evaluate in a single call.
+ * Caches results so toggling the UI doesn't re-evaluate the same cards.
  */
 export function useCardEvaluation(
   state: CardRewardState,
   deckCards: CombatCard[],
   player: TrackedPlayer | null
 ): UseCardEvaluationResult {
-  const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(null);
+  const cards = state.card_reward.cards;
+  const cardKey = cards.map((c) => c.id).sort().join(",");
+
+  // Check cache before initializing state
+  const cachedRef = useRef<string | null>(null);
+  const initialEval = cachedRef.current !== cardKey
+    ? getCachedEvaluation(cardKey)
+    : null;
+
+  const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const evaluatedKey = useRef<string>(initialEval ? cardKey : "");
 
-  // Track which card set we've already evaluated to avoid re-fetching
-  const evaluatedKey = useRef<string>("");
+  // Track the current cardKey for cache init
+  cachedRef.current = cardKey;
 
   const evaluate = useCallback(async () => {
-    const cards = state.card_reward.cards;
-    const cardKey = cards.map((c) => c.id).sort().join(",");
     if (cardKey === evaluatedKey.current) return;
+
+    // Check localStorage cache first
+    const cached = getCachedEvaluation(cardKey);
+    if (cached) {
+      evaluatedKey.current = cardKey;
+      setEvaluation(cached);
+      return;
+    }
 
     evaluatedKey.current = cardKey;
     setIsLoading(true);
@@ -75,16 +120,18 @@ export function useCardEvaluation(
 
       const data: CardRewardEvaluation = await res.json();
       setEvaluation(data);
+      setCachedEvaluation(cardKey, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player]);
+  }, [state, deckCards, player, cards, cardKey]);
 
-  useEffect(() => {
+  // Trigger evaluation (not in useEffect — runs during render check)
+  if (cardKey !== evaluatedKey.current && !isLoading) {
     evaluate();
-  }, [evaluate]);
+  }
 
   return { evaluation, isLoading, error };
 }

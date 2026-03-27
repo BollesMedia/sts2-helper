@@ -1,0 +1,97 @@
+{
+    "state_type": "card_select",
+    "card_select": {
+        "screen_type": "simple_select",
+        "player": {
+            "character": "The Ironclad",
+            "hp": 78,
+            "max_hp": 87,
+            "gold": 407
+        },
+        "prompt": "Choose a card to put on top of your Draw Pile.",
+        "cards": [
+            {
+                "index": 0,
+                "id": "SHRUG_IT_OFF",
+                "name": "Shrug It Off+",
+                "type": "Skill",
+                "cost": "1",
+                "description": "Gain 11 Block. Draw 1 card.",
+                "rarity": "Common",
+                "is_upgraded": true,
+                "keywords": [
+                    {
+                        "name": "Block",
+                        "description": "Until next turn, prevents damage."
+                    }
+                ]
+            },
+            {
+                "index": 1,
+                "id": "BODY_SLAM",
+                "name": "Body Slam+",
+                "type": "Attack",
+                "cost": "0",
+                "description": "Deal damage equal to your Block. (Deals 0 damage)",
+                "rarity": "Common",
+                "is_upgraded": true,
+                "keywords": [
+                    {
+                        "name": "Block",
+                        "description": "Until next turn, prevents damage."
+                    },
+                    {
+                        "name": "Clone",
+                        "description": "This card can be duplicated at Rest Sites."
+                    }
+                ]
+            },
+            {
+                "index": 2,
+                "id": "DEMON_FORM",
+                "name": "Demon Form",
+                "type": "Power",
+                "cost": "3",
+                "description": "At the start of your turn, gain 2 Strength.",
+                "rarity": "Rare",
+                "is_upgraded": false,
+                "keywords": [
+                    {
+                        "name": "Strength",
+                        "description": "Strength adds additional damage to Attacks."
+                    }
+                ]
+            },
+            {
+                "index": 3,
+                "id": "POMMEL_STRIKE",
+                "name": "Pommel Strike",
+                "type": "Attack",
+                "cost": "1",
+                "description": "Deal 9 damage. Draw 1 card.",
+                "rarity": "Common",
+                "is_upgraded": false,
+                "keywords": []
+            },
+            {
+                "index": 4,
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+            }
+        ],
+        "preview_showing": false,
+        "can_cancel": false,
+        "can_confirm": false
+    },
+    "run": {
+        "act": 2,
+        "floor": 28,
+        "ascension": 0
+    }
+}
