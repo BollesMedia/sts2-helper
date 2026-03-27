@@ -441,6 +441,7 @@ export type Database = {
       runs: {
         Row: {
           ascension_level: number | null
+          bosses_fought: string[] | null
           character: string
           ended_at: string | null
           final_floor: number | null
@@ -454,6 +455,7 @@ export type Database = {
         }
         Insert: {
           ascension_level?: number | null
+          bosses_fought?: string[] | null
           character: string
           ended_at?: string | null
           final_floor?: number | null
@@ -467,6 +469,7 @@ export type Database = {
         }
         Update: {
           ascension_level?: number | null
+          bosses_fought?: string[] | null
           character?: string
           ended_at?: string | null
           final_floor?: number | null

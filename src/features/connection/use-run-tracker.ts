@@ -78,6 +78,7 @@ export function useRunTracker(gameState: GameState | null): RunState {
   const runStarted = useRef(false);
   const lastFloor = useRef(0);
   const lastWasBoss = useRef(false);
+  const bossesFought = useRef<Set<string>>(new Set());
   const [pending, setPending] = useState<{
     active: boolean;
     runId: string | null;
@@ -114,8 +115,15 @@ export function useRunTracker(gameState: GameState | null): RunState {
   if (hasRun(gameState)) {
     lastFloor.current = gameState.run.floor;
   }
-  if (currentType === "boss") {
+  if (currentType === "boss" && isCombatState(gameState) && gameState.battle?.enemies) {
     lastWasBoss.current = true;
+    for (const enemy of gameState.battle.enemies) {
+      // Strip numeric suffix and "Minion" tagged enemies
+      const isMinion = enemy.status?.some((s) => s.id === "MINION" || s.name === "Minion");
+      if (!isMinion) {
+        bossesFought.current.add(enemy.name);
+      }
+    }
   }
   // Reset boss flag when moving to non-combat after boss rewards
   if (
@@ -175,6 +183,8 @@ export function useRunTracker(gameState: GameState | null): RunState {
       setPending({ active: true, runId: endedRunId, inferred: victory });
 
       // Log end with inferred outcome (user can override via buttons)
+      const bossNames = [...bossesFought.current];
+
       fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -183,16 +193,18 @@ export function useRunTracker(gameState: GameState | null): RunState {
           runId: endedRunId,
           victory,
           finalFloor: lastFloor.current,
+          bossesFought: bossNames.length > 0 ? bossNames : null,
         }),
       }).catch(console.error);
 
       const outcomeLabel = victory === true ? "VICTORY" : victory === false ? "DEATH" : "QUIT";
-      console.log(`[RunTracker] Run ended (${outcomeLabel}):`, endedRunId, `floor ${lastFloor.current}`);
+      console.log(`[RunTracker] Run ended (${outcomeLabel}):`, endedRunId, `floor ${lastFloor.current}`, bossNames);
     }
 
     runId.current = null;
     runStarted.current = false;
     lastWasBoss.current = false;
+    bossesFought.current = new Set();
     saveRunId(null);
   }
 

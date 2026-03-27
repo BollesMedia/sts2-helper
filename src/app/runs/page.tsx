@@ -270,6 +270,18 @@ function RunCard({
         </div>
       </div>
 
+      {/* Bosses fought */}
+      {run.bosses_fought && run.bosses_fought.length > 0 && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-zinc-500">Bosses:</span>
+          {run.bosses_fought.map((b, i) => (
+            <span key={i} className="rounded bg-red-400/10 px-1.5 py-0.5 text-red-400">
+              {b}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Choices summary */}
       {choices.length > 0 && (
         <div className="flex items-center gap-4 text-xs text-zinc-500">
