@@ -113,37 +113,35 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   prevStateType.current = currentType;
 
   // ─── COMBAT: Ground truth sync ───
-  if (isCombatState(gameState) && gameState.battle?.player && gameState.battle.round <= 1) {
+  // Sync on every combat poll, but filter to valid player cards only.
+  // Only update if the filtered set is larger than what we have
+  // (combat adds temporary cards but never removes real ones).
+  if (isCombatState(gameState) && gameState.battle?.player) {
     const p = gameState.battle.player;
-    const combatDeck = [
+    const allPiles = [
       ...(p.hand ?? []),
       ...(p.draw_pile ?? []),
       ...(p.discard_pile ?? []),
       ...(p.exhaust_pile ?? []),
-    ].filter(isPlayerCard);
+    ];
+    const combatDeck = allPiles.filter(isPlayerCard);
 
-    if (combatDeck.length > 0) {
-      if (deckCards.current.length > 0 && !isVerified.current) {
-        const trackedNames = deckCards.current.map((c) => c.name).sort();
-        const actualNames = combatDeck.map((c) => c.name).sort();
+    // Only update if we got a meaningful deck (>= current tracked size)
+    // This prevents enemy status cards from shrinking the deck count
+    if (combatDeck.length > 0 && combatDeck.length >= deckCards.current.length) {
+      const newNames = combatDeck.map((c) => c.name).sort().join(",");
+      const oldNames = deckCards.current.map((c) => c.name).sort().join(",");
 
-        if (JSON.stringify(trackedNames) !== JSON.stringify(actualNames)) {
-          const added = actualNames.filter((n) => !trackedNames.includes(n));
-          const removed = trackedNames.filter((n) => !actualNames.includes(n));
-          if (added.length > 0 || removed.length > 0) {
-            console.log("[DeckTracker] Reconciliation mismatch:", {
-              added,
-              removed,
-              tracked: trackedNames.length,
-              actual: actualNames.length,
-            });
-          }
-        }
+      if (newNames !== oldNames) {
+        console.log("[DeckTracker] Deck updated:", {
+          from: deckCards.current.length,
+          to: combatDeck.length,
+          round: gameState.battle.round,
+        });
+        deckCards.current = combatDeck;
+        isVerified.current = true;
+        saveToStorage(combatDeck);
       }
-
-      deckCards.current = combatDeck;
-      isVerified.current = true;
-      saveToStorage(combatDeck);
     }
   }
 
