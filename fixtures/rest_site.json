@@ -1,0 +1,18 @@
+{
+    "state_type": "rest_site",
+    "rest_site": {
+        "player": {
+            "character": "The Ironclad",
+            "hp": 52,
+            "max_hp": 87,
+            "gold": 360
+        },
+        "options": [],
+        "can_proceed": true
+    },
+    "run": {
+        "act": 2,
+        "floor": 25,
+        "ascension": 0
+    }
+}

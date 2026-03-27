@@ -1,0 +1,27 @@
+{
+    "state_type": "treasure",
+    "treasure": {
+        "player": {
+            "character": "The Ironclad",
+            "hp": 52,
+            "max_hp": 87,
+            "gold": 407
+        },
+        "relics": [
+            {
+                "index": 0,
+                "id": "STRIKE_DUMMY",
+                "name": "Strike Dummy",
+                "description": "Cards containing \u201cStrike\u201d deal 3 additional damage.",
+                "rarity": "Common",
+                "keywords": []
+            }
+        ],
+        "can_proceed": false
+    },
+    "run": {
+        "act": 2,
+        "floor": 26,
+        "ascension": 0
+    }
+}
