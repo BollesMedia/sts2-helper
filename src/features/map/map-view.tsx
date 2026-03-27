@@ -91,9 +91,9 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
   }, [bestOptionIndex, next_options]);
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Map</h2>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-xl font-semibold text-zinc-100">Map</h2>
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">
             Evaluating paths...
@@ -103,8 +103,8 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
       {/* Overall advice */}
       {evaluation?.overallAdvice && (
-        <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-4 py-2">
-          <p className="text-sm text-zinc-300">{evaluation.overallAdvice}</p>
+        <div className="rounded-lg border border-zinc-700 bg-zinc-800/30 px-4 py-3">
+          <p className="text-sm text-zinc-300 leading-relaxed">{evaluation.overallAdvice}</p>
         </div>
       )}
 
@@ -124,7 +124,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
             <div
               key={opt.index}
               className={cn(
-                "rounded-lg border bg-zinc-900 p-3",
+                "rounded-lg border bg-zinc-900/50 p-3",
                 evalData
                   ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
                   : isBest

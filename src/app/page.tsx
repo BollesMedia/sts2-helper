@@ -6,6 +6,8 @@ import { usePlayerTracker } from "@/features/connection/use-player-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
 import { MapView } from "@/features/map/map-view";
+import { HpBar } from "@/components/hp-bar";
+import { cn } from "@/lib/cn";
 import type {
   GameState,
   CombatState,
@@ -13,6 +15,76 @@ import type {
 } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import { isCombatState, hasRun } from "@/lib/types/game-state";
+
+// ─── State label formatting ───
+
+const STATE_LABELS: Record<string, string> = {
+  monster: "Combat",
+  elite: "Elite Combat",
+  boss: "Boss Fight",
+  card_reward: "Card Reward",
+  combat_rewards: "Rewards",
+  card_select: "Card Select",
+  relic_select: "Relic Select",
+  hand_select: "Hand Select",
+  rest_site: "Rest Site",
+  shop: "Shop",
+  map: "Map",
+  event: "Event",
+  treasure: "Treasure",
+  menu: "Menu",
+};
+
+// ─── Header ───
+
+function AppHeader({
+  gameState,
+  player,
+}: {
+  gameState: GameState;
+  player: TrackedPlayer | null;
+}) {
+  const label = STATE_LABELS[gameState.state_type] ?? gameState.state_type;
+  const run = hasRun(gameState) ? gameState.run : null;
+
+  return (
+    <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
+          <span className="text-sm font-semibold text-zinc-100 tracking-tight">
+            STS2
+          </span>
+        </div>
+
+        <div className="h-4 w-px bg-zinc-800" />
+
+        <span className="text-sm font-medium text-zinc-300">{label}</span>
+
+        {run && (
+          <>
+            <div className="h-4 w-px bg-zinc-800" />
+            <span className="text-xs font-mono text-zinc-500">
+              Act {run.act} · Floor {run.floor}
+            </span>
+          </>
+        )}
+      </div>
+
+      {player && (
+        <div className="flex items-center gap-5">
+          <span className="text-sm text-zinc-400">{player.character}</span>
+          <HpBar current={player.hp} max={player.maxHp} />
+          <span className="text-sm font-mono tabular-nums text-amber-400">
+            {player.gold}g
+          </span>
+        </div>
+      )}
+    </header>
+  );
+}
+
+// ─── View Router ───
 
 function GameStateView({
   state,
@@ -24,7 +96,7 @@ function GameStateView({
   player: TrackedPlayer | null;
 }) {
   if (isCombatState(state)) {
-    return <CombatPlaceholder state={state} />;
+    return <CombatView state={state} />;
   }
 
   switch (state.state_type) {
@@ -34,105 +106,155 @@ function GameStateView({
       return <ShopView state={state} deckCards={deckCards} player={player} />;
     case "map":
       return <MapView state={state} player={player} deckCards={deckCards} />;
-    case "event":
-      return <PlaceholderView title="Event" state={state} />;
-    case "rest_site":
-      return <PlaceholderView title="Rest Site" state={state} />;
     case "combat_rewards":
-      return <CombatRewardsPlaceholder state={state} />;
-    case "card_select":
-      return <PlaceholderView title="Card Select" state={state} />;
-    case "relic_select":
-      return <PlaceholderView title="Relic Select" state={state} />;
-    case "treasure":
-      return <PlaceholderView title="Treasure" state={state} />;
-    case "hand_select":
-      return <PlaceholderView title="Hand Select" state={state} />;
+      return <CombatRewardsView state={state} />;
     case "menu":
       return <MenuView />;
     default:
-      return <PlaceholderView title="Unknown" state={state} />;
+      return <PlaceholderView title={STATE_LABELS[state.state_type] ?? state.state_type} state={state} />;
   }
 }
 
-function CombatPlaceholder({ state }: { state: CombatState }) {
+// ─── Combat View ───
+
+function CombatView({ state }: { state: CombatState }) {
   if (!state.battle?.player) {
-    return <PlaceholderView title="Combat (loading...)" state={state} />;
+    return <PlaceholderView title="Combat" state={state} />;
   }
   const { player, enemies } = state.battle;
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-100">
-        Combat ({state.state_type}) — Round {state.battle.round}
-      </h2>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-xl font-semibold text-zinc-100">
+          {STATE_LABELS[state.state_type] ?? "Combat"}
+        </h2>
+        <span className="text-xs font-mono text-zinc-600">
+          Round {state.battle.round}
+        </span>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h3 className="mb-2 text-sm font-medium text-zinc-400">Player</h3>
-          <p className="text-zinc-200">
-            {player.character} — {player.hp}/{player.max_hp} HP
-          </p>
-          <p className="text-sm text-zinc-500">
-            Energy: {player.energy}/{player.max_energy} | Block:{" "}
-            {player.block} | Gold: {player.gold}
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h3 className="mb-2 text-sm font-medium text-zinc-400">
-            Enemies ({enemies.length})
+        {/* Player */}
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Player
           </h3>
-          {enemies.map((enemy) => (
-            <div key={enemy.entity_id} className="mb-1">
-              <span className="text-zinc-200">{enemy.name}</span>
-              <span className="ml-2 text-sm text-zinc-500">
-                {enemy.hp}/{enemy.max_hp} HP
-              </span>
-              {enemy.intents[0] && (
-                <span className="ml-2 text-xs text-amber-400">
-                  {enemy.intents[0].title}
-                </span>
+          <div className="flex items-center justify-between">
+            <HpBar current={player.hp} max={player.max_hp} />
+            <div className="flex items-center gap-3 text-sm font-mono tabular-nums">
+              <span className="text-blue-400">{player.energy}/{player.max_energy} E</span>
+              {player.block > 0 && (
+                <span className="text-cyan-400">{player.block} B</span>
               )}
             </div>
-          ))}
+          </div>
+        </div>
+
+        {/* Enemies */}
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Enemies
+          </h3>
+          <div className="space-y-2">
+            {enemies.map((enemy) => (
+              <div key={enemy.entity_id} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-200">{enemy.name}</span>
+                  {enemy.block > 0 && (
+                    <span className="text-xs text-cyan-400">{enemy.block} B</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  {enemy.intents[0] && (
+                    <span className={cn(
+                      "rounded px-1.5 py-0.5 text-xs font-medium",
+                      enemy.intents[0].type === "Attack" && "bg-red-400/10 text-red-400",
+                      enemy.intents[0].type === "Buff" && "bg-amber-400/10 text-amber-400",
+                      enemy.intents[0].type === "Debuff" && "bg-purple-400/10 text-purple-400",
+                      enemy.intents[0].type === "Defend" && "bg-blue-400/10 text-blue-400",
+                      !["Attack", "Buff", "Debuff", "Defend"].includes(enemy.intents[0].type) && "bg-zinc-700/50 text-zinc-400"
+                    )}>
+                      {enemy.intents[0].title}
+                    </span>
+                  )}
+                  <HpBar current={enemy.hp} max={enemy.max_hp} size="sm" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-        <h3 className="mb-2 text-sm font-medium text-zinc-400">
-          Hand ({player.hand.length} cards)
+      {/* Hand */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+          Hand ({player.hand.length})
         </h3>
         <div className="flex flex-wrap gap-2">
           {player.hand.map((card, i) => (
             <span
               key={i}
-              className="rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-300"
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200"
             >
               {card.name}
             </span>
           ))}
+          {player.hand.length === 0 && (
+            <span className="text-sm text-zinc-600">No cards in hand</span>
+          )}
         </div>
       </div>
+
+      {/* Status effects */}
+      {(player.status.length > 0 || enemies.some((e) => e.status.length > 0)) && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Status Effects
+          </h3>
+          <div className="space-y-2">
+            {player.status.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {player.status.map((s, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      "rounded px-2 py-0.5 text-xs",
+                      s.type === "Buff" ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400"
+                    )}
+                  >
+                    {s.name} {s.amount}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function CombatRewardsPlaceholder({
+// ─── Combat Rewards View ───
+
+function CombatRewardsView({
   state,
 }: {
   state: Extract<GameState, { state_type: "combat_rewards" }>;
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-100">Combat Rewards</h2>
+    <div className="flex flex-col gap-6">
+      <h2 className="text-xl font-semibold text-zinc-100">Rewards</h2>
       <div className="space-y-2">
         {state.rewards.items.map((item) => (
           <div
             key={item.index}
-            className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3"
+            className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 flex items-center gap-3"
           >
-            <span className="text-sm text-zinc-300">{item.description}</span>
+            <span className="text-lg">
+              {item.type === "gold" ? "💰" : item.type === "card" ? "🃏" : item.type === "potion" ? "🧪" : item.type === "relic" ? "💎" : "📦"}
+            </span>
+            <span className="text-sm text-zinc-200">{item.description}</span>
           </div>
         ))}
       </div>
@@ -140,21 +262,24 @@ function CombatRewardsPlaceholder({
   );
 }
 
+// ─── Menu View ───
 
 function MenuView() {
   return (
     <div className="flex flex-1 items-center justify-center">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-zinc-200">
-          Waiting for run...
+      <div className="text-center space-y-3">
+        <h2 className="text-2xl font-semibold text-zinc-200">
+          Waiting for run
         </h2>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500">
           Start a new run in Slay the Spire 2
         </p>
       </div>
     </div>
   );
 }
+
+// ─── Placeholder ───
 
 function PlaceholderView({
   title,
@@ -164,19 +289,21 @@ function PlaceholderView({
   state: GameState;
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
+    <div className="flex flex-col gap-6">
+      <h2 className="text-xl font-semibold text-zinc-100">{title}</h2>
       {hasRun(state) && (
-        <p className="text-xs text-zinc-600">
-          Act {state.run.act}, Floor {state.run.floor}
+        <p className="text-xs font-mono text-zinc-600">
+          Act {state.run.act} · Floor {state.run.floor}
         </p>
       )}
       <p className="text-sm text-zinc-500">
-        Feature view coming soon. State type: {state.state_type}
+        View coming soon
       </p>
     </div>
   );
 }
+
+// ─── Dashboard ───
 
 export default function Dashboard() {
   const { gameState, connectionStatus } = useGameState();
@@ -188,29 +315,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-          <span className="text-sm font-medium text-zinc-300">Connected</span>
-          <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
-            {gameState.state_type}
-          </span>
-          {hasRun(gameState) && (
-            <span className="text-xs text-zinc-600">
-              Act {gameState.run.act} · Floor {gameState.run.floor}
-            </span>
-          )}
-        </div>
-        {player && (
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-zinc-400">{player.character}</span>
-            <span className="text-red-400">{player.hp}/{player.maxHp} HP</span>
-            <span className="text-amber-400">{player.gold}g</span>
-          </div>
-        )}
-      </div>
-      <GameStateView state={gameState} deckCards={deckCards} player={player} />
+    <div className="flex flex-1 flex-col">
+      <AppHeader gameState={gameState} player={player} />
+      <main className="flex-1 p-6">
+        <GameStateView state={gameState} deckCards={deckCards} player={player} />
+      </main>
     </div>
   );
 }

@@ -49,7 +49,7 @@ export function ShopItemCard({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-zinc-900 p-3 transition-colors",
+        "rounded-lg border bg-zinc-900/50 p-3 transition-colors",
         recStyle.border,
         !affordable && "opacity-50"
       )}

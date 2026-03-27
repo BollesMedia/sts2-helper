@@ -13,7 +13,7 @@ const STATUS_CONFIG: Record<
     dotColor: "bg-emerald-400",
   },
   connecting: {
-    label: "Connecting...",
+    label: "Connecting",
     description: "Looking for STS2MCP mod on localhost:15526",
     dotColor: "bg-amber-400 animate-pulse",
   },
@@ -30,17 +30,19 @@ export function ConnectionBanner({ status }: { status: ConnectionStatus }) {
 
   return (
     <div className="flex flex-1 items-center justify-center">
-      <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-col items-center gap-5 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+          STS2 Companion
+        </h1>
         <div className="flex items-center gap-2">
-          <span className={cn("h-2.5 w-2.5 rounded-full", config.dotColor)} />
-          <span className="text-sm font-medium text-zinc-300">
+          <span className={cn("h-2 w-2 rounded-full", config.dotColor)} />
+          <span className="text-sm font-medium text-zinc-400">
             {config.label}
           </span>
         </div>
-        <h1 className="text-2xl font-bold text-zinc-100">
-          STS2 Companion
-        </h1>
-        <p className="max-w-sm text-sm text-zinc-500">{config.description}</p>
+        <p className="max-w-sm text-sm text-zinc-500 leading-relaxed">
+          {config.description}
+        </p>
       </div>
     </div>
   );

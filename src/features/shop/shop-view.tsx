@@ -47,9 +47,9 @@ export function ShopView({ state, deckCards, player }: ShopViewProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Shop</h2>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-xl font-semibold text-zinc-100">Shop</h2>
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">
             Evaluating...
@@ -86,7 +86,7 @@ export function ShopView({ state, deckCards, player }: ShopViewProps) {
         <>
           {cards.length > 0 && (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-zinc-400">Cards</h3>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Cards</h3>
               <div className="grid grid-cols-3 gap-3">
                 {cards.map((item) => {
                   const ev = findEval(item);
@@ -111,7 +111,7 @@ export function ShopView({ state, deckCards, player }: ShopViewProps) {
 
           {relics.length > 0 && (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-zinc-400">Relics</h3>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Relics</h3>
               <div className="grid grid-cols-3 gap-3">
                 {relics.map((item) => {
                   const ev = findEval(item);
@@ -134,7 +134,7 @@ export function ShopView({ state, deckCards, player }: ShopViewProps) {
 
           {potions.length > 0 && (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-zinc-400">Potions</h3>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Potions</h3>
               <div className="grid grid-cols-3 gap-3">
                 {potions.map((item) => {
                   const ev = findEval(item);
@@ -157,7 +157,7 @@ export function ShopView({ state, deckCards, player }: ShopViewProps) {
 
           {cardRemoval && (
             <div>
-              <h3 className="mb-2 text-sm font-medium text-zinc-400">Services</h3>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Services</h3>
               <div className="grid grid-cols-3 gap-3">
                 <ShopItemCard
                   name="Card Removal"
