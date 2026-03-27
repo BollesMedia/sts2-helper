@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import type { EventState, CombatCard } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
-import { buildEvaluationContext } from "@/evaluation/context-builder";
+import { buildEvaluationContext, buildPromptContext } from "@/evaluation/context-builder";
 
 const CACHE_KEY = "sts2-event-eval-cache";
 
@@ -89,21 +89,44 @@ export function useEventEvaluation(
       return;
     }
 
-    const items = options.map((opt) => ({
-      id: `EVENT_${opt.index}`,
-      name: opt.title,
-      description: opt.relic_description ?? opt.description,
-      type: "Event Option",
-    }));
+    const contextStr = buildPromptContext(ctx);
+    const optionsStr = options
+      .map((o, i) => `${i + 1}. ${o.title}: ${o.relic_description ?? o.description}`)
+      .join("\n");
 
     try {
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "card_reward",
+          type: "map",
           context: ctx,
-          items,
+          mapPrompt: `${contextStr}
+
+EVENT: ${state.event.event_name}
+You must choose EXACTLY ONE option:
+${optionsStr}
+
+This is an exclusive choice. Recommend ONE best option as "strong_pick". The others should be "situational" or "skip" — they are alternatives you're NOT recommending.
+
+Respond as JSON:
+{
+  "rankings": [
+    {
+      "item_id": "EVENT_0",
+      "rank": 1,
+      "tier": "S|A|B|C|D|F",
+      "synergy_score": 0-100,
+      "confidence": 0-100,
+      "recommendation": "strong_pick|good_pick|situational|skip",
+      "reasoning": "1-2 sentences"
+    }
+  ],
+  "skip_recommended": false,
+  "skip_reasoning": null
+}
+
+Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-indexed).`,
           runId,
           gameVersion: null,
         }),
@@ -113,9 +136,37 @@ export function useEventEvaluation(
         throw new Error(`Evaluation failed: ${res.status}`);
       }
 
-      const data: CardRewardEvaluation = await res.json();
-      setEvaluation(data);
-      setCache(eventKey, data);
+      const data = await res.json();
+
+      // Parse into CardRewardEvaluation format
+      const rankings = (data.rankings ?? []).map((r: { item_id: string; rank: number; tier: string; synergy_score: number; confidence: number; recommendation: string; reasoning: string }) => {
+        // Extract index from EVENT_0, EVENT_1, etc.
+        const indexMatch = r.item_id.match(/(\d+)$/);
+        const optIndex = indexMatch ? parseInt(indexMatch[1], 10) : -1;
+
+        return {
+          itemId: r.item_id,
+          itemName: options[optIndex]?.title ?? r.item_id,
+          itemIndex: optIndex,
+          rank: r.rank,
+          tier: r.tier,
+          tierValue: { S: 6, A: 5, B: 4, C: 3, D: 2, F: 1 }[r.tier] ?? 3,
+          synergyScore: r.synergy_score,
+          confidence: r.confidence,
+          recommendation: r.recommendation,
+          reasoning: r.reasoning,
+          source: "claude" as const,
+        };
+      });
+
+      const evaluation: CardRewardEvaluation = {
+        rankings,
+        skipRecommended: data.skip_recommended ?? false,
+        skipReasoning: data.skip_reasoning ?? null,
+      };
+
+      setEvaluation(evaluation);
+      setCache(eventKey, evaluation);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {
