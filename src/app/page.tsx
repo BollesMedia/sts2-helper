@@ -17,13 +17,13 @@ import { isCombatState, hasRun } from "@/lib/types/game-state";
 function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const deckCards = useRef<CombatCard[]>([]);
 
-  if (gameState && isCombatState(gameState)) {
+  if (gameState && isCombatState(gameState) && gameState.battle?.player) {
     const p = gameState.battle.player;
     deckCards.current = [
-      ...p.hand,
-      ...p.draw_pile,
-      ...p.discard_pile,
-      ...p.exhaust_pile,
+      ...(p.hand ?? []),
+      ...(p.draw_pile ?? []),
+      ...(p.discard_pile ?? []),
+      ...(p.exhaust_pile ?? []),
     ];
   }
 
@@ -70,6 +70,9 @@ function GameStateView({
 }
 
 function CombatPlaceholder({ state }: { state: CombatState }) {
+  if (!state.battle?.player) {
+    return <PlaceholderView title="Combat (loading...)" state={state} />;
+  }
   const { player, enemies } = state.battle;
 
   return (

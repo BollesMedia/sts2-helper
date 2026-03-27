@@ -139,7 +139,13 @@ ${responseFormat}`;
       );
     }
 
-    const parsed = JSON.parse(textBlock.text);
+    // Strip markdown code fences if Claude wraps the response
+    let jsonText = textBlock.text.trim();
+    if (jsonText.startsWith("```")) {
+      jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+    }
+
+    const parsed = JSON.parse(jsonText);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
     // Update item names from our items array
@@ -159,9 +165,11 @@ ${responseFormat}`;
 
     return NextResponse.json(evaluation);
   } catch (error) {
-    console.error("Evaluation failed:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("Evaluation failed:", message, stack);
     return NextResponse.json(
-      { error: "Evaluation failed" },
+      { error: "Evaluation failed", detail: message },
       { status: 500 }
     );
   }
