@@ -12,6 +12,42 @@ import { tierToValue } from "@/evaluation/tier-utils";
 
 const anthropic = new Anthropic();
 
+// Compact boss reference for Claude — loaded once from Supabase
+let bossReference: string | null = null;
+let bossReferenceLoading = false;
+
+async function getBossReference(): Promise<string> {
+  if (bossReference) return bossReference;
+  if (bossReferenceLoading) return "";
+
+  bossReferenceLoading = true;
+  try {
+    const { createServiceClient } = await import("@/lib/supabase/server");
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("monsters")
+      .select("name, min_hp, max_hp, moves")
+      .eq("type", "Boss");
+
+    if (data && data.length > 0) {
+      bossReference = data
+        .map((b) => {
+          const moves = Array.isArray(b.moves)
+            ? (b.moves as { name: string }[]).slice(0, 4).map((m) => m.name).join(", ")
+            : "";
+          return `${b.name} (${b.min_hp ?? "?"}HP): ${moves}`;
+        })
+        .join("\n");
+    } else {
+      bossReference = "";
+    }
+  } catch {
+    bossReference = "";
+  }
+  bossReferenceLoading = false;
+  return bossReference ?? "";
+}
+
 const SYSTEM_PROMPT = `You are an expert Slay the Spire 2 advisor with deep knowledge of current STS2 meta strategies, card synergies, and high-ascension play patterns. You evaluate decisions the way a top-level player would — not in a vacuum, but in the context of the current run state.
 
 CRITICAL PRINCIPLE — DECK DISCIPLINE:
@@ -60,14 +96,21 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
+  // Load boss reference for context
+  const bosses = await getBossReference();
+
   // ─── MAP EVALUATION ───
   if (type === "map" && body.mapPrompt) {
+    const mapPromptWithBosses = bosses
+      ? `${body.mapPrompt}\n\nBoss reference (these are the bosses you may face):\n${bosses}`
+      : body.mapPrompt;
+
     try {
       const message = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: body.mapPrompt }],
+        messages: [{ role: "user", content: mapPromptWithBosses }],
       });
 
       const textBlock = message.content.find((b) => b.type === "text");
@@ -129,7 +172,10 @@ export async function POST(request: Request) {
   }
 
   // Build prompt for Claude
-  const contextStr = buildPromptContext(context);
+  let contextStr = buildPromptContext(context);
+  if (bosses) {
+    contextStr += `\n\nBoss reference:\n${bosses}`;
+  }
   const itemsStr = items
     .map(
       (item, i) =>
