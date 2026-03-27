@@ -32,19 +32,18 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
   const potions = items.filter((i) => i.category === "potion");
   const cardRemoval = items.find((i) => i.category === "card_removal");
 
-  const normalize = (s: string) =>
-    s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
+  // Build a lookup from item index in the stocked items array to shop item
+  const stockedItems = items;
 
   const findEval = (item: ShopItem) => {
+    const itemIdx = stockedItems.indexOf(item);
     const id = getItemId(item);
     const name = getItemName(item);
     return evaluation?.rankings.find(
       (r) =>
+        r.itemIndex === itemIdx ||
         r.itemId.toLowerCase() === id.toLowerCase() ||
-        r.itemName.toLowerCase() === name.toLowerCase() ||
-        normalize(r.itemId) === normalize(id) ||
-        normalize(r.itemId) === normalize(name) ||
-        normalize(r.itemName) === normalize(name)
+        r.itemName.toLowerCase() === name.toLowerCase()
     );
   };
 

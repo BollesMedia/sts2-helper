@@ -29,6 +29,7 @@ export interface EvaluationContext {
 export interface CardEvaluation {
   itemId: string;
   itemName: string;
+  itemIndex?: number;
   rank: number;
   tier: TierLetter;
   tierValue: number;

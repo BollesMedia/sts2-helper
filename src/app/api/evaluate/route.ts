@@ -204,21 +204,23 @@ ${responseFormat}`;
     const parsed = JSON.parse(jsonText);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
-    // Update item IDs and names from our items array
-    // Claude may return different casing, add/remove "+" suffix, or use underscored names
-    for (const ranking of evaluation.rankings) {
-      const normalize = (s: string) =>
-        s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
+    // Match Claude's returned IDs back to our original items
+    // and set a stable itemIndex for position-based client matching
+    const normalize = (s: string) =>
+      s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
 
-      const matchingItem = items.find(
+    for (const ranking of evaluation.rankings) {
+      const matchIdx = items.findIndex(
         (item) =>
           item.id.toLowerCase() === ranking.itemId.toLowerCase() ||
           normalize(item.name) === normalize(ranking.itemId) ||
-          normalize(item.id) === normalize(ranking.itemId)
+          normalize(item.id) === normalize(ranking.itemId) ||
+          normalize(item.name) === normalize(ranking.itemName)
       );
-      if (matchingItem) {
-        ranking.itemId = matchingItem.id;
-        ranking.itemName = matchingItem.name;
+      if (matchIdx !== -1) {
+        ranking.itemId = items[matchIdx].id;
+        ranking.itemName = items[matchIdx].name;
+        ranking.itemIndex = matchIdx;
       }
     }
 

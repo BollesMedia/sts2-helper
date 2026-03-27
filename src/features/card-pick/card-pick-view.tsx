@@ -58,16 +58,12 @@ export function CardPickView({ state, deckCards, player, runId }: CardPickViewPr
             <CardSkeleton />
           </>
         ) : (
-          cards.map((card) => {
-            const normalize = (s: string) =>
-              s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
+          cards.map((card, cardIndex) => {
             const cardEval = evaluation?.rankings.find(
               (r) =>
+                r.itemIndex === cardIndex ||
                 r.itemId.toLowerCase() === card.id.toLowerCase() ||
-                r.itemName.toLowerCase() === card.name.toLowerCase() ||
-                normalize(r.itemId) === normalize(card.id) ||
-                normalize(r.itemId) === normalize(card.name) ||
-                normalize(r.itemName) === normalize(card.name)
+                r.itemName.toLowerCase() === card.name.toLowerCase()
             );
             return (
               <CardRating
