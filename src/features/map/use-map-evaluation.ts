@@ -181,12 +181,21 @@ Boss at row ${state.map.boss.row}, currently at row ${currentRow}, ${state.map.b
 Available paths:
 ${optionsStr}
 
-Each option shows the FULL path sequence (up to 5 nodes ahead). Use this to evaluate:
-- Can I heal BEFORE an elite? (only if a RestSite appears before the Elite in the path)
-- How many consecutive fights without rest?
-- When does the shop appear relative to my gold?
-- Total fight count and difficulty curve to boss
-- Do NOT suggest healing before an elite unless a RestSite literally precedes it in the path
+Each option shows the FULL path sequence (up to 5 nodes ahead). Evaluate based on:
+
+ELITE DECISIONS (most important):
+- Elite fights give relics which are the strongest upgrades. PREFER elites when the deck can handle them.
+- Deck strength matters more than HP for elite readiness. A strong deck at 60% HP is elite-ready. A weak deck at 100% HP is not.
+- Only recommend resting before an elite if HP is genuinely dangerously low (<40%) AND a RestSite literally precedes the Elite in the path sequence.
+- 74/80 HP is NOT low. 50/80 is manageable. 30/80 is concerning.
+
+PATH ANALYSIS:
+- Count consecutive fights without rest — 3+ fights in a row is taxing
+- Rest sites: valuable for upgrading cards when HP is healthy, not just healing
+- Shops: only valuable if gold > card removal cost
+- Unknown events: can be positive or negative, treat as neutral
+
+Do NOT over-index on HP preservation. Aggressive pathing through elites wins more runs than cautious pathing that avoids them.
 
 Respond as JSON:
 {
