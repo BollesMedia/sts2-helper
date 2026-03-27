@@ -1,6 +1,7 @@
 "use client";
 
 import type { CardRewardState, CombatCard } from "@/lib/types/game-state";
+import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "@/components/loading-skeleton";
@@ -8,10 +9,11 @@ import { CardSkeleton } from "@/components/loading-skeleton";
 interface CardPickViewProps {
   state: CardRewardState;
   deckCards: CombatCard[];
+  player: TrackedPlayer | null;
 }
 
-export function CardPickView({ state, deckCards }: CardPickViewProps) {
-  const { evaluation, isLoading, error } = useCardEvaluation(state, deckCards);
+export function CardPickView({ state, deckCards, player }: CardPickViewProps) {
+  const { evaluation, isLoading, error } = useCardEvaluation(state, deckCards, player);
   const cards = state.card_reward.cards;
 
   return (

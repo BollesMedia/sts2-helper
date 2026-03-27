@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CardRewardState, CombatCard } from "@/lib/types/game-state";
+import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
 
@@ -17,7 +18,8 @@ interface UseCardEvaluationResult {
  */
 export function useCardEvaluation(
   state: CardRewardState,
-  deckCards: CombatCard[]
+  deckCards: CombatCard[],
+  player: TrackedPlayer | null
 ): UseCardEvaluationResult {
   const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,7 +39,8 @@ export function useCardEvaluation(
 
     const ctx: EvaluationContext | null = buildEvaluationContext(
       state,
-      deckCards
+      deckCards,
+      player
     );
 
     if (!ctx) {
@@ -77,7 +80,7 @@ export function useCardEvaluation(
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards]);
+  }, [state, deckCards, player]);
 
   useEffect(() => {
     evaluate();

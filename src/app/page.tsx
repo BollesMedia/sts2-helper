@@ -2,20 +2,24 @@
 
 import { useGameState, ConnectionBanner } from "@/features/connection";
 import { useDeckTracker } from "@/features/connection/use-deck-tracker";
+import { usePlayerTracker } from "@/features/connection/use-player-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import type {
   GameState,
   CombatState,
   CombatCard,
 } from "@/lib/types/game-state";
+import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import { isCombatState, hasRun } from "@/lib/types/game-state";
 
 function GameStateView({
   state,
   deckCards,
+  player,
 }: {
   state: GameState;
   deckCards: CombatCard[];
+  player: TrackedPlayer | null;
 }) {
   if (isCombatState(state)) {
     return <CombatPlaceholder state={state} />;
@@ -23,7 +27,7 @@ function GameStateView({
 
   switch (state.state_type) {
     case "card_reward":
-      return <CardPickView state={state} deckCards={deckCards} />;
+      return <CardPickView state={state} deckCards={deckCards} player={player} />;
     case "shop":
       return <PlaceholderView title="Shop" state={state} />;
     case "map":
@@ -215,6 +219,7 @@ function PlaceholderView({
 export default function Dashboard() {
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
+  const player = usePlayerTracker(gameState);
 
   if (connectionStatus !== "connected" || !gameState) {
     return <ConnectionBanner status={connectionStatus} />;
@@ -222,19 +227,28 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="flex items-center gap-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-        <span className="text-sm font-medium text-zinc-300">Connected</span>
-        <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
-          {gameState.state_type}
-        </span>
-        {hasRun(gameState) && (
-          <span className="text-xs text-zinc-600">
-            Act {gameState.run.act} · Floor {gameState.run.floor}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+          <span className="text-sm font-medium text-zinc-300">Connected</span>
+          <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
+            {gameState.state_type}
           </span>
+          {hasRun(gameState) && (
+            <span className="text-xs text-zinc-600">
+              Act {gameState.run.act} · Floor {gameState.run.floor}
+            </span>
+          )}
+        </div>
+        {player && (
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-zinc-400">{player.character}</span>
+            <span className="text-red-400">{player.hp}/{player.maxHp} HP</span>
+            <span className="text-amber-400">{player.gold}g</span>
+          </div>
         )}
       </div>
-      <GameStateView state={gameState} deckCards={deckCards} />
+      <GameStateView state={gameState} deckCards={deckCards} player={player} />
     </div>
   );
 }

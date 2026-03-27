@@ -1,5 +1,6 @@
 import type { GameState, CombatCard } from "@/lib/types/game-state";
-import { isCombatState, hasRun } from "@/lib/types/game-state";
+import { hasRun } from "@/lib/types/game-state";
+import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext } from "./types";
 import {
   detectArchetypes,
@@ -9,105 +10,47 @@ import {
 } from "./archetype-detector";
 
 /**
- * Build an EvaluationContext from the current game state.
- * Uses combat deck cards for archetype detection.
+ * Build an EvaluationContext from the current game state + tracked player/deck.
  */
 export function buildEvaluationContext(
   state: GameState,
-  deckCards: CombatCard[]
+  deckCards: CombatCard[],
+  trackedPlayer: TrackedPlayer | null
 ): EvaluationContext | null {
   const run = hasRun(state) ? state.run : null;
 
-  // Get player info from whichever state shape has it
-  const player = getPlayerInfo(state);
-  if (!player) return null;
+  if (!trackedPlayer) return null;
 
-  const archetypes = detectArchetypes(deckCards, player.relics);
+  const archetypes = detectArchetypes(deckCards, trackedPlayer.relics);
   const primaryArchetype =
     archetypes.length > 0 ? archetypes[0].archetype : null;
 
-  const curseCards = deckCards.filter(
-    (c) => c.name.toLowerCase().includes("curse")
+  const curseCards = deckCards.filter((c) =>
+    c.name.toLowerCase().includes("curse")
   );
 
   return {
-    character: player.character.toLowerCase(),
+    character: trackedPlayer.character.toLowerCase(),
     archetypes,
     primaryArchetype,
     act: run?.act ?? 1,
     floor: run?.floor ?? 1,
     deckSize: deckCards.length,
-    hpPercent: player.maxHp > 0 ? player.hp / player.maxHp : 1,
-    gold: player.gold,
-    energy: player.maxEnergy ?? 3,
-    relicIds: player.relics.map((r) => r.id),
+    hpPercent:
+      trackedPlayer.maxHp > 0
+        ? trackedPlayer.hp / trackedPlayer.maxHp
+        : 1,
+    gold: trackedPlayer.gold,
+    energy: trackedPlayer.maxEnergy,
+    relicIds: trackedPlayer.relics.map((r) => r.id),
     hasScaling: hasScalingSources(deckCards),
     curseCount: curseCards.length,
     deckCardNames: deckCards.map((c) => c.name),
     drawSources: getDrawSources(deckCards),
     scalingSources: getScalingSources(deckCards),
     curseNames: curseCards.map((c) => c.name),
-    relicNames: player.relics.map((r) => r.name),
-    potionNames: [], // TODO: extract from battle player potions
-  };
-}
-
-interface NormalizedPlayer {
-  character: string;
-  hp: number;
-  maxHp: number;
-  gold: number;
-  maxEnergy: number | null;
-  relics: { id: string; name: string }[];
-}
-
-function getPlayerInfo(state: GameState): NormalizedPlayer | null {
-  if (isCombatState(state)) {
-    const p = state.battle.player;
-    return {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: p.max_energy,
-      relics: p.relics,
-    };
-  }
-
-  if (state.state_type === "combat_rewards") {
-    const p = state.rewards.player;
-    return {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: null,
-      relics: [],
-    };
-  }
-
-  if (state.state_type === "map") {
-    const p = state.map.player;
-    return {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: null,
-      relics: [],
-    };
-  }
-
-  // For states without player data (card_reward, etc),
-  // return a minimal player so evaluation can still proceed.
-  // Claude will work with whatever context we have.
-  return {
-    character: "unknown",
-    hp: 0,
-    maxHp: 1, // avoid division by zero
-    gold: 0,
-    maxEnergy: 3,
-    relics: [],
+    relicNames: trackedPlayer.relics.map((r) => r.name),
+    potionNames: [],
   };
 }
 
