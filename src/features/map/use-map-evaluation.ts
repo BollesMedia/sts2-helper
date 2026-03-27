@@ -116,39 +116,46 @@ export function useMapEvaluation(
       nodeMap.set(`${n.col},${n.row}`, n);
     }
 
-    // Trace all reachable paths from each option (DFS, up to 5 deep)
-    function tracePaths(
+    // Build a readable tree for each option showing exact branching
+    function buildTree(
       col: number,
       row: number,
       depth: number,
-      maxDepth: number
-    ): string[][] {
+      maxDepth: number,
+      indent: string
+    ): string[] {
       const node = nodeMap.get(`${col},${row}`);
-      if (!node || depth >= maxDepth || node.children.length === 0) {
-        return [[node?.type ?? "?"]];
-      }
-      const results: string[][] = [];
-      for (const [childCol, childRow] of node.children) {
-        const childNode = nodeMap.get(`${childCol},${childRow}`);
-        if (!childNode) continue;
-        const subPaths = tracePaths(childCol, childRow, depth + 1, maxDepth);
-        for (const sub of subPaths) {
-          results.push([node.type, ...sub]);
+      if (!node) return [];
+
+      const icon = NODE_TYPE_ICONS[node.type] ?? "•";
+      const lines: string[] = [`${indent}${icon} ${node.type}`];
+
+      if (depth >= maxDepth || node.children.length === 0) return lines;
+
+      const childNodes = node.children
+        .map(([cc, cr]) => nodeMap.get(`${cc},${cr}`))
+        .filter(Boolean);
+
+      if (childNodes.length === 1) {
+        // Single path — continue inline
+        const child = childNodes[0]!;
+        lines.push(...buildTree(child.col, child.row, depth + 1, maxDepth, indent));
+      } else {
+        // Branching — show each branch
+        for (const child of childNodes) {
+          if (!child) continue;
+          lines.push(`${indent}  ├─`);
+          lines.push(...buildTree(child.col, child.row, depth + 1, maxDepth, indent + "  │ "));
         }
       }
-      return results.length > 0 ? results : [[node.type]];
+
+      return lines;
     }
 
     const optionsStr = options
       .map((opt, i) => {
-        const paths = tracePaths(opt.col, opt.row, 0, 5);
-        // Show unique paths, limit to 3 most distinct
-        const uniquePaths = paths
-          .map((p) => p.map((t) => `${NODE_TYPE_ICONS[t] ?? ""}${t}`).join(" → "))
-          .filter((p, idx, arr) => arr.indexOf(p) === idx)
-          .slice(0, 3);
-
-        return `${i + 1}. ${NODE_TYPE_ICONS[opt.type] ?? ""} ${opt.type}\n   Paths from here:\n${uniquePaths.map((p) => `   ${p}`).join("\n")}`;
+        const tree = buildTree(opt.col, opt.row, 0, 6, "   ");
+        return `Option ${i + 1}:\n${tree.join("\n")}`;
       })
       .join("\n\n");
 
@@ -178,10 +185,10 @@ Card removal cost: ${player?.cardRemovalCost != null ? `${player.cardRemovalCost
 Map overview (remaining nodes ahead): ${mapOverview}
 Boss at row ${state.map.boss.row}, currently at row ${currentRow}, ${state.map.boss.row - currentRow} floors to boss
 
-Available paths:
+Available paths (read carefully — each shows the EXACT sequence of nodes you will encounter, including branching points):
 ${optionsStr}
 
-Each option shows the FULL path sequence (up to 5 nodes ahead). Evaluate based on:
+IMPORTANT: The tree above is the ground truth. Each line is a node you WILL pass through in order. Branch points (├─) show where the path splits into choices. Evaluate based on:
 
 ELITE DECISIONS (most important):
 - Elite fights give relics which are the strongest upgrades. PREFER elites when the deck can handle them.
