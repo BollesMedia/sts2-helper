@@ -13,18 +13,23 @@ import { isCombatState, hasRun } from "@/lib/types/game-state";
 /**
  * Maintains a reference to the last known deck cards.
  * During combat we have access to all piles (draw + discard + exhaust + hand).
+ * This persists across state transitions so card_reward screens have deck context.
  */
 function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const deckCards = useRef<CombatCard[]>([]);
 
   if (gameState && isCombatState(gameState) && gameState.battle?.player) {
     const p = gameState.battle.player;
-    deckCards.current = [
+    const fullDeck = [
       ...(p.hand ?? []),
       ...(p.draw_pile ?? []),
       ...(p.discard_pile ?? []),
       ...(p.exhaust_pile ?? []),
     ];
+    // Only update if we got actual cards (avoid clearing on transitional states)
+    if (fullDeck.length > 0) {
+      deckCards.current = fullDeck;
+    }
   }
 
   return deckCards.current;

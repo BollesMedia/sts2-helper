@@ -57,7 +57,7 @@ export function CardPickView({ state, deckCards }: CardPickViewProps) {
         ) : (
           cards.map((card) => {
             const cardEval = evaluation?.rankings.find(
-              (r) => r.itemId === card.id
+              (r) => r.itemId.toLowerCase() === card.id.toLowerCase()
             );
             return (
               <CardRating

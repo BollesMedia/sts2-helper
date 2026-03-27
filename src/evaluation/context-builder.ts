@@ -98,20 +98,17 @@ function getPlayerInfo(state: GameState): NormalizedPlayer | null {
     };
   }
 
-  // card_reward doesn't include player data directly
-  // We rely on deckCards from the tracker for context
-  if (state.state_type === "card_reward") {
-    return {
-      character: "unknown",
-      hp: 0,
-      maxHp: 0,
-      gold: 0,
-      maxEnergy: null,
-      relics: [],
-    };
-  }
-
-  return null;
+  // For states without player data (card_reward, etc),
+  // return a minimal player so evaluation can still proceed.
+  // Claude will work with whatever context we have.
+  return {
+    character: "unknown",
+    hp: 0,
+    maxHp: 1, // avoid division by zero
+    gold: 0,
+    maxEnergy: 3,
+    relics: [],
+  };
 }
 
 /**
