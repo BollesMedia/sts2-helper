@@ -11,6 +11,7 @@ import { MapView } from "@/features/map/map-view";
 import { EventView } from "@/features/event/event-view";
 import { RestSiteView } from "@/features/rest-site/rest-site-view";
 import { HpBar } from "@/components/hp-bar";
+import { BossBriefing } from "@/features/combat/boss-briefing";
 import { cn } from "@/lib/cn";
 import type {
   GameState,
@@ -234,6 +235,11 @@ function CombatView({ state }: { state: CombatState }) {
           )}
         </div>
       </div>
+
+      {/* Boss briefing — real move data from DB, no hallucination */}
+      {state.state_type === "boss" && (
+        <BossBriefing enemies={enemies} ascension={state.run.ascension} />
+      )}
 
       {/* Status effects */}
       {(player.status.length > 0 || enemies.some((e) => e.status.length > 0)) && (
