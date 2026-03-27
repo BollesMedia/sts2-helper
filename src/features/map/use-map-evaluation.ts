@@ -109,17 +109,49 @@ export function useMapEvaluation(
 
     const contextStr = buildPromptContext(ctx);
 
+    // Build a node lookup for path tracing
+    const allNodes = state.map.nodes;
+    const nodeMap = new Map<string, typeof allNodes[0]>();
+    for (const n of allNodes) {
+      nodeMap.set(`${n.col},${n.row}`, n);
+    }
+
+    // Trace all reachable paths from each option (DFS, up to 5 deep)
+    function tracePaths(
+      col: number,
+      row: number,
+      depth: number,
+      maxDepth: number
+    ): string[][] {
+      const node = nodeMap.get(`${col},${row}`);
+      if (!node || depth >= maxDepth || node.children.length === 0) {
+        return [[node?.type ?? "?"]];
+      }
+      const results: string[][] = [];
+      for (const [childCol, childRow] of node.children) {
+        const childNode = nodeMap.get(`${childCol},${childRow}`);
+        if (!childNode) continue;
+        const subPaths = tracePaths(childCol, childRow, depth + 1, maxDepth);
+        for (const sub of subPaths) {
+          results.push([node.type, ...sub]);
+        }
+      }
+      return results.length > 0 ? results : [[node.type]];
+    }
+
     const optionsStr = options
       .map((opt, i) => {
-        const leadsTo = opt.leads_to
-          ?.map((l) => `${NODE_TYPE_ICONS[l.type] ?? ""} ${l.type}`)
-          .join(", ") ?? "unknown";
-        return `${i + 1}. ${NODE_TYPE_ICONS[opt.type] ?? ""} ${opt.type} (col ${opt.col}, row ${opt.row}) → leads to: ${leadsTo}`;
-      })
-      .join("\n");
+        const paths = tracePaths(opt.col, opt.row, 0, 5);
+        // Show unique paths, limit to 3 most distinct
+        const uniquePaths = paths
+          .map((p) => p.map((t) => `${NODE_TYPE_ICONS[t] ?? ""}${t}`).join(" → "))
+          .filter((p, idx, arr) => arr.indexOf(p) === idx)
+          .slice(0, 3);
 
-    // Build a broader map context: count remaining node types
-    const allNodes = state.map.nodes;
+        return `${i + 1}. ${NODE_TYPE_ICONS[opt.type] ?? ""} ${opt.type}\n   Paths from here:\n${uniquePaths.map((p) => `   ${p}`).join("\n")}`;
+      })
+      .join("\n\n");
+
     const currentRow = state.map.current_position?.row ?? 0;
     const futureNodes = allNodes.filter((n) => n.row > currentRow);
     const typeCounts: Record<string, number> = {};
@@ -149,13 +181,12 @@ Boss at row ${state.map.boss.row}, currently at row ${currentRow}, ${state.map.b
 Available paths:
 ${optionsStr}
 
-Evaluate each path option. Consider:
-- HP safety (do I need healing before hard fights?)
-- Rest site proximity to elites (heal then fight)
-- Deck readiness (is the deck strong enough for elites?)
-- Gold and shop value (shops are only valuable if gold > 75g for card removal)
-- Total fights on path (fragile decks want fewer)
-- Distance to boss and preparation needed
+Each option shows the FULL path sequence (up to 5 nodes ahead). Use this to evaluate:
+- Can I heal BEFORE an elite? (only if a RestSite appears before the Elite in the path)
+- How many consecutive fights without rest?
+- When does the shop appear relative to my gold?
+- Total fight count and difficulty curve to boss
+- Do NOT suggest healing before an elite unless a RestSite literally precedes it in the path
 
 Respond as JSON:
 {
