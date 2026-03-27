@@ -97,6 +97,9 @@ export function ShopItemCard({
             {description}
           </p>
 
+          {!evaluation && !affordable && (
+            <p className="mt-2 text-xs text-zinc-600">Can't afford</p>
+          )}
           {evaluation && (
             <div className="mt-2 space-y-1.5">
               <div className="flex items-center gap-2">

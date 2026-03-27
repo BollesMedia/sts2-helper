@@ -26,6 +26,7 @@ Evaluate cards by asking:
 For shop evaluations: card removal is often the highest-value action. Removing a Strike or Defend frequently outperforms buying a new card.
 
 Respond in JSON only — no markdown, no code fences.
+IMPORTANT: You MUST include ALL items in your rankings array. Keep reasoning to 1 sentence max for shop evaluations with many items.
 
 Confidence calibration:
 - 90-100: Clear-cut (e.g., key archetype card the deck is missing)
