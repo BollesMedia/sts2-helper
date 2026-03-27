@@ -103,7 +103,7 @@ export async function POST(request: Request) {
   const bosses = await getBossReference();
   const runHistory = await getRunHistoryContext();
   const characterStrategy = body.context
-    ? getCharacterStrategy(body.context.character)
+    ? await getCharacterStrategy(body.context.character)
     : null;
 
   // ─── MAP EVALUATION ───

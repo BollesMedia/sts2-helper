@@ -85,6 +85,27 @@ export type Database = {
           },
         ]
       }
+      character_strategies: {
+        Row: {
+          display_name: string
+          id: string
+          strategy: string
+          updated_at: string | null
+        }
+        Insert: {
+          display_name: string
+          id: string
+          strategy: string
+          updated_at?: string | null
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          strategy?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       characters: {
         Row: {
           game_version: string | null
