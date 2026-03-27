@@ -8,6 +8,7 @@ import { useChoiceTracker } from "@/evaluation/choice-tracker";
 import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
 import { MapView } from "@/features/map/map-view";
+import { EventView } from "@/features/event/event-view";
 import { HpBar } from "@/components/hp-bar";
 import { cn } from "@/lib/cn";
 import type {
@@ -110,6 +111,8 @@ function GameStateView({
       return <ShopView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "map":
       return <MapView state={state} player={player} deckCards={deckCards} />;
+    case "event":
+      return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
     case "menu":

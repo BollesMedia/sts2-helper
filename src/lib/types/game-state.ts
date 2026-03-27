@@ -213,24 +213,28 @@ export interface ShopState {
   run: RunInfo;
 }
 
+export interface EventOption {
+  index: number;
+  title: string;
+  description: string;
+  is_locked: boolean;
+  is_proceed: boolean;
+  was_chosen: boolean;
+  relic_name?: string;
+  relic_description?: string;
+  keywords?: KeywordInfo[];
+}
+
 export interface EventState {
   state_type: "event";
   event: {
-    id: string;
-    name: string;
+    event_id: string;
+    event_name: string;
     is_ancient: boolean;
     in_dialogue: boolean;
+    body?: string | null;
     player: PlayerSummary;
-    options: {
-      index: number;
-      title: string;
-      description: string;
-      locked: boolean;
-      is_proceed: boolean;
-      chosen: boolean;
-      relic?: GameRelic;
-      keywords?: KeywordInfo[];
-    }[];
+    options: EventOption[];
   };
   run: RunInfo;
 }
