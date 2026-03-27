@@ -51,7 +51,7 @@ export function buildEvaluationContext(
     relicIds: player.relics.map((r) => r.id),
     hasScaling: hasScalingSources(deckCards),
     curseCount: curseCards.length,
-    deckCards: deckCards.map((c) => ({ name: c.name, description: c.description })),
+    deckCards: deckCards.map((c) => ({ name: c.name, description: c.description, keywords: c.keywords })),
     drawSources: getDrawSources(deckCards),
     scalingSources: getScalingSources(deckCards),
     curseNames: curseCards.map((c) => c.name),
@@ -91,7 +91,17 @@ export function buildPromptContext(ctx: EvaluationContext): string {
     `Act ${ctx.act}, Floor ${ctx.floor}`,
     `HP: ${Math.round(ctx.hpPercent * 100)}% | Energy: ${ctx.energy} | Gold: ${ctx.gold}`,
     `Deck (${ctx.deckSize} cards):`,
-    ...ctx.deckCards.map((c) => `  - ${c.name}: ${c.description}`),
+    ...ctx.deckCards.map((c) => {
+      const tags: string[] = [];
+      const kwNames = (c.keywords ?? []).map((k) => k.name.toLowerCase());
+      if (kwNames.includes("eternal")) tags.push("ETERNAL - cannot be removed or transformed");
+      if (kwNames.includes("innate")) tags.push("Innate");
+      if (kwNames.includes("retain")) tags.push("Retain");
+      if (kwNames.includes("exhaust")) tags.push("Exhaust");
+      if (kwNames.includes("ethereal")) tags.push("Ethereal");
+      const tagStr = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
+      return `  - ${c.name}: ${c.description}${tagStr}`;
+    }),
     `  Draw sources: ${ctx.drawSources.length > 0 ? ctx.drawSources.join(", ") : "none"}`,
     `  Scaling sources: ${ctx.scalingSources.length > 0 ? ctx.scalingSources.join(", ") : "none"}`,
     `  Curses: ${ctx.curseCount} (${ctx.curseNames.length > 0 ? ctx.curseNames.join(", ") : "none"})`,
