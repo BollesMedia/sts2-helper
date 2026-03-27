@@ -248,7 +248,7 @@ export interface RestSiteState {
       id: string;
       name: string;
       description: string;
-      enabled: boolean;
+      is_enabled: boolean;
     }[];
     can_proceed: boolean;
   };

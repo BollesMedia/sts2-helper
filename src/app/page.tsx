@@ -9,6 +9,7 @@ import { CardPickView } from "@/features/card-pick/card-pick-view";
 import { ShopView } from "@/features/shop/shop-view";
 import { MapView } from "@/features/map/map-view";
 import { EventView } from "@/features/event/event-view";
+import { RestSiteView } from "@/features/rest-site/rest-site-view";
 import { HpBar } from "@/components/hp-bar";
 import { cn } from "@/lib/cn";
 import type {
@@ -115,6 +116,8 @@ function GameStateView({
       return <MapView state={state} player={player} deckCards={deckCards} />;
     case "event":
       return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
+    case "rest_site":
+      return <RestSiteView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
     case "menu":
@@ -366,6 +369,23 @@ export default function Dashboard() {
       <main className="flex-1 p-6">
         <GameStateView state={gameState} deckCards={deckCards} player={player} runId={runState.runId} runState={runState} />
       </main>
+      {gameState.state_type !== "menu" && (
+        <footer className="border-t border-zinc-800 px-6 py-2 flex justify-end">
+          <button
+            onClick={() => {
+              localStorage.removeItem("sts2-eval-cache");
+              localStorage.removeItem("sts2-shop-eval-cache");
+              localStorage.removeItem("sts2-map-eval-cache");
+              localStorage.removeItem("sts2-event-eval-cache");
+              localStorage.removeItem("sts2-rest-eval-cache");
+              window.location.reload();
+            }}
+            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Re-evaluate
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

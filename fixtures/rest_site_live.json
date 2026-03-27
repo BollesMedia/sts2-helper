@@ -1,0 +1,33 @@
+{
+    "state_type": "rest_site",
+    "rest_site": {
+        "player": {
+            "character": "The Ironclad",
+            "hp": 56,
+            "max_hp": 80,
+            "gold": 191
+        },
+        "options": [
+            {
+                "index": 0,
+                "id": "HEAL",
+                "name": "Rest",
+                "description": "Heal for 30% of your Max HP (24).\nRaise your Max HP by 5.",
+                "is_enabled": true
+            },
+            {
+                "index": 1,
+                "id": "SMITH",
+                "name": "Smith",
+                "description": "Upgrade a card in your Deck.",
+                "is_enabled": true
+            }
+        ],
+        "can_proceed": false
+    },
+    "run": {
+        "act": 1,
+        "floor": 7,
+        "ascension": 6
+    }
+}
