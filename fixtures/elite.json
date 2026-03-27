@@ -1,0 +1,237 @@
+{
+    "state_type": "elite",
+    "battle": {
+        "round": 1,
+        "turn": "player",
+        "is_play_phase": false,
+        "player": {
+            "character": "The Ironclad",
+            "hp": 57,
+            "max_hp": 87,
+            "block": 0,
+            "energy": 0,
+            "max_energy": 3,
+            "hand": [],
+            "draw_pile_count": 21,
+            "discard_pile_count": 0,
+            "exhaust_pile_count": 0,
+            "draw_pile": [
+                {
+                    "name": "Rupture",
+                    "description": "Whenever you lose HP on your turn, gain 1 Strength."
+                },
+                {
+                    "name": "Defend",
+                    "description": "Gain 5 Block."
+                },
+                {
+                    "name": "Body Slam+",
+                    "description": "Deal damage equal to your Block. (Deals 0 damage)"
+                },
+                {
+                    "name": "Thunderclap",
+                    "description": "Deal 4 damage and apply 1 Vulnerable to ALL enemies."
+                },
+                {
+                    "name": "Strike",
+                    "description": "Deal 6 damage."
+                },
+                {
+                    "name": "Pommel Strike",
+                    "description": "Deal 9 damage. Draw 1 card."
+                },
+                {
+                    "name": "Strike",
+                    "description": "Deal 6 damage."
+                },
+                {
+                    "name": "Defend",
+                    "description": "Gain 5 Block."
+                },
+                {
+                    "name": "Defend",
+                    "description": "Gain 5 Block."
+                },
+                {
+                    "name": "Bash",
+                    "description": "Deal 8 damage. Apply 2 Vulnerable."
+                },
+                {
+                    "name": "Whirlwind",
+                    "description": "Deal 5 damage to ALL enemies X times."
+                },
+                {
+                    "name": "Pyre",
+                    "description": "Gain [ironclad_energy_icon.png] at the start of each turn."
+                },
+                {
+                    "name": "Defend",
+                    "description": "Gain 5 Block."
+                },
+                {
+                    "name": "Demon Form",
+                    "description": "At the start of your turn, gain 2 Strength."
+                },
+                {
+                    "name": "Strike",
+                    "description": "Deal 6 damage."
+                },
+                {
+                    "name": "Shrug It Off+",
+                    "description": "Gain 11 Block. Draw 1 card."
+                },
+                {
+                    "name": "Headbutt",
+                    "description": "Deal 9 damage. Put a card from your Discard Pile on top of your Draw Pile."
+                },
+                {
+                    "name": "Battle Trance",
+                    "description": "Draw 3 cards. You cannot draw additional cards this turn."
+                },
+                {
+                    "name": "Inflame",
+                    "description": "Gain 2 Strength."
+                },
+                {
+                    "name": "Strike",
+                    "description": "Deal 6 damage."
+                },
+                {
+                    "name": "Pommel Strike",
+                    "description": "Deal 9 damage. Draw 1 card."
+                }
+            ],
+            "discard_pile": [],
+            "exhaust_pile": [],
+            "gold": 426,
+            "status": [
+                {
+                    "id": "STRENGTH_POWER",
+                    "name": "Strength",
+                    "amount": 1,
+                    "type": "Buff",
+                    "description": "Increases attack damage by 1.",
+                    "keywords": []
+                },
+                {
+                    "id": "PLATING_POWER",
+                    "name": "Plating",
+                    "amount": 4,
+                    "type": "Buff",
+                    "description": "At the end of your turn, gain 4 Block. Plating is reduced by 1 at the start of your turn.",
+                    "keywords": [
+                        {
+                            "name": "Block",
+                            "description": "Until next turn, prevents damage."
+                        }
+                    ]
+                }
+            ],
+            "relics": [
+                {
+                    "id": "BURNING_BLOOD",
+                    "name": "Burning Blood",
+                    "description": "At the end of combat, heal 6 HP.",
+                    "counter": null,
+                    "keywords": []
+                },
+                {
+                    "id": "VAJRA",
+                    "name": "Vajra",
+                    "description": "Start each combat with 1 Strength.",
+                    "counter": null,
+                    "keywords": [
+                        {
+                            "name": "Strength",
+                            "description": "Strength adds additional damage to Attacks."
+                        }
+                    ]
+                },
+                {
+                    "id": "GORGET",
+                    "name": "Gorget",
+                    "description": "At the start of each combat, gain 4 Plating.",
+                    "counter": null,
+                    "keywords": [
+                        {
+                            "name": "Plating",
+                            "description": "At the end of your turn, gain Block. Plating is reduced by 1 at the start of your turn."
+                        },
+                        {
+                            "name": "Block",
+                            "description": "Until next turn, prevents damage."
+                        }
+                    ]
+                },
+                {
+                    "id": "PAELS_GROWTH",
+                    "name": "Pael's Growth",
+                    "description": "Upon pickup, Enchant a card with Clone.",
+                    "counter": null,
+                    "keywords": [
+                        {
+                            "name": "Clone",
+                            "description": "This card can be duplicated at Rest Sites."
+                        }
+                    ]
+                },
+                {
+                    "id": "STRIKE_DUMMY",
+                    "name": "Strike Dummy",
+                    "description": "Cards containing \u201cStrike\u201d deal 3 additional damage.",
+                    "counter": null,
+                    "keywords": []
+                }
+            ],
+            "potions": [
+                {
+                    "id": "SWIFT_POTION",
+                    "name": "Swift Potion",
+                    "description": "Draw 3 cards.",
+                    "slot": 0,
+                    "can_use_in_combat": true,
+                    "target_type": "AnyPlayer",
+                    "keywords": []
+                }
+            ]
+        },
+        "enemies": [
+            {
+                "entity_id": "ENTOMANCER_0",
+                "combat_id": 1,
+                "name": "Entomancer",
+                "hp": 145,
+                "max_hp": 145,
+                "block": 0,
+                "status": [
+                    {
+                        "id": "PERSONAL_HIVE_POWER",
+                        "name": "Personal Hive",
+                        "amount": 1,
+                        "type": "Buff",
+                        "description": "Whenever this enemy is hit by an Attack, add 1 Dazed into your Draw Pile.",
+                        "keywords": [
+                            {
+                                "name": "Dazed",
+                                "description": "Unplayable. Ethereal."
+                            }
+                        ]
+                    }
+                ],
+                "intents": [
+                    {
+                        "type": "Attack",
+                        "label": "3x7",
+                        "title": "Aggressive",
+                        "description": "This enemy intends to Attack for 3 damage 7 times."
+                    }
+                ]
+            }
+        ]
+    },
+    "run": {
+        "act": 2,
+        "floor": 29,
+        "ascension": 0
+    }
+}

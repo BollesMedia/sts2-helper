@@ -4,16 +4,6 @@ import { useRef } from "react";
 import type { GameState, CombatCard } from "@/lib/types/game-state";
 import { isCombatState } from "@/lib/types/game-state";
 
-/**
- * Temporary status cards added by enemies during combat.
- * These don't exist in the deck outside of combat and should be
- * excluded from deck tracking. Curses (Regret, Pain, etc.) are
- * NOT filtered — they're permanent deck additions from events.
- * Names are lowercase for case-insensitive matching.
- */
-const TEMPORARY_STATUS_CARDS = new Set([
-  "wound", "burn", "daze", "slimed", "void",
-]);
 
 const STORAGE_KEY = "sts2-deck";
 
@@ -71,15 +61,10 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
       ...(p.exhaust_pile ?? []),
     ];
 
-    // Filter out status/curse cards added by enemies during combat
-    const permanentDeck = combatDeck.filter(
-      (c) => !TEMPORARY_STATUS_CARDS.has(c.name.toLowerCase())
-    );
-
-    if (permanentDeck.length > 0) {
+    if (combatDeck.length > 0) {
       if (deckCards.current.length > 0 && !isVerified.current) {
         const trackedNames = deckCards.current.map((c) => c.name).sort();
-        const actualNames = permanentDeck.map((c) => c.name).sort();
+        const actualNames = combatDeck.map((c) => c.name).sort();
 
         if (JSON.stringify(trackedNames) !== JSON.stringify(actualNames)) {
           const added = actualNames.filter((n) => !trackedNames.includes(n));
@@ -95,9 +80,9 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
         }
       }
 
-      deckCards.current = permanentDeck;
+      deckCards.current = combatDeck;
       isVerified.current = true;
-      saveToStorage(permanentDeck);
+      saveToStorage(combatDeck);
     }
   }
 
