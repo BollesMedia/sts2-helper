@@ -7,13 +7,14 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
 
   if (action === "start") {
-    const { runId, character, ascension, gameVersion } = body;
+    const { runId, character, ascension, gameVersion, gameMode } = body;
 
     const { error } = await supabase.from("runs").upsert({
       run_id: runId,
       character,
       ascension_level: ascension ?? 0,
       game_version: gameVersion ?? null,
+      game_mode: gameMode ?? "singleplayer",
     });
 
     if (error) {

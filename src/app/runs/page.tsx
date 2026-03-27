@@ -77,9 +77,12 @@ export default function RunsPage() {
           <div className="flex items-baseline justify-between">
             <h1 className="text-xl font-semibold text-zinc-100">Runs</h1>
             {runs && (
-              <span className="text-xs text-zinc-600">
-                {runs.length} runs recorded
-              </span>
+              <div className="flex items-center gap-3 text-xs text-zinc-600">
+                <span>{runs.length} runs</span>
+                <span>·</span>
+                <span>{runs.filter((r) => r.victory === true).length}W</span>
+                <span>{runs.filter((r) => r.victory === false).length}L</span>
+              </div>
             )}
           </div>
 
@@ -152,6 +155,11 @@ function RunCard({
           {run.ascension_level != null && run.ascension_level > 0 && (
             <span className="text-xs text-zinc-500">
               A{run.ascension_level}
+            </span>
+          )}
+          {run.game_mode === "multiplayer" && (
+            <span className="rounded bg-purple-400/10 px-1.5 py-0.5 text-xs text-purple-400">
+              Co-op
             </span>
           )}
           <span className={cn("text-sm font-medium", outcomeColor)}>

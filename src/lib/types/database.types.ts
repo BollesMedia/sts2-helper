@@ -444,6 +444,7 @@ export type Database = {
           character: string
           ended_at: string | null
           final_floor: number | null
+          game_mode: string
           game_version: string | null
           id: string
           run_id: string
@@ -455,6 +456,7 @@ export type Database = {
           character: string
           ended_at?: string | null
           final_floor?: number | null
+          game_mode?: string
           game_version?: string | null
           id?: string
           run_id: string
@@ -466,6 +468,7 @@ export type Database = {
           character?: string
           ended_at?: string | null
           final_floor?: number | null
+          game_mode?: string
           game_version?: string | null
           id?: string
           run_id?: string

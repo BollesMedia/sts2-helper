@@ -148,6 +148,7 @@ export function useRunTracker(gameState: GameState | null): RunState {
         runId: newRunId,
         character: character ?? "Unknown",
         ascension,
+        gameMode: "singleplayer",
       }),
     }).catch(console.error);
 
