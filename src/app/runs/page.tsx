@@ -194,6 +194,13 @@ function RunCard({
         </div>
       )}
 
+      {/* Notes */}
+      {run.notes && (
+        <p className="text-sm text-zinc-400 italic leading-relaxed">
+          &ldquo;{run.notes}&rdquo;
+        </p>
+      )}
+
       {/* Card picks detail */}
       {cardPicks.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

@@ -447,6 +447,7 @@ export type Database = {
           game_mode: string
           game_version: string | null
           id: string
+          notes: string | null
           run_id: string
           started_at: string | null
           victory: boolean | null
@@ -459,6 +460,7 @@ export type Database = {
           game_mode?: string
           game_version?: string | null
           id?: string
+          notes?: string | null
           run_id: string
           started_at?: string | null
           victory?: boolean | null
@@ -471,6 +473,7 @@ export type Database = {
           game_mode?: string
           game_version?: string | null
           id?: string
+          notes?: string | null
           run_id?: string
           started_at?: string | null
           victory?: boolean | null

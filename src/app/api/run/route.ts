@@ -26,15 +26,18 @@ export async function POST(request: Request) {
   }
 
   if (action === "end") {
-    const { runId, victory, finalFloor } = body;
+    const { runId, victory, finalFloor, notes } = body;
+
+    const update: Record<string, unknown> = {
+      ended_at: new Date().toISOString(),
+    };
+    if (victory !== undefined) update.victory = victory;
+    if (finalFloor !== undefined) update.final_floor = finalFloor;
+    if (notes !== undefined) update.notes = notes;
 
     const { error } = await supabase
       .from("runs")
-      .update({
-        ended_at: new Date().toISOString(),
-        victory: victory ?? null,
-        final_floor: finalFloor ?? null,
-      })
+      .update(update)
       .eq("run_id", runId);
 
     if (error) {
