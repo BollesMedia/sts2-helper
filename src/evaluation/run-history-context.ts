@@ -1,22 +1,13 @@
 import { createServiceClient } from "@/lib/supabase/server";
 
-interface RunSummary {
-  character: string;
-  ascension: number;
-  victory: boolean | null;
-  finalFloor: number | null;
-  notes: string | null;
-  bosses: string[];
-}
-
 let cachedHistory: string | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 1000 * 60 * 5; // refresh every 5 minutes
 
 /**
- * Builds a concise run history context string for Claude prompts.
- * Includes recent runs with outcomes, notes, and bosses fought.
- * Cached for 5 minutes to avoid hitting Supabase on every evaluation.
+ * Builds a compact run history summary for Claude prompts.
+ * Aggregates stats and extracts patterns instead of dumping raw data.
+ * Target: ~200 tokens regardless of how many runs exist.
  */
 export async function getRunHistoryContext(): Promise<string> {
   if (cachedHistory && Date.now() - cacheTimestamp < CACHE_TTL) {
@@ -26,12 +17,13 @@ export async function getRunHistoryContext(): Promise<string> {
   try {
     const supabase = createServiceClient();
 
+    // Get aggregate stats
     const { data: runs } = await supabase
       .from("runs")
       .select("character, ascension_level, victory, final_floor, notes, bosses_fought")
       .not("ended_at", "is", null)
       .order("started_at", { ascending: false })
-      .limit(10);
+      .limit(50);
 
     if (!runs || runs.length === 0) {
       cachedHistory = "";
@@ -39,43 +31,80 @@ export async function getRunHistoryContext(): Promise<string> {
       return "";
     }
 
-    const summaries: RunSummary[] = runs.map((r) => ({
-      character: r.character,
-      ascension: r.ascension_level ?? 0,
-      victory: r.victory,
-      finalFloor: r.final_floor,
-      notes: r.notes,
-      bosses: r.bosses_fought ?? [],
-    }));
+    const wins = runs.filter((r) => r.victory === true).length;
+    const losses = runs.filter((r) => r.victory === false).length;
+    const avgFloor = Math.round(
+      runs.reduce((sum, r) => sum + (r.final_floor ?? 0), 0) / runs.length
+    );
 
-    const wins = summaries.filter((r) => r.victory === true).length;
-    const losses = summaries.filter((r) => r.victory === false).length;
-
-    const lines: string[] = [
-      `Recent run history (${wins}W/${losses}L from last ${summaries.length} runs):`,
-    ];
-
-    for (const run of summaries.slice(0, 5)) {
-      const outcome = run.victory === true ? "WIN" : run.victory === false ? "LOSS" : "QUIT";
-      const bossStr = run.bosses.length > 0 ? ` vs ${run.bosses.join(", ")}` : "";
-      lines.push(
-        `  ${outcome} ${run.character} A${run.ascension} Floor ${run.finalFloor ?? "?"}${bossStr}`
-      );
-      if (run.notes) {
-        lines.push(`    Player note: "${run.notes}"`);
+    // Boss kill/death stats
+    const bossDeaths: Record<string, number> = {};
+    const bossKills: Record<string, number> = {};
+    for (const run of runs) {
+      const bosses = run.bosses_fought ?? [];
+      for (const boss of bosses) {
+        if (run.victory === false) {
+          bossDeaths[boss] = (bossDeaths[boss] ?? 0) + 1;
+        } else if (run.victory === true) {
+          bossKills[boss] = (bossKills[boss] ?? 0) + 1;
+        }
       }
     }
 
-    // Extract patterns from notes
-    const allNotes = summaries
-      .filter((r) => r.notes && r.victory === false)
+    // Extract recurring themes from recent defeat notes (last 5 losses only)
+    const recentLossNotes = runs
+      .filter((r) => r.victory === false && r.notes)
+      .slice(0, 5)
       .map((r) => r.notes!);
 
-    if (allNotes.length > 0) {
-      lines.push("");
-      lines.push("Player's recurring issues from defeat notes (learn from these):");
-      for (const note of allNotes.slice(0, 3)) {
-        lines.push(`  - "${note}"`);
+    // Build compact summary
+    const lines: string[] = [
+      `Player stats: ${wins}W/${losses}L (${runs.length} runs), avg floor ${avgFloor}`,
+    ];
+
+    // Dangerous bosses
+    const dangerousBosses = Object.entries(bossDeaths)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    if (dangerousBosses.length > 0) {
+      lines.push(
+        `Struggles against: ${dangerousBosses.map(([b, d]) => `${b} (${d} deaths)`).join(", ")}`
+      );
+    }
+
+    // Distill notes into 1-2 key themes (not raw notes)
+    if (recentLossNotes.length > 0) {
+      // Simple keyword frequency to find patterns
+      const themes: Record<string, number> = {};
+      const keywords: Record<string, string> = {
+        defense: "lacking defense/block",
+        block: "lacking defense/block",
+        def: "lacking defense/block",
+        hp: "HP management issues",
+        heal: "HP management issues",
+        elite: "elite fights too risky",
+        boss: "boss fights unprepared",
+        scaling: "lacking damage scaling",
+        damage: "lacking damage scaling",
+        energy: "energy economy problems",
+      };
+
+      for (const note of recentLossNotes) {
+        const lower = note.toLowerCase();
+        for (const [kw, theme] of Object.entries(keywords)) {
+          if (lower.includes(kw)) {
+            themes[theme] = (themes[theme] ?? 0) + 1;
+          }
+        }
+      }
+
+      const topThemes = Object.entries(themes)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([t]) => t);
+
+      if (topThemes.length > 0) {
+        lines.push(`Recurring weaknesses: ${topThemes.join(", ")}`);
       }
     }
 
