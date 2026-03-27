@@ -165,7 +165,7 @@ ${responseFormat}`;
     // Claude may return different casing, add/remove "+" suffix, or use underscored names
     for (const ranking of evaluation.rankings) {
       const normalize = (s: string) =>
-        s.toLowerCase().replace(/[+\s]/g, "").replace(/_/g, "");
+        s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
 
       const matchingItem = items.find(
         (item) =>
