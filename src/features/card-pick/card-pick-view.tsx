@@ -47,7 +47,7 @@ export function CardPickView({ state, deckCards }: CardPickViewProps) {
       )}
 
       {/* Card ratings */}
-      <div className="grid gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {isLoading && !evaluation ? (
           <>
             <CardSkeleton />
@@ -57,7 +57,9 @@ export function CardPickView({ state, deckCards }: CardPickViewProps) {
         ) : (
           cards.map((card) => {
             const cardEval = evaluation?.rankings.find(
-              (r) => r.itemId.toLowerCase() === card.id.toLowerCase()
+              (r) =>
+                r.itemId.toLowerCase() === card.id.toLowerCase() ||
+                r.itemName.toLowerCase() === card.name.toLowerCase()
             );
             return (
               <CardRating

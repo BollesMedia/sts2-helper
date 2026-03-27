@@ -148,10 +148,13 @@ ${responseFormat}`;
     const parsed = JSON.parse(jsonText);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
-    // Update item names from our items array
+    // Update item IDs and names from our items array (Claude may return different casing)
     for (const ranking of evaluation.rankings) {
-      const matchingItem = items.find((item) => item.id === ranking.itemId);
+      const matchingItem = items.find(
+        (item) => item.id.toLowerCase() === ranking.itemId.toLowerCase()
+      );
       if (matchingItem) {
+        ranking.itemId = matchingItem.id; // normalize to game's casing
         ranking.itemName = matchingItem.name;
       }
     }
