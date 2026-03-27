@@ -42,6 +42,7 @@ export function buildEvaluationContext(
     primaryArchetype,
     act: run?.act ?? 1,
     floor: run?.floor ?? 1,
+    ascension: run?.ascension ?? 0,
     deckSize: deckCards.length,
     hpPercent:
       player.maxHp > 0 ? player.hp / player.maxHp : 1,
@@ -57,6 +58,28 @@ export function buildEvaluationContext(
     relics: player.relics.map((r) => ({ name: r.name, description: r.description })),
     potionNames: [],
   };
+}
+
+// Ascension modifiers — cumulative (A6 means all of A1-A6 apply)
+const ASCENSION_MODIFIERS: Record<number, string> = {
+  1: "Elites spawn more often",
+  2: "Ancients only heal 80% of missing HP",
+  3: "Enemies and Treasure Chests drop 25% less Gold",
+  4: "Start with 1 less potion slot",
+  5: "Start Cursed (Ascender's Bane)",
+  6: "Less Rest Sites",
+  7: "Rare and Upgraded cards appear less often",
+  8: "All enemies are harder to kill",
+  9: "All enemies have deadlier attacks",
+  10: "Fight two bosses at the end of Act 3",
+};
+
+function getAscensionSummary(level: number): string | null {
+  if (level <= 0) return null;
+  const active = Object.entries(ASCENSION_MODIFIERS)
+    .filter(([k]) => Number(k) <= level)
+    .map(([k, v]) => `A${k}: ${v}`);
+  return `Ascension ${level} (${active.length} modifiers active):\n${active.map((a) => `  - ${a}`).join("\n")}`;
 }
 
 /**
@@ -79,6 +102,11 @@ export function buildPromptContext(ctx: EvaluationContext): string {
     `Potions: ${ctx.potionNames.length > 0 ? ctx.potionNames.join(", ") : "empty"}`,
     `Available gold: ${ctx.gold}g`,
   ];
+
+  const ascSummary = getAscensionSummary(ctx.ascension);
+  if (ascSummary) {
+    lines.push(ascSummary);
+  }
 
   if (ctx.archetypes.length > 0) {
     const archStr = ctx.archetypes

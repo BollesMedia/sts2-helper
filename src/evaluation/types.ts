@@ -11,6 +11,7 @@ export interface EvaluationContext {
   primaryArchetype: string | null;
   act: number;
   floor: number;
+  ascension: number;
   deckSize: number;
   hpPercent: number;
   gold: number;
