@@ -9,6 +9,7 @@ import {
   parseClaudeCardRewardResponse,
 } from "@/evaluation/evaluation-service";
 import { tierToValue } from "@/evaluation/tier-utils";
+import { getRunHistoryContext } from "@/evaluation/run-history-context";
 
 const anthropic = new Anthropic();
 
@@ -97,21 +98,22 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // Load boss reference for context
+  // Load contextual data
   const bosses = await getBossReference();
+  const runHistory = await getRunHistoryContext();
 
   // ─── MAP EVALUATION ───
   if (type === "map" && body.mapPrompt) {
-    const mapPromptWithBosses = bosses
-      ? `${body.mapPrompt}\n\nBoss reference (these are the bosses you may face):\n${bosses}`
-      : body.mapPrompt;
+    let mapPromptFull = body.mapPrompt;
+    if (bosses) mapPromptFull += `\n\nBoss reference (these are the bosses you may face):\n${bosses}`;
+    if (runHistory) mapPromptFull += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes. Tailor advice to this player's patterns.`;
 
     try {
       const message = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: mapPromptWithBosses }],
+        messages: [{ role: "user", content: mapPromptFull }],
       });
 
       const textBlock = message.content.find((b) => b.type === "text");
@@ -183,6 +185,9 @@ export async function POST(request: Request) {
   let contextStr = buildPromptContext(context);
   if (bosses) {
     contextStr += `\n\nBoss reference:\n${bosses}`;
+  }
+  if (runHistory) {
+    contextStr += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes.`;
   }
   const itemsStr = items
     .map(
