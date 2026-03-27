@@ -256,12 +256,29 @@ ${responseFormat}`;
       s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
 
     for (const ranking of evaluation.rankings) {
+      const rId = ranking.itemId.toLowerCase();
+      const rName = ranking.itemName?.toLowerCase() ?? "";
+      const rNorm = normalize(ranking.itemId);
+
       const matchIdx = items.findIndex(
-        (item) =>
-          item.id.toLowerCase() === ranking.itemId.toLowerCase() ||
-          normalize(item.name) === normalize(ranking.itemId) ||
-          normalize(item.id) === normalize(ranking.itemId) ||
-          normalize(item.name) === normalize(ranking.itemName)
+        (item) => {
+          const iId = item.id.toLowerCase();
+          const iName = item.name.toLowerCase();
+          const iNorm = normalize(item.id);
+          const iNameNorm = normalize(item.name);
+
+          return (
+            iId === rId ||
+            iName === rId ||
+            iName === rName ||
+            iNorm === rNorm ||
+            iNameNorm === rNorm ||
+            // Partial match: Claude's ID contains the item name or vice versa
+            rId.includes(iName) ||
+            rId.includes(iId) ||
+            iName.includes(rNorm)
+          );
+        }
       );
       if (matchIdx !== -1) {
         ranking.itemId = items[matchIdx].id;
