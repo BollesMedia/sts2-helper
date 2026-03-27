@@ -18,11 +18,11 @@ export interface EvaluationContext {
   relicIds: string[];
   hasScaling: boolean;
   curseCount: number;
-  deckCardNames: string[];
+  deckCards: { name: string; description: string }[];
   drawSources: string[];
   scalingSources: string[];
   curseNames: string[];
-  relicNames: string[];
+  relics: { name: string; description: string }[];
   potionNames: string[];
 }
 
