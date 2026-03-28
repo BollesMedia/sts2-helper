@@ -1,7 +1,0 @@
-{
-  "buildCommand": "npx next build",
-  "outputDirectory": ".next",
-  "installCommand": "npm install",
-  "framework": "nextjs",
-  "rootDirectory": "apps/web"
-}
