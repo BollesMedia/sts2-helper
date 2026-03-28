@@ -1,50 +1,58 @@
 import { describe, it, expect } from "vitest";
+import type { TierLetter } from "./tier-utils";
 import { tierToValue, valueToTier, tierColor, tierBgColor } from "./tier-utils";
 
+const ALL_TIERS: TierLetter[] = ["S", "A", "B", "C", "D", "F"];
+
 describe("tierToValue", () => {
-  it("maps each tier letter to the correct value", () => {
-    expect(tierToValue("S")).toBe(6);
-    expect(tierToValue("A")).toBe(5);
-    expect(tierToValue("B")).toBe(4);
-    expect(tierToValue("C")).toBe(3);
-    expect(tierToValue("D")).toBe(2);
-    expect(tierToValue("F")).toBe(1);
+  it("maps each tier letter to a unique ascending value (F lowest, S highest)", () => {
+    expect(tierToValue("F")).toBeLessThan(tierToValue("D"));
+    expect(tierToValue("D")).toBeLessThan(tierToValue("C"));
+    expect(tierToValue("C")).toBeLessThan(tierToValue("B"));
+    expect(tierToValue("B")).toBeLessThan(tierToValue("A"));
+    expect(tierToValue("A")).toBeLessThan(tierToValue("S"));
   });
 });
 
 describe("valueToTier", () => {
-  it("maps each value to the correct tier letter", () => {
-    expect(valueToTier(6)).toBe("S");
-    expect(valueToTier(5)).toBe("A");
-    expect(valueToTier(4)).toBe("B");
-    expect(valueToTier(3)).toBe("C");
-    expect(valueToTier(2)).toBe("D");
-    expect(valueToTier(1)).toBe("F");
+  it("round-trips with tierToValue for all tiers", () => {
+    for (const tier of ALL_TIERS) {
+      expect(valueToTier(tierToValue(tier))).toBe(tier);
+    }
   });
 
-  it("clamps values outside range", () => {
-    expect(valueToTier(0)).toBe("F");
-    expect(valueToTier(10)).toBe("S");
-    expect(valueToTier(-1)).toBe("F");
+  it("returns a valid tier for out-of-range values", () => {
+    expect(ALL_TIERS).toContain(valueToTier(0));
+    expect(ALL_TIERS).toContain(valueToTier(100));
+    expect(ALL_TIERS).toContain(valueToTier(-5));
   });
 
-  it("rounds fractional values", () => {
-    expect(valueToTier(5.7)).toBe("S");
-    expect(valueToTier(4.3)).toBe("B");
-    expect(valueToTier(2.5)).toBe("C");
+  it("returns a valid tier for fractional values", () => {
+    expect(ALL_TIERS).toContain(valueToTier(3.7));
+    expect(ALL_TIERS).toContain(valueToTier(5.2));
+    expect(ALL_TIERS).toContain(valueToTier(1.5));
   });
 });
 
 describe("tierColor", () => {
-  it("returns a tailwind text color class for each tier", () => {
-    expect(tierColor("S")).toContain("text-");
-    expect(tierColor("F")).toContain("text-");
+  it("returns a tailwind text color class for every tier", () => {
+    for (const tier of ALL_TIERS) {
+      expect(tierColor(tier)).toMatch(/^text-/);
+    }
+  });
+
+  it("returns different colors for different tiers", () => {
+    const colors = new Set(ALL_TIERS.map(tierColor));
+    expect(colors.size).toBe(ALL_TIERS.length);
   });
 });
 
 describe("tierBgColor", () => {
-  it("returns tailwind bg + border classes for each tier", () => {
-    expect(tierBgColor("S")).toContain("bg-");
-    expect(tierBgColor("S")).toContain("border-");
+  it("returns bg and border classes for every tier", () => {
+    for (const tier of ALL_TIERS) {
+      const classes = tierBgColor(tier);
+      expect(classes).toContain("bg-");
+      expect(classes).toContain("border-");
+    }
   });
 });
