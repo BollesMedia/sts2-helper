@@ -10,6 +10,7 @@ import {
 } from "@/evaluation/evaluation-service";
 import { tierToValue } from "@/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
+import { logUsage } from "@/lib/usage-logger";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
 
 const anthropic = new Anthropic();
@@ -121,6 +122,15 @@ export async function POST(request: Request) {
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: mapPromptFull }],
       });
+
+      // Log usage
+      logUsage(supabase, {
+        userId: body.userId ?? null,
+        evalType: "map",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+      }).catch(console.error);
 
       const textBlock = message.content.find((b) => b.type === "text");
       if (!textBlock || textBlock.type !== "text") {
@@ -262,6 +272,15 @@ ${responseFormat}`;
       messages: [{ role: "user", content: userPrompt }],
     });
 
+    // Log usage
+    logUsage(supabase, {
+      userId: body.userId ?? null,
+      evalType: type,
+      model: "claude-haiku-4-5-20251001",
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+    }).catch(console.error);
+
     const textBlock = message.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       return NextResponse.json(
@@ -343,6 +362,15 @@ Respond as JSON with ONLY the rankings array for these items:
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: retryPrompt }],
         });
+
+        // Log retry usage
+        logUsage(supabase, {
+          userId: body.userId ?? null,
+          evalType: `${type}_retry`,
+          model: "claude-haiku-4-5-20251001",
+          inputTokens: retryMsg.usage.input_tokens,
+          outputTokens: retryMsg.usage.output_tokens,
+        }).catch(console.error);
 
         const retryText = retryMsg.content.find((b) => b.type === "text");
         if (retryText && retryText.type === "text") {

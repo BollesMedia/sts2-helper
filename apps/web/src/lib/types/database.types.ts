@@ -528,6 +528,39 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_logs: {
+        Row: {
+          cost_estimate: number | null
+          created_at: string | null
+          eval_type: string
+          id: string
+          input_tokens: number | null
+          model: string
+          output_tokens: number | null
+          user_id: string | null
+        }
+        Insert: {
+          cost_estimate?: number | null
+          created_at?: string | null
+          eval_type: string
+          id?: string
+          input_tokens?: number | null
+          model: string
+          output_tokens?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          cost_estimate?: number | null
+          created_at?: string | null
+          eval_type?: string
+          id?: string
+          input_tokens?: number | null
+          model?: string
+          output_tokens?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       evaluation_stats: {
