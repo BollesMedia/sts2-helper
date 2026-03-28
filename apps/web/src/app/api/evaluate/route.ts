@@ -7,6 +7,7 @@ import {
   getStatisticalEvaluation,
   logEvaluation,
   parseClaudeCardRewardResponse,
+  parseToolUseInput,
 } from "@/evaluation/evaluation-service";
 import { tierToValue } from "@/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
@@ -291,7 +292,7 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
       );
     }
 
-    const parsed = toolUse.input as unknown as Parameters<typeof parseClaudeCardRewardResponse>[0];
+    const parsed = parseToolUseInput(toolUse.input);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
     // Match Claude's returned IDs back to our original items
@@ -363,7 +364,7 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
 
         const retryToolUse = retryMsg.content.find((b) => b.type === "tool_use");
         if (retryToolUse && retryToolUse.type === "tool_use") {
-          const retryParsed = parseClaudeCardRewardResponse(retryToolUse.input as unknown as Parameters<typeof parseClaudeCardRewardResponse>[0]);
+          const retryParsed = parseClaudeCardRewardResponse(parseToolUseInput(retryToolUse.input));
 
           for (const ranking of retryParsed.rankings) {
             const matchIdx = items.findIndex(
