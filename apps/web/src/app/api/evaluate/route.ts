@@ -221,48 +221,47 @@ export async function POST(request: Request) {
     ? `\nThis is an EXCLUSIVE choice — you can only pick ONE card (or skip). Rank them against each other. Only the #1 pick should be "strong_pick" or "good_pick". Lower-ranked options should be "situational" or "skip" since they are alternatives you're NOT recommending.`
     : `\nYou may select MULTIPLE cards here. Evaluate each card independently — multiple cards can be "strong_pick" if they're all worth adding.`;
 
-  const responseFormat =
-    type === "card_reward"
-      ? `${exclusiveInstructions}
-{
-  "rankings": [
-    {
-      "item_id": "CARD_ID",
-      "rank": 1,
-      "tier": "S|A|B|C|D|F",
-      "synergy_score": 0-100,
-      "confidence": 0-100,
-      "recommendation": "strong_pick|good_pick|situational|skip",
-      "reasoning": "1-2 sentences"
-    }
-  ],
-  "skip_recommended": false,
-  "skip_reasoning": "Only if skip/none is better than all options"
-}`
-      : `{
-  "rankings": [
-    {
-      "item_id": "ITEM_ID",
-      "rank": 1,
-      "tier": "S|A|B|C|D|F",
-      "synergy_score": 0-100,
-      "confidence": 0-100,
-      "recommendation": "strong_pick|good_pick|situational|skip",
-      "reasoning": "1 sentence"
-    }
-  ],
-  "skip_recommended": false,
-  "skip_reasoning": null,
-  "spending_plan": "With Xg available, I recommend: [specific purchases with costs, total spend, gold remaining]. 1-2 sentences."
-}`;
+  // Build tool schema for structured output
+  const evaluationTool: Anthropic.Tool = {
+    name: "submit_evaluation",
+    description: "Submit the evaluation of all items",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        rankings: {
+          type: "array",
+          description: `Evaluation for EACH item, in the SAME ORDER they were listed. Must have exactly ${items.length} entries.`,
+          items: {
+            type: "object",
+            properties: {
+              item_id: { type: "string", description: "The item ID exactly as provided" },
+              rank: { type: "integer", description: "Rank (1 = best)" },
+              tier: { type: "string", enum: ["S", "A", "B", "C", "D", "F"] },
+              synergy_score: { type: "integer", description: "0-100" },
+              confidence: { type: "integer", description: "0-100" },
+              recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
+              reasoning: { type: "string", description: "1-2 sentences" },
+            },
+            required: ["item_id", "rank", "tier", "synergy_score", "confidence", "recommendation", "reasoning"],
+          },
+        },
+        skip_recommended: { type: "boolean" },
+        skip_reasoning: { type: "string", description: "Why skip is recommended, if applicable" },
+        ...(type === "shop" ? {
+          spending_plan: { type: "string", description: "Concise gold allocation recommendation. Only affordable items." },
+        } : {}),
+      },
+      required: ["rankings", "skip_recommended"],
+    },
+  };
 
   const userPrompt = `${contextStr}
 
 ${type === "card_reward" ? "Offered cards" : "Shop items"}:
 ${itemsStr}
+${isExclusive ? "\nThis is an EXCLUSIVE choice — pick ONE. Only #1 should be strong_pick/good_pick. Others should be situational/skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
 
-Respond as JSON:
-${responseFormat}`;
+Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in the SAME ORDER as listed above.`;
 
   try {
     const message = await anthropic.messages.create({
@@ -270,6 +269,8 @@ ${responseFormat}`;
       max_tokens: items.length > 5 ? 4096 : 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
+      tools: [evaluationTool],
+      tool_choice: { type: "tool", name: "submit_evaluation" },
     });
 
     // Log usage
@@ -281,25 +282,16 @@ ${responseFormat}`;
       outputTokens: message.usage.output_tokens,
     }).catch(console.error);
 
-    const textBlock = message.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
+    // Extract structured tool use result — no JSON parsing needed
+    const toolUse = message.content.find((b) => b.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") {
       return NextResponse.json(
-        { error: "No text response from Claude" },
+        { error: "No tool use response from Claude" },
         { status: 502 }
       );
     }
 
-    // Strip markdown code fences and trailing text after JSON
-    let jsonText = textBlock.text.trim();
-    if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
-    }
-    const lastBrace = jsonText.lastIndexOf("}");
-    if (lastBrace !== -1 && lastBrace < jsonText.length - 1) {
-      jsonText = jsonText.slice(0, lastBrace + 1);
-    }
-
-    const parsed = JSON.parse(jsonText);
+    const parsed = toolUse.input as unknown as Parameters<typeof parseClaudeCardRewardResponse>[0];
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
     // Match Claude's returned IDs back to our original items
@@ -346,24 +338,21 @@ ${responseFormat}`;
 
     if (missingItems.length > 0) {
       try {
-        const retryPrompt = `You missed evaluating these items. Evaluate each one NOW in the same context.
-
-${contextStr}
-
-Missing items:
-${missingItems.map((item, i) => `${i + 1}. ${item.name} (${item.cost ?? ""} ${item.type ?? ""}) — ${item.description}`).join("\n")}
-
-Respond as JSON with ONLY the rankings array for these items:
-{"rankings": [{"item_id": "ID", "rank": 1, "tier": "S|A|B|C|D|F", "synergy_score": 0-100, "confidence": 0-100, "recommendation": "strong_pick|good_pick|situational|skip", "reasoning": "1 sentence"}]}`;
+        const retryPrompt = `Evaluate these missing items in the same context:\n${missingItems.map((item, i) => `${i + 1}. ${item.name} (${item.cost ?? ""} ${item.type ?? ""}) — ${item.description}`).join("\n")}`;
 
         const retryMsg = await anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: retryPrompt }],
+          messages: [
+            { role: "user", content: userPrompt },
+            { role: "assistant", content: message.content },
+            { role: "user", content: retryPrompt },
+          ],
+          tools: [evaluationTool],
+          tool_choice: { type: "tool", name: "submit_evaluation" },
         });
 
-        // Log retry usage
         logUsage(supabase, {
           userId: body.userId ?? null,
           evalType: `${type}_retry`,
@@ -372,13 +361,9 @@ Respond as JSON with ONLY the rankings array for these items:
           outputTokens: retryMsg.usage.output_tokens,
         }).catch(console.error);
 
-        const retryText = retryMsg.content.find((b) => b.type === "text");
-        if (retryText && retryText.type === "text") {
-          let retryJson = retryText.text.trim();
-          if (retryJson.startsWith("```")) {
-            retryJson = retryJson.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
-          }
-          const retryParsed = parseClaudeCardRewardResponse(JSON.parse(retryJson));
+        const retryToolUse = retryMsg.content.find((b) => b.type === "tool_use");
+        if (retryToolUse && retryToolUse.type === "tool_use") {
+          const retryParsed = parseClaudeCardRewardResponse(retryToolUse.input as unknown as Parameters<typeof parseClaudeCardRewardResponse>[0]);
 
           for (const ranking of retryParsed.rankings) {
             const matchIdx = items.findIndex(
