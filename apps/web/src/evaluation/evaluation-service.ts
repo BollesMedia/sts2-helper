@@ -26,6 +26,49 @@ interface ClaudeCardRewardResponse {
   spending_plan?: string | null;
 }
 
+const VALID_TIERS = new Set(["S", "A", "B", "C", "D", "F"]);
+const VALID_RECS = new Set(["strong_pick", "good_pick", "situational", "skip"]);
+
+/**
+ * Safely parse an unknown tool_use input into a ClaudeCardRewardResponse.
+ * Validates structure at runtime instead of casting through unknown.
+ */
+export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
+  if (!input || typeof input !== "object") {
+    throw new Error("Tool use input is not an object");
+  }
+
+  const obj = input as Record<string, unknown>;
+  const rawRankings = Array.isArray(obj.rankings) ? obj.rankings : [];
+
+  const rankings: ClaudeCardEvaluation[] = rawRankings.map((r: unknown) => {
+    if (!r || typeof r !== "object") {
+      throw new Error("Ranking entry is not an object");
+    }
+    const entry = r as Record<string, unknown>;
+
+    const tier = String(entry.tier ?? "C");
+    const rec = String(entry.recommendation ?? "situational");
+
+    return {
+      item_id: String(entry.item_id ?? ""),
+      rank: Number(entry.rank ?? 0),
+      tier: (VALID_TIERS.has(tier) ? tier : "C") as TierLetter,
+      synergy_score: Number(entry.synergy_score ?? 50),
+      confidence: Number(entry.confidence ?? 50),
+      recommendation: (VALID_RECS.has(rec) ? rec : "situational") as ClaudeCardEvaluation["recommendation"],
+      reasoning: String(entry.reasoning ?? ""),
+    };
+  });
+
+  return {
+    rankings,
+    skip_recommended: Boolean(obj.skip_recommended ?? false),
+    skip_reasoning: obj.skip_reasoning ? String(obj.skip_reasoning) : null,
+    spending_plan: obj.spending_plan ? String(obj.spending_plan) : null,
+  };
+}
+
 /**
  * Attempt to get a statistical evaluation for an item from the database.
  * Uses tiered lookup: exact → broad → broadest.
