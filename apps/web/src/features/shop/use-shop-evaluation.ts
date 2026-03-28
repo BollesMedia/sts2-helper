@@ -64,6 +64,7 @@ interface UseShopEvaluationResult {
   evaluation: CardRewardEvaluation | null;
   isLoading: boolean;
   error: string | null;
+  retry: () => void;
 }
 
 export function useShopEvaluation(
@@ -135,7 +136,8 @@ export function useShopEvaluation(
       });
 
       if (!res.ok) {
-        throw new Error(`Evaluation failed: ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
       }
 
       const data: CardRewardEvaluation = await res.json();
@@ -148,11 +150,17 @@ export function useShopEvaluation(
     }
   }, [state, deckCards, player, shopItems, shopKey, runId]);
 
+  const retry = () => {
+    evaluatedKey.current = "";
+    setError(null);
+    setEvaluation(null);
+  };
+
   if (shopKey !== evaluatedKey.current && !isLoading) {
     evaluate();
   }
 
-  return { evaluation, isLoading, error };
+  return { evaluation, isLoading, error, retry };
 }
 
 export { getItemId, getItemName, getItemDescription };

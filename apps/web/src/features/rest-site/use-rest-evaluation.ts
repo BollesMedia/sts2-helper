@@ -36,6 +36,7 @@ interface UseRestEvaluationResult {
   evaluation: CardRewardEvaluation | null;
   isLoading: boolean;
   error: string | null;
+  retry: () => void;
 }
 
 export function useRestEvaluation(
@@ -47,7 +48,7 @@ export function useRestEvaluation(
   const options = state.rest_site.options.filter((o) => o.is_enabled);
 
   if (options.length <= 1) {
-    return { evaluation: null, isLoading: false, error: null };
+    return { evaluation: null, isLoading: false, error: null, retry: () => {} };
   }
 
   const restKey = `rest:${state.run.floor}:${options.map((o) => o.id).join(",")}`;
@@ -144,7 +145,8 @@ The #1 ranked option should be "strong_pick". The other option(s) should be "sit
       });
 
       if (!res.ok) {
-        throw new Error(`Evaluation failed: ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
       }
 
       const data = await res.json();
@@ -196,9 +198,15 @@ The #1 ranked option should be "strong_pick". The other option(s) should be "sit
     }
   }, [state, deckCards, player, options, restKey, runId]);
 
+  const retry = () => {
+    evaluatedKey.current = "";
+    setError(null);
+    setEvaluation(null);
+  };
+
   if (restKey !== evaluatedKey.current && !isLoading) {
     evaluate();
   }
 
-  return { evaluation, isLoading, error };
+  return { evaluation, isLoading, error, retry };
 }

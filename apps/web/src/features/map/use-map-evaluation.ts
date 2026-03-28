@@ -50,6 +50,7 @@ interface UseMapEvaluationResult {
   evaluation: MapPathEvaluation | null;
   isLoading: boolean;
   error: string | null;
+  retry: () => void;
 }
 
 export function useMapEvaluation(
@@ -224,7 +225,8 @@ Respond as JSON:
       });
 
       if (!res.ok) {
-        throw new Error(`Evaluation failed: ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
       }
 
       const data = await res.json();
@@ -249,9 +251,15 @@ Respond as JSON:
     }
   }, [state, deckCards, player, options, mapKey]);
 
+  const retry = () => {
+    evaluatedKey.current = "";
+    setError(null);
+    setEvaluation(null);
+  };
+
   if (mapKey !== evaluatedKey.current && !isLoading) {
     evaluate();
   }
 
-  return { evaluation, isLoading, error };
+  return { evaluation, isLoading, error, retry };
 }

@@ -9,6 +9,7 @@ import type { TierLetter } from "@/evaluation/tier-utils";
 import { useEventEvaluation } from "./use-event-evaluation";
 import { CardSkeleton } from "@/components/loading-skeleton";
 import { RefineInput } from "@/components/refine-input";
+import { EvalError } from "@/components/eval-error";
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
   strong_pick: "border-emerald-500/40",
@@ -39,7 +40,7 @@ interface EventViewProps {
 }
 
 export function EventView({ state, deckCards, player, runId }: EventViewProps) {
-  const { evaluation, isLoading, error } = useEventEvaluation(
+  const { evaluation, isLoading, error, retry } = useEventEvaluation(
     state,
     deckCards,
     player,
@@ -69,9 +70,7 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
         </p>
       )}
 
-      {error && (
-        <p className="text-sm text-red-400">{error}</p>
-      )}
+      {error && <EvalError error={error} onRetry={retry} />}
 
       {options.length === 0 && (
         <p className="text-sm text-zinc-500">Waiting for selection...</p>

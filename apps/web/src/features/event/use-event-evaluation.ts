@@ -36,6 +36,7 @@ interface UseEventEvaluationResult {
   evaluation: CardRewardEvaluation | null;
   isLoading: boolean;
   error: string | null;
+  retry: () => void;
 }
 
 export function useEventEvaluation(
@@ -48,7 +49,7 @@ export function useEventEvaluation(
 
   // Don't evaluate if only one option or no real choices
   if (options.length <= 1) {
-    return { evaluation: null, isLoading: false, error: null };
+    return { evaluation: null, isLoading: false, error: null, retry: () => {} };
   }
 
   const eventKey = `${state.event.event_id}:${options.map((o) => o.index).join(",")}`;
@@ -133,7 +134,8 @@ Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-inde
       });
 
       if (!res.ok) {
-        throw new Error(`Evaluation failed: ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
       }
 
       const data = await res.json();
@@ -174,9 +176,15 @@ Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-inde
     }
   }, [state, deckCards, player, options, eventKey, runId]);
 
+  const retry = () => {
+    evaluatedKey.current = "";
+    setError(null);
+    setEvaluation(null);
+  };
+
   if (eventKey !== evaluatedKey.current && !isLoading) {
     evaluate();
   }
 
-  return { evaluation, isLoading, error };
+  return { evaluation, isLoading, error, retry };
 }
