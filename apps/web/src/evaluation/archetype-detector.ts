@@ -4,9 +4,9 @@ import type { ArchetypeScore } from "./types";
 // Card keywords/tags that signal archetypes
 const ARCHETYPE_SIGNALS: Record<string, string[]> = {
   // Ironclad
-  strength: ["strength", "heavy blade", "limit break", "demon form", "inflame", "spot weakness"],
-  exhaust: ["exhaust", "feel no pain", "dark embrace", "corruption", "sentinel"],
-  block_ironclad: ["barricade", "entrench", "body slam", "impervious", "metallicize"],
+  strength: ["strength", "demon form", "inflame", "rupture", "crimson mantle", "brand"],
+  exhaust: ["exhaust", "feel no pain", "dark embrace", "corruption", "burning pact", "stoke"],
+  block_ironclad: ["barricade", "body slam", "impervious", "unmovable", "colossus", "shrug it off"],
 
   // Silent
   poison: ["poison", "noxious fumes", "catalyst", "deadly poison", "bouncing flask", "crippling cloud"],
