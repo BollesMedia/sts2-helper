@@ -8,20 +8,32 @@ import {
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { signInWithEmail, signOut as authSignOut } from "@/lib/supabase/auth";
+import {
+  signInWithMagicLink,
+  signInWithPassword,
+  signUpWithPassword,
+  signInWithDiscord,
+  signOut as authSignOut,
+} from "@/lib/supabase/auth";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signIn: (email: string) => Promise<{ error: string | null }>;
+  signInMagicLink: (email: string) => Promise<{ error: string | null }>;
+  signInPassword: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInDiscord: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
-  signIn: async () => ({ error: "Not initialized" }),
+  signInMagicLink: async () => ({ error: "Not initialized" }),
+  signInPassword: async () => ({ error: "Not initialized" }),
+  signUp: async () => ({ error: "Not initialized" }),
+  signInDiscord: async () => ({ error: "Not initialized" }),
   signOut: async () => {},
 });
 
@@ -34,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
-  // Check session on first render
   if (!initialized) {
     setInitialized(true);
     const supabase = createClient();
@@ -47,11 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Listen for auth changes (magic link callback, sign out, etc.)
     supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      // Persist user ID for API calls
       if (session?.user?.id) {
         localStorage.setItem("sts2-user-id", session.user.id);
       } else {
@@ -60,17 +69,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  const signIn = useCallback(async (email: string) => {
-    return signInWithEmail(email);
-  }, []);
-
   const signOut = useCallback(async () => {
     await authSignOut();
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        signInMagicLink: useCallback((email: string) => signInWithMagicLink(email), []),
+        signInPassword: useCallback((email: string, password: string) => signInWithPassword(email, password), []),
+        signUp: useCallback((email: string, password: string) => signUpWithPassword(email, password), []),
+        signInDiscord: useCallback(() => signInWithDiscord(), []),
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
