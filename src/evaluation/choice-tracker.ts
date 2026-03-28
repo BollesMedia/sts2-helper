@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import type { GameState, CombatCard } from "@/lib/types/game-state";
 import { hasRun } from "@/lib/types/game-state";
+import { getUserId } from "@/lib/get-user-id";
 
 interface PendingChoice {
   choiceType: string;
@@ -136,6 +137,6 @@ function logChoice(choice: {
   fetch("/api/choice", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(choice),
+    body: JSON.stringify({ ...choice, userId: getUserId() }),
   }).catch(console.error);
 }

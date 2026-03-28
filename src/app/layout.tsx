@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "@/features/auth/auth-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "STS2 Companion",
+  title: "STS2 Replay",
   description: "Real-time companion dashboard for Slay the Spire 2",
 };
 
@@ -28,7 +29,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

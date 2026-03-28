@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/features/auth/auth-provider";
+import { LoginScreen } from "@/features/auth/login-screen";
 import { useGameState, ConnectionBanner } from "@/features/connection";
 import { useDeckTracker } from "@/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@/features/connection/use-player-tracker";
@@ -46,9 +48,11 @@ const STATE_LABELS: Record<string, string> = {
 function AppHeader({
   gameState,
   player,
+  onSignOut,
 }: {
   gameState: GameState;
   player: TrackedPlayer | null;
+  onSignOut?: () => void;
 }) {
   const label = STATE_LABELS[gameState.state_type] ?? gameState.state_type;
   const run = hasRun(gameState) ? gameState.run : null;
@@ -77,15 +81,25 @@ function AppHeader({
         )}
       </div>
 
-      {player && (
-        <div className="flex items-center gap-5">
-          <span className="text-sm text-zinc-400">{player.character}</span>
-          <HpBar current={player.hp} max={player.maxHp} />
-          <span className="text-sm font-mono tabular-nums text-amber-400">
-            {player.gold}g
-          </span>
-        </div>
-      )}
+      <div className="flex items-center gap-5">
+        {player && (
+          <>
+            <span className="text-sm text-zinc-400">{player.character}</span>
+            <HpBar current={player.hp} max={player.maxHp} />
+            <span className="text-sm font-mono tabular-nums text-amber-400">
+              {player.gold}g
+            </span>
+          </>
+        )}
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Sign out
+          </button>
+        )}
+      </div>
     </header>
   );
 }
@@ -409,10 +423,31 @@ function PlaceholderView({
 // ─── Dashboard ───
 
 export default function Dashboard() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-sm text-zinc-500">Loading...</p>
+      </div>
+    );
+  }
+
+  // Dev bypass: skip login in development
+  const isDev = process.env.NODE_ENV === "development";
+  if (!user && !isDev) {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedDashboard />;
+}
+
+function AuthenticatedDashboard() {
+  const { user, signOut } = useAuth();
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
-  const runState = useRunTracker(gameState);
+  const runState = useRunTracker(gameState, user?.id ?? null);
   useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {
@@ -421,7 +456,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <AppHeader gameState={gameState} player={player} />
+      <AppHeader gameState={gameState} player={player} onSignOut={signOut} />
       <main className="flex-1 p-6">
         <GameStateView state={gameState} deckCards={deckCards} player={player} runId={runState.runId} runState={runState} />
       </main>

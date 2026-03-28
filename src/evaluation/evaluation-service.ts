@@ -160,10 +160,12 @@ export async function logEvaluation(
   ctx: EvaluationContext,
   evaluation: CardEvaluation,
   runId: string | null,
-  gameVersion: string | null
+  gameVersion: string | null,
+  userId: string | null = null
 ): Promise<void> {
   const row: EvaluationInsert = {
     run_id: runId,
+    user_id: userId,
     game_version: gameVersion,
     item_type: "card",
     item_id: evaluation.itemId,

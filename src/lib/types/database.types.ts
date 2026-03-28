@@ -158,6 +158,7 @@ export type Database = {
           id: string
           offered_item_ids: string[]
           run_id: string | null
+          user_id: string | null
         }
         Insert: {
           act: number
@@ -169,6 +170,7 @@ export type Database = {
           id?: string
           offered_item_ids: string[]
           run_id?: string | null
+          user_id?: string | null
         }
         Update: {
           act?: number
@@ -180,6 +182,7 @@ export type Database = {
           id?: string
           offered_item_ids?: string[]
           run_id?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -219,6 +222,7 @@ export type Database = {
           source: string
           synergy_score: number
           tier_value: number
+          user_id: string | null
         }
         Insert: {
           act: number
@@ -247,6 +251,7 @@ export type Database = {
           source?: string
           synergy_score: number
           tier_value: number
+          user_id?: string | null
         }
         Update: {
           act?: number
@@ -275,6 +280,7 @@ export type Database = {
           source?: string
           synergy_score?: number
           tier_value?: number
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -477,6 +483,7 @@ export type Database = {
           notes: string | null
           run_id: string
           started_at: string | null
+          user_id: string | null
           victory: boolean | null
         }
         Insert: {
@@ -496,6 +503,7 @@ export type Database = {
           notes?: string | null
           run_id: string
           started_at?: string | null
+          user_id?: string | null
           victory?: boolean | null
         }
         Update: {
@@ -515,6 +523,7 @@ export type Database = {
           notes?: string | null
           run_id?: string
           started_at?: string | null
+          user_id?: string | null
           victory?: boolean | null
         }
         Relationships: []

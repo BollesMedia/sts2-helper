@@ -3,12 +3,13 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/features/auth/auth-provider";
+import { LoginScreen } from "@/features/auth/login-screen";
 import type { Run, Choice } from "@/lib/supabase/helpers";
 import { cn } from "@/lib/cn";
 
-const supabase = createClient();
-
 async function fetchRuns(): Promise<(Run & { choices: Choice[] })[]> {
+  const supabase = createClient();
   const { data: runs, error } = await supabase
     .from("runs")
     .select("*")
@@ -49,6 +50,29 @@ function formatDate(dateStr: string): string {
 }
 
 export default function RunsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const isDev = process.env.NODE_ENV === "development";
+
+  if (authLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center min-h-screen bg-background text-foreground">
+        <p className="text-sm text-zinc-500">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user && !isDev) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
+        <LoginScreen />
+      </div>
+    );
+  }
+
+  return <RunsPageContent />;
+}
+
+function RunsPageContent() {
   const { data: runs, isLoading, error, mutate } = useSWR("runs-history", fetchRuns, {
     revalidateOnFocus: false,
   });

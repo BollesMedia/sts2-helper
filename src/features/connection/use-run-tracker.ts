@@ -77,7 +77,7 @@ export interface RunState {
   confirmOutcome: (victory: boolean) => void;
 }
 
-export function useRunTracker(gameState: GameState | null): RunState {
+export function useRunTracker(gameState: GameState | null, userId: string | null = null): RunState {
   const runId = useRef<string | null>(null);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
@@ -220,6 +220,7 @@ export function useRunTracker(gameState: GameState | null): RunState {
         character: character ?? "Unknown",
         ascension,
         gameMode: "singleplayer",
+        userId,
       }),
     }).catch(console.error);
 

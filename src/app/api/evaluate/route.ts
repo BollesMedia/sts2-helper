@@ -80,6 +80,7 @@ interface EvaluateRequest {
   type: "card_reward" | "shop" | "map";
   context: EvaluationContext;
   exclusive?: boolean;
+  userId?: string | null;
   items?: {
     id: string;
     name: string;
@@ -373,7 +374,7 @@ Respond as JSON with ONLY the rankings array for these items:
     // Log evaluations async (don't block response)
     Promise.all(
       evaluation.rankings.map((ranking) =>
-        logEvaluation(supabase, context, ranking, runId, gameVersion)
+        logEvaluation(supabase, context, ranking, runId, gameVersion, body.userId)
       )
     ).catch(console.error);
 
