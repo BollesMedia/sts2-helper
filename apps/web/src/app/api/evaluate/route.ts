@@ -395,11 +395,18 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
     return NextResponse.json(evaluation);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
-    console.error("Evaluation failed:", message, stack);
+    console.error("Evaluation failed:", message);
+
+    // Detect rate limiting from Anthropic
+    const isRateLimit = message.includes("rate") || message.includes("429");
+    const status = isRateLimit ? 429 : 500;
+    const detail = isRateLimit
+      ? "Rate limited — please wait a moment"
+      : "Evaluation service error";
+
     return NextResponse.json(
-      { error: "Evaluation failed", detail: message },
-      { status: 500 }
+      { error: "Evaluation failed", detail },
+      { status }
     );
   }
 }

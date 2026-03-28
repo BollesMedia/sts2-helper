@@ -10,6 +10,7 @@ import type { TierLetter } from "@/evaluation/tier-utils";
 import { useRestEvaluation } from "./use-rest-evaluation";
 import { CardSkeleton } from "@/components/loading-skeleton";
 import { RefineInput } from "@/components/refine-input";
+import { EvalError } from "@/components/eval-error";
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
   strong_pick: "border-emerald-500/40",
@@ -49,7 +50,7 @@ interface RestSiteViewProps {
 }
 
 export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewProps) {
-  const { evaluation, isLoading, error } = useRestEvaluation(
+  const { evaluation, isLoading, error, retry } = useRestEvaluation(
     state,
     deckCards,
     player,
@@ -87,9 +88,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
         </span>
       </div>
 
-      {error && (
-        <p className="text-sm text-red-400">{error}</p>
-      )}
+      {error && <EvalError error={error} onRetry={retry} />}
 
       {/* Options */}
       <div className="grid grid-cols-2 gap-4">

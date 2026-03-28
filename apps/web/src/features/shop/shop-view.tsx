@@ -11,6 +11,7 @@ import {
 import { ShopItemCard } from "./shop-item-card";
 import { CardSkeleton } from "@/components/loading-skeleton";
 import { RefineInput } from "@/components/refine-input";
+import { EvalError } from "@/components/eval-error";
 
 interface ShopViewProps {
   state: ShopState;
@@ -20,7 +21,7 @@ interface ShopViewProps {
 }
 
 export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
-  const { evaluation, isLoading, error } = useShopEvaluation(
+  const { evaluation, isLoading, error, retry } = useShopEvaluation(
     state,
     deckCards,
     player,
@@ -73,9 +74,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
         </div>
       )}
 
-      {error && (
-        <p className="text-sm text-red-400">Evaluation error: {error}</p>
-      )}
+      {error && <EvalError error={error} onRetry={retry} />}
 
       {isLoading && !evaluation ? (
         <div className="grid grid-cols-3 gap-3">

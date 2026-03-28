@@ -40,6 +40,7 @@ interface UseCardEvaluationResult {
   evaluation: CardRewardEvaluation | null;
   isLoading: boolean;
   error: string | null;
+  retry: () => void;
 }
 
 /**
@@ -120,7 +121,8 @@ export function useCardEvaluation(
       });
 
       if (!res.ok) {
-        throw new Error(`Evaluation failed: ${res.status}`);
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
       }
 
       const data: CardRewardEvaluation = await res.json();
@@ -133,10 +135,16 @@ export function useCardEvaluation(
     }
   }, [state, deckCards, player, cards, cardKey, runId, exclusive]);
 
+  const retry = () => {
+    evaluatedKey.current = "";
+    setError(null);
+    setEvaluation(null);
+  };
+
   // Trigger evaluation (not in useEffect — runs during render check)
   if (cardKey !== evaluatedKey.current && !isLoading) {
     evaluate();
   }
 
-  return { evaluation, isLoading, error };
+  return { evaluation, isLoading, error, retry };
 }

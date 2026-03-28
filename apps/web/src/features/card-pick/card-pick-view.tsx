@@ -6,6 +6,7 @@ import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "@/components/loading-skeleton";
 import { RefineInput } from "@/components/refine-input";
+import { EvalError } from "@/components/eval-error";
 
 interface CardPickViewProps {
   state: CardRewardState;
@@ -16,7 +17,7 @@ interface CardPickViewProps {
 }
 
 export function CardPickView({ state, deckCards, player, runId, exclusive = true }: CardPickViewProps) {
-  const { evaluation, isLoading, error } = useCardEvaluation(state, deckCards, player, runId, exclusive);
+  const { evaluation, isLoading, error, retry } = useCardEvaluation(state, deckCards, player, runId, exclusive);
   const cards = state.card_reward.cards;
 
   return (
@@ -79,9 +80,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
         )}
       </div>
 
-      {error && (
-        <p className="text-sm text-red-400">{error}</p>
-      )}
+      {error && <EvalError error={error} onRetry={retry} />}
 
       {evaluation && !isLoading && (
         <RefineInput

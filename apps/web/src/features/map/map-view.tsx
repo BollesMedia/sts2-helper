@@ -10,6 +10,7 @@ import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import { RefineInput } from "@/components/refine-input";
+import { EvalError } from "@/components/eval-error";
 import type { TierLetter } from "@/evaluation/tier-utils";
 
 interface MapViewProps {
@@ -51,7 +52,7 @@ const RECOMMENDATION_BORDER: Record<string, string> = {
 
 export function MapView({ state, player, deckCards }: MapViewProps) {
   const { nodes, current_position, visited, next_options, boss } = state.map;
-  const { evaluation, isLoading, error } = useMapEvaluation(state, deckCards, player);
+  const { evaluation, isLoading, error, retry } = useMapEvaluation(state, deckCards, player);
 
   const maxRow = useMemo(
     () => Math.max(...nodes.map((n) => n.row), boss.row),
@@ -109,9 +110,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
         </div>
       )}
 
-      {error && (
-        <p className="text-sm text-red-400">Evaluation error: {error}</p>
-      )}
+      {error && <EvalError error={error} onRetry={retry} />}
 
       {/* Path recommendations */}
       <div className="grid grid-cols-3 gap-3">
