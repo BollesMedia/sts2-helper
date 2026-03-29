@@ -2,6 +2,7 @@ import { cn } from "@/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import type { CardEvaluation } from "@/evaluation/types";
+import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@/lib/recommendation-styles";
 
 interface ShopItemCardProps {
   name: string;
@@ -14,13 +15,6 @@ interface ShopItemCardProps {
   evaluation: CardEvaluation | null;
   rank?: number;
 }
-
-const RECOMMENDATION_STYLES: Record<string, { border: string; label: string }> = {
-  strong_pick: { border: "border-emerald-500/50", label: "Strong Pick" },
-  good_pick: { border: "border-blue-500/50", label: "Good Pick" },
-  situational: { border: "border-amber-500/50", label: "Situational" },
-  skip: { border: "border-zinc-700", label: "Skip" },
-};
 
 const TYPE_COLORS: Record<string, string> = {
   Attack: "text-red-400",
@@ -42,15 +36,15 @@ export function ShopItemCard({
   evaluation,
   rank,
 }: ShopItemCardProps) {
-  const recStyle = evaluation
-    ? RECOMMENDATION_STYLES[evaluation.recommendation] ?? RECOMMENDATION_STYLES.situational
-    : { border: "border-zinc-800", label: "" };
+  const rec = evaluation?.recommendation;
+  const recBorder = rec ? RECOMMENDATION_BORDER[rec] ?? RECOMMENDATION_BORDER.situational : "border-zinc-800";
+  const recLabel = rec ? RECOMMENDATION_LABEL[rec] ?? RECOMMENDATION_LABEL.situational : "";
 
   return (
     <div
       className={cn(
         "rounded-lg border bg-zinc-900/50 p-3 transition-colors",
-        recStyle.border,
+        recBorder,
         !affordable && "opacity-50"
       )}
     >
@@ -106,13 +100,10 @@ export function ShopItemCard({
                 <span
                   className={cn(
                     "rounded px-1.5 py-0.5 text-xs font-medium",
-                    evaluation.recommendation === "strong_pick" && "bg-emerald-400/10 text-emerald-400",
-                    evaluation.recommendation === "good_pick" && "bg-blue-400/10 text-blue-400",
-                    evaluation.recommendation === "situational" && "bg-amber-400/10 text-amber-400",
-                    evaluation.recommendation === "skip" && "bg-zinc-700/50 text-zinc-400"
+                    RECOMMENDATION_CHIP[evaluation.recommendation]
                   )}
                 >
-                  {recStyle.label}
+                  {recLabel}
                 </span>
                 <span className="text-xs text-zinc-500">
                   Synergy: {evaluation.synergyScore}

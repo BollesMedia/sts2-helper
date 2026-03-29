@@ -1,25 +1,12 @@
 "use client";
 
-import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import type { Monster } from "@/lib/supabase/helpers";
+import { createGameDataHook } from "./create-game-data-hook";
 
-const supabase = createClient();
-
-async function fetchMonsters(): Promise<Monster[]> {
-  const { data, error } = await supabase
-    .from("monsters")
-    .select("*")
-    .order("name");
-
+export const useMonsters = createGameDataHook<Monster>("monsters", async () => {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("monsters").select("*").order("name");
   if (error) throw error;
   return data;
-}
-
-export function useMonsters() {
-  return useSWR("game-data:monsters", fetchMonsters, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    dedupingInterval: 1000 * 60 * 60,
-  });
-}
+});

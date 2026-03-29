@@ -3,32 +3,21 @@
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import type { Card } from "@/lib/supabase/helpers";
+import { createGameDataHook } from "./create-game-data-hook";
 
-const supabase = createClient();
-
-async function fetchCards(): Promise<Card[]> {
-  const { data, error } = await supabase
-    .from("cards")
-    .select("*")
-    .order("name");
-
+export const useCards = createGameDataHook<Card>("cards", async () => {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("cards").select("*").order("name");
   if (error) throw error;
   return data;
-}
-
-export function useCards() {
-  return useSWR("game-data:cards", fetchCards, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    dedupingInterval: 1000 * 60 * 60, // 1 hour
-  });
-}
+});
 
 export function useCardById(id: string | null) {
   return useSWR(
     id ? `game-data:card:${id}` : null,
     async () => {
       if (!id) return null;
+      const supabase = createClient();
       const { data, error } = await supabase
         .from("cards")
         .select("*")

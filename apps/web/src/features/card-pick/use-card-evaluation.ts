@@ -6,35 +6,9 @@ import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
 import { getUserId } from "@/lib/get-user-id";
+import { getCached, setCache } from "@/lib/local-cache";
 
 const CACHE_KEY = "sts2-eval-cache";
-
-interface CachedEvaluation {
-  key: string;
-  evaluation: CardRewardEvaluation;
-}
-
-function getCachedEvaluation(key: string): CardRewardEvaluation | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem(CACHE_KEY);
-    if (!stored) return null;
-    const cached: CachedEvaluation = JSON.parse(stored);
-    return cached.key === key ? cached.evaluation : null;
-  } catch {
-    return null;
-  }
-}
-
-function setCachedEvaluation(key: string, evaluation: CardRewardEvaluation) {
-  if (typeof window === "undefined") return;
-  try {
-    const cached: CachedEvaluation = { key, evaluation };
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
-  } catch {
-    // storage full or unavailable
-  }
-}
 
 interface UseCardEvaluationResult {
   evaluation: CardRewardEvaluation | null;
@@ -60,7 +34,7 @@ export function useCardEvaluation(
   // Check cache before initializing state
   const cachedRef = useRef<string | null>(null);
   const initialEval = cachedRef.current !== cardKey
-    ? getCachedEvaluation(cardKey)
+    ? getCached<CardRewardEvaluation>(CACHE_KEY, cardKey)
     : null;
 
   const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
@@ -75,7 +49,7 @@ export function useCardEvaluation(
     if (cardKey === evaluatedKey.current) return;
 
     // Check localStorage cache first
-    const cached = getCachedEvaluation(cardKey);
+    const cached = getCached<CardRewardEvaluation>(CACHE_KEY, cardKey);
     if (cached) {
       evaluatedKey.current = cardKey;
       setEvaluation(cached);
@@ -127,7 +101,7 @@ export function useCardEvaluation(
 
       const data: CardRewardEvaluation = await res.json();
       setEvaluation(data);
-      setCachedEvaluation(cardKey, data);
+      setCache(CACHE_KEY, cardKey, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

@@ -5,32 +5,9 @@ import type { EventState, CombatCard } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext, buildPromptContext } from "@/evaluation/context-builder";
+import { getCached, setCache } from "@/lib/local-cache";
 
 const CACHE_KEY = "sts2-event-eval-cache";
-
-interface CachedEvaluation {
-  key: string;
-  evaluation: CardRewardEvaluation;
-}
-
-function getCached(key: string): CardRewardEvaluation | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem(CACHE_KEY);
-    if (!stored) return null;
-    const cached: CachedEvaluation = JSON.parse(stored);
-    return cached.key === key ? cached.evaluation : null;
-  } catch {
-    return null;
-  }
-}
-
-function setCache(key: string, evaluation: CardRewardEvaluation) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ key, evaluation }));
-  } catch {}
-}
 
 interface UseEventEvaluationResult {
   evaluation: CardRewardEvaluation | null;
@@ -55,7 +32,7 @@ export function useEventEvaluation(
   const eventKey = `${state.event.event_id}:${options.map((o) => o.index).join(",")}`;
 
   const cachedRef = useRef<string | null>(null);
-  const initialEval = cachedRef.current !== eventKey ? getCached(eventKey) : null;
+  const initialEval = cachedRef.current !== eventKey ? getCached<CardRewardEvaluation>(CACHE_KEY, eventKey) : null;
 
   const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +44,7 @@ export function useEventEvaluation(
   const evaluate = useCallback(async () => {
     if (eventKey === evaluatedKey.current) return;
 
-    const cached = getCached(eventKey);
+    const cached = getCached<CardRewardEvaluation>(CACHE_KEY, eventKey);
     if (cached) {
       evaluatedKey.current = eventKey;
       setEvaluation(cached);
@@ -168,7 +145,7 @@ Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-inde
       };
 
       setEvaluation(evaluation);
-      setCache(eventKey, evaluation);
+      setCache(CACHE_KEY, eventKey, evaluation);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

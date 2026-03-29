@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
+import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@/lib/recommendation-styles";
 import type { CardEvaluation } from "@/evaluation/types";
 import type { DetailedCard } from "@/lib/types/game-state";
 
@@ -10,39 +11,17 @@ interface CardRatingProps {
   rank?: number;
 }
 
-const RECOMMENDATION_CONFIG: Record<string, { border: string; label: string; chip: string }> = {
-  strong_pick: {
-    border: "border-emerald-500/40",
-    label: "Strong Pick",
-    chip: "bg-emerald-400/10 text-emerald-400",
-  },
-  good_pick: {
-    border: "border-blue-500/40",
-    label: "Good Pick",
-    chip: "bg-blue-400/10 text-blue-400",
-  },
-  situational: {
-    border: "border-amber-500/40",
-    label: "Situational",
-    chip: "bg-amber-400/10 text-amber-400",
-  },
-  skip: {
-    border: "border-zinc-800",
-    label: "Skip",
-    chip: "bg-zinc-700/50 text-zinc-400",
-  },
-};
-
 export function CardRating({ card, evaluation, rank }: CardRatingProps) {
-  const config = evaluation
-    ? RECOMMENDATION_CONFIG[evaluation.recommendation] ?? RECOMMENDATION_CONFIG.situational
-    : { border: "border-zinc-800", label: "", chip: "" };
+  const rec = evaluation?.recommendation;
+  const border = rec ? RECOMMENDATION_BORDER[rec] ?? RECOMMENDATION_BORDER.situational : "border-zinc-800";
+  const chip = rec ? RECOMMENDATION_CHIP[rec] ?? RECOMMENDATION_CHIP.situational : "";
+  const label = rec ? RECOMMENDATION_LABEL[rec] ?? RECOMMENDATION_LABEL.situational : "";
 
   return (
     <div
       className={cn(
         "rounded-lg border bg-zinc-900/50 p-4 transition-colors flex flex-col gap-3",
-        config.border
+        border
       )}
     >
       {/* Top: tier + rank */}
@@ -56,8 +35,8 @@ export function CardRating({ card, evaluation, rank }: CardRatingProps) {
           )}
         </div>
         {evaluation && (
-          <span className={cn("rounded px-2 py-0.5 text-xs font-medium", config.chip)}>
-            {config.label}
+          <span className={cn("rounded px-2 py-0.5 text-xs font-medium", chip)}>
+            {label}
           </span>
         )}
       </div>
