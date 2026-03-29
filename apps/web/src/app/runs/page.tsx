@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@sts2/shared/supabase/client";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
-import type { Run, Choice } from "@/lib/supabase/helpers";
-import { cn } from "@/lib/cn";
+import type { Run, Choice } from "@sts2/shared/supabase/helpers";
+import { cn } from "@sts2/shared/lib/cn";
 
 async function fetchRuns(): Promise<(Run & { choices: Choice[] })[]> {
   const supabase = createClient();

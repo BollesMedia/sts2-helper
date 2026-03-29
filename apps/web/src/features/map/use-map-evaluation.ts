@@ -7,7 +7,7 @@ import type { EvaluationContext } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
 import { buildPromptContext } from "@/evaluation/context-builder";
 import { NODE_TYPE_ICONS } from "./map-scoring";
-import { getCached, setCache } from "@/lib/local-cache";
+import { getCached, setCache } from "@sts2/shared/lib/local-cache";
 
 const CACHE_KEY = "sts2-map-eval-cache";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import { HpBar } from "@/components/hp-bar";
@@ -11,7 +11,7 @@ import { useRestEvaluation } from "./use-rest-evaluation";
 import { CardSkeleton } from "@/components/loading-skeleton";
 import { RefineInput } from "@/components/refine-input";
 import { EvalError } from "@/components/eval-error";
-import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@/lib/recommendation-styles";
+import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@sts2/shared/lib/recommendation-styles";
 
 const OPTION_ICONS: Record<string, string> = {
   HEAL: "❤️",

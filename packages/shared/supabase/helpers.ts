@@ -1,4 +1,4 @@
-import type { Database } from "@sts2/shared/types/database.types";
+import type { Database } from "../types/database.types";
 
 // Row types (what you get back from queries)
 export type Card = Database["public"]["Tables"]["cards"]["Row"];

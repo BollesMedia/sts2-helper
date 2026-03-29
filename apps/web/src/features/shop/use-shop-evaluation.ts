@@ -5,8 +5,8 @@ import type { ShopState, ShopItem, CombatCard } from "@sts2/shared/types/game-st
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
-import { getUserId } from "@/lib/get-user-id";
-import { getCached, setCache } from "@/lib/local-cache";
+import { getUserId } from "@sts2/shared/lib/get-user-id";
+import { getCached, setCache } from "@sts2/shared/lib/local-cache";
 
 const CACHE_KEY = "sts2-shop-eval-cache";
 

@@ -15,7 +15,7 @@ import { EventView } from "@/features/event/event-view";
 import { RestSiteView } from "@/features/rest-site/rest-site-view";
 import { HpBar } from "@/components/hp-bar";
 import { BossBriefing } from "@/features/combat/boss-briefing";
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 import type {
   GameState,
   CombatState,

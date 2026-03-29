@@ -2,7 +2,7 @@
 
 import type { ConnectionStatus } from "./use-game-state";
 import { useAuth } from "@/features/auth/auth-provider";
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 
 const STATUS_CONFIG: Record<
   ConnectionStatus,

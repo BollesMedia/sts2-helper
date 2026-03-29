@@ -5,7 +5,7 @@ import type { EventState, CombatCard } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext, buildPromptContext } from "@/evaluation/context-builder";
-import { getCached, setCache } from "@/lib/local-cache";
+import { getCached, setCache } from "@sts2/shared/lib/local-cache";
 
 const CACHE_KEY = "sts2-event-eval-cache";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 import type { MapState } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { CombatCard } from "@sts2/shared/types/game-state";

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@sts2/shared/types/database.types";
-import type { EvaluationInsert } from "@/lib/supabase/helpers";
+import type { EvaluationInsert } from "@sts2/shared/supabase/helpers";
 import type { EvaluationContext, CardEvaluation, CardRewardEvaluation } from "./types";
 import { tierToValue, type TierLetter } from "./tier-utils";
 import { createContextHash } from "./context-hash";

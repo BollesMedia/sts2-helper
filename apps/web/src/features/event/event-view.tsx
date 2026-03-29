@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import type { EventState, CombatCard } from "@sts2/shared/types/game-state";
@@ -10,7 +10,7 @@ import { useEventEvaluation } from "./use-event-evaluation";
 import { CardSkeleton } from "@/components/loading-skeleton";
 import { RefineInput } from "@/components/refine-input";
 import { EvalError } from "@/components/eval-error";
-import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@/lib/recommendation-styles";
+import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@sts2/shared/lib/recommendation-styles";
 
 interface EventViewProps {
   state: EventState;

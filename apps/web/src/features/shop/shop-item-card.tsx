@@ -1,8 +1,8 @@
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import type { CardEvaluation } from "@/evaluation/types";
-import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@/lib/recommendation-styles";
+import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@sts2/shared/lib/recommendation-styles";
 
 interface ShopItemCardProps {
   name: string;

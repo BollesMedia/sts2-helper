@@ -1,4 +1,4 @@
-import { cn } from "@/lib/cn";
+import { cn } from "@sts2/shared/lib/cn";
 
 interface ConfidenceIndicatorProps {
   confidence: number;

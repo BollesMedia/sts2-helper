@@ -13,7 +13,7 @@ import type {
   PotionInsert,
   MonsterInsert,
   KeywordInsert,
-} from "@/lib/supabase/helpers";
+} from "@sts2/shared/supabase/helpers";
 
 const CODEX_BASE = "https://spire-codex.com/api";
 

@@ -7,14 +7,14 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@sts2/shared/supabase/client";
 import {
   signInWithMagicLink,
   signInWithPassword,
   signUpWithPassword,
   signInWithDiscord,
   signOut as authSignOut,
-} from "@/lib/supabase/auth";
+} from "@sts2/shared/supabase/auth";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextValue {

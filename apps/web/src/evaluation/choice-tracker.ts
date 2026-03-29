@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
 import { hasRun } from "@sts2/shared/types/game-state";
-import { getUserId } from "@/lib/get-user-id";
+import { getUserId } from "@sts2/shared/lib/get-user-id";
 
 interface PendingChoice {
   choiceType: string;
