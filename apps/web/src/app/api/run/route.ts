@@ -1,21 +1,55 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/api-auth";
+
+const startSchema = z.object({
+  action: z.literal("start"),
+  runId: z.string().min(1),
+  character: z.string().min(1),
+  ascension: z.number().int().min(0).optional(),
+  gameVersion: z.string().nullable().optional(),
+  gameMode: z.enum(["singleplayer", "multiplayer"]).optional(),
+});
+
+const endSchema = z.object({
+  action: z.literal("end"),
+  runId: z.string().min(1),
+  victory: z.boolean().nullable().optional(),
+  finalFloor: z.number().int().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  bossesFought: z.array(z.string()).nullable().optional(),
+  finalDeck: z.array(z.string()).nullable().optional(),
+  finalRelics: z.array(z.string()).nullable().optional(),
+  finalDeckSize: z.number().int().nullable().optional(),
+  actReached: z.number().int().nullable().optional(),
+  causeOfDeath: z.string().nullable().optional(),
+});
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+
   const body = await request.json();
-  const { action } = body;
   const supabase = createServiceClient();
 
-  if (action === "start") {
-    const { runId, character, ascension, gameVersion, gameMode, userId } = body;
+  if (body.action === "start") {
+    const result = startSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Invalid request", detail: result.error.flatten() },
+        { status: 400 }
+      );
+    }
 
+    const d = result.data;
     const { error } = await supabase.from("runs").upsert({
-      run_id: runId,
-      character,
-      ascension_level: ascension ?? 0,
-      game_version: gameVersion ?? null,
-      game_mode: gameMode ?? "singleplayer",
-      user_id: userId ?? null,
+      run_id: d.runId,
+      character: d.character,
+      ascension_level: d.ascension ?? 0,
+      game_version: d.gameVersion ?? null,
+      game_mode: d.gameMode ?? "singleplayer",
+      user_id: auth.userId,
     });
 
     if (error) {
@@ -23,32 +57,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, runId });
+    return NextResponse.json({ success: true, runId: d.runId });
   }
 
-  if (action === "end") {
-    const {
-      runId, victory, finalFloor, notes, bossesFought,
-      finalDeck, finalRelics, finalDeckSize, actReached, causeOfDeath,
-    } = body;
+  if (body.action === "end") {
+    const result = endSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Invalid request", detail: result.error.flatten() },
+        { status: 400 }
+      );
+    }
 
+    const d = result.data;
     const update: Record<string, unknown> = {
       ended_at: new Date().toISOString(),
     };
-    if (victory !== undefined) update.victory = victory;
-    if (finalFloor !== undefined) update.final_floor = finalFloor;
-    if (notes !== undefined) update.notes = notes;
-    if (bossesFought !== undefined) update.bosses_fought = bossesFought;
-    if (finalDeck !== undefined) update.final_deck = finalDeck;
-    if (finalRelics !== undefined) update.final_relics = finalRelics;
-    if (finalDeckSize !== undefined) update.final_deck_size = finalDeckSize;
-    if (actReached !== undefined) update.act_reached = actReached;
-    if (causeOfDeath !== undefined) update.cause_of_death = causeOfDeath;
+    if (d.victory !== undefined) update.victory = d.victory;
+    if (d.finalFloor !== undefined) update.final_floor = d.finalFloor;
+    if (d.notes !== undefined) update.notes = d.notes;
+    if (d.bossesFought !== undefined) update.bosses_fought = d.bossesFought;
+    if (d.finalDeck !== undefined) update.final_deck = d.finalDeck;
+    if (d.finalRelics !== undefined) update.final_relics = d.finalRelics;
+    if (d.finalDeckSize !== undefined) update.final_deck_size = d.finalDeckSize;
+    if (d.actReached !== undefined) update.act_reached = d.actReached;
+    if (d.causeOfDeath !== undefined) update.cause_of_death = d.causeOfDeath;
 
     const { error } = await supabase
       .from("runs")
       .update(update)
-      .eq("run_id", runId);
+      .eq("run_id", d.runId);
 
     if (error) {
       console.error("Failed to end run:", error);
