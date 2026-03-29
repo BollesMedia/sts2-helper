@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { MapState, CombatCard } from "@/lib/types/game-state";
+import type { MapState, CombatCard } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/types/database.types";
+import type { Database } from "@sts2/shared/types/database.types";
 
 // Haiku pricing per 1M tokens (as of March 2026)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {

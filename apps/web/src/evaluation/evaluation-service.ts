@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/types/database.types";
+import type { Database } from "@sts2/shared/types/database.types";
 import type { EvaluationInsert } from "@/lib/supabase/helpers";
 import type { EvaluationContext, CardEvaluation, CardRewardEvaluation } from "./types";
 import { tierToValue, type TierLetter } from "./tier-utils";

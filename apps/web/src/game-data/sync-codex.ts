@@ -6,7 +6,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/types/database.types";
+import type { Database } from "@sts2/shared/types/database.types";
 import type {
   CardInsert,
   RelicInsert,

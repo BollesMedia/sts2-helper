@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard } from "@/lib/types/game-state";
-import { isCombatState } from "@/lib/types/game-state";
+import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
+import { isCombatState } from "@sts2/shared/types/game-state";
 import { createClient } from "@/lib/supabase/client";
 
 const STORAGE_KEY = "sts2-deck";

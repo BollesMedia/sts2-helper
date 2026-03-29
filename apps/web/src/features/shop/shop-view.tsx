@@ -1,6 +1,6 @@
 "use client";
 
-import type { ShopState, ShopItem, CombatCard } from "@/lib/types/game-state";
+import type { ShopState, ShopItem, CombatCard } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import {
   useShopEvaluation,

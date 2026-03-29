@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard } from "@/lib/types/game-state";
-import { hasRun } from "@/lib/types/game-state";
+import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
+import { hasRun } from "@sts2/shared/types/game-state";
 import { getUserId } from "@/lib/get-user-id";
 
 interface PendingChoice {

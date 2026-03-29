@@ -1,5 +1,5 @@
-import type { GameState, CombatCard } from "@/lib/types/game-state";
-import { hasRun } from "@/lib/types/game-state";
+import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
+import { hasRun } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext } from "./types";
 import {

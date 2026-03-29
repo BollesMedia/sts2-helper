@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import type { Monster } from "@/lib/supabase/helpers";
-import type { Enemy, CombatCard } from "@/lib/types/game-state";
+import type { Enemy, CombatCard } from "@sts2/shared/types/game-state";
 
 const supabase = createClient();
 

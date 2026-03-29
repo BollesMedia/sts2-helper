@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import type { Database } from "@/lib/types/database.types";
+import type { Database } from "@sts2/shared/types/database.types";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);

@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import { HpBar } from "@/components/hp-bar";
-import type { RestSiteState, CombatCard } from "@/lib/types/game-state";
+import type { RestSiteState, CombatCard } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { TierLetter } from "@/evaluation/tier-utils";
 import { useRestEvaluation } from "./use-rest-evaluation";

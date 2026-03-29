@@ -1,4 +1,4 @@
-import type { CombatCard, GameRelic } from "@/lib/types/game-state";
+import type { CombatCard, GameRelic } from "@sts2/shared/types/game-state";
 import type { ArchetypeScore } from "./types";
 
 // Card keywords/tags that signal archetypes

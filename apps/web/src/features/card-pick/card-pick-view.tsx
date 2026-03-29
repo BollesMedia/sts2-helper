@@ -1,6 +1,6 @@
 "use client";
 
-import type { CardRewardState, CombatCard } from "@/lib/types/game-state";
+import type { CardRewardState, CombatCard } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";

@@ -3,7 +3,7 @@ import { TierBadge } from "@/components/tier-badge";
 import { ConfidenceIndicator } from "@/components/confidence-indicator";
 import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@/lib/recommendation-styles";
 import type { CardEvaluation } from "@/evaluation/types";
-import type { DetailedCard } from "@/lib/types/game-state";
+import type { DetailedCard } from "@sts2/shared/types/game-state";
 
 interface CardRatingProps {
   card: DetailedCard;

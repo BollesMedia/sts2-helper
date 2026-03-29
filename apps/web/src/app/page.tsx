@@ -20,9 +20,9 @@ import type {
   GameState,
   CombatState,
   CombatCard,
-} from "@/lib/types/game-state";
+} from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
-import { isCombatState, hasRun } from "@/lib/types/game-state";
+import { isCombatState, hasRun } from "@sts2/shared/types/game-state";
 
 // ─── State label formatting ───
 

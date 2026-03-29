@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
-import type { MapState } from "@/lib/types/game-state";
+import type { MapState } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
-import type { CombatCard } from "@/lib/types/game-state";
+import type { CombatCard } from "@sts2/shared/types/game-state";
 import { NODE_TYPE_ICONS } from "./map-scoring";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "@/components/tier-badge";

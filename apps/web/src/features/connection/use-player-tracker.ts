@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState } from "@/lib/types/game-state";
-import { isCombatState } from "@/lib/types/game-state";
+import type { GameState } from "@sts2/shared/types/game-state";
+import { isCombatState } from "@sts2/shared/types/game-state";
 
 const STORAGE_KEY = "sts2-player";
 

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import type { Database } from "@/lib/types/database.types";
+import type { Database } from "@sts2/shared/types/database.types";
 
 /**
  * Validates the Supabase auth session from the request cookies.
