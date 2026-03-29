@@ -14,7 +14,10 @@ function loadRunId(): string | null {
   if (typeof window === "undefined") return null;
   try {
     return localStorage.getItem(STORAGE_KEY);
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[localStorage]", e);
+    }
     return null;
   }
 }
@@ -27,7 +30,11 @@ function saveRunId(runId: string | null) {
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
-  } catch {}
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[localStorage]", e);
+    }
+  }
 }
 
 function inferOutcome(

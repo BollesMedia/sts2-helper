@@ -20,10 +20,3 @@ export function createContextHash(ctx: EvaluationContext): string {
   ].join(":");
 }
 
-/**
- * Creates a broader context hash (ignoring archetype)
- * for fallback lookups.
- */
-export function createBroadContextHash(ctx: EvaluationContext): string {
-  return [ctx.character, `act${ctx.act}`].join(":");
-}

@@ -6,32 +6,9 @@ import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
 import { getUserId } from "@/lib/get-user-id";
+import { getCached, setCache } from "@/lib/local-cache";
 
 const CACHE_KEY = "sts2-shop-eval-cache";
-
-interface CachedEvaluation {
-  key: string;
-  evaluation: CardRewardEvaluation;
-}
-
-function getCached(key: string): CardRewardEvaluation | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem(CACHE_KEY);
-    if (!stored) return null;
-    const cached: CachedEvaluation = JSON.parse(stored);
-    return cached.key === key ? cached.evaluation : null;
-  } catch {
-    return null;
-  }
-}
-
-function setCache(key: string, evaluation: CardRewardEvaluation) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ key, evaluation }));
-  } catch {}
-}
 
 function getItemId(item: ShopItem): string {
   switch (item.category) {
@@ -77,7 +54,7 @@ export function useShopEvaluation(
   const shopKey = shopItems.map((i) => getItemId(i)).sort().join(",");
 
   const cachedRef = useRef<string | null>(null);
-  const initialEval = cachedRef.current !== shopKey ? getCached(shopKey) : null;
+  const initialEval = cachedRef.current !== shopKey ? getCached<CardRewardEvaluation>(CACHE_KEY, shopKey) : null;
 
   const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,7 +66,7 @@ export function useShopEvaluation(
   const evaluate = useCallback(async () => {
     if (shopKey === evaluatedKey.current) return;
 
-    const cached = getCached(shopKey);
+    const cached = getCached<CardRewardEvaluation>(CACHE_KEY, shopKey);
     if (cached) {
       evaluatedKey.current = shopKey;
       setEvaluation(cached);
@@ -142,7 +119,7 @@ export function useShopEvaluation(
 
       const data: CardRewardEvaluation = await res.json();
       setEvaluation(data);
-      setCache(shopKey, data);
+      setCache(CACHE_KEY, shopKey, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

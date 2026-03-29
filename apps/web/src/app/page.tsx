@@ -324,8 +324,6 @@ function MenuView({
   runState: import("@/features/connection/use-run-tracker").RunState;
 }) {
   const [notes, setNotes] = useState("");
-  const [saved, setSaved] = useState(false);
-
   const handleOutcome = (victory: boolean) => {
     if (notes.trim() && runState.endedRunId) {
       fetch("/api/run", {
@@ -339,7 +337,6 @@ function MenuView({
       }).catch(console.error);
     }
     runState.confirmOutcome(victory);
-    setSaved(true);
   };
 
   return (
@@ -448,6 +445,7 @@ function AuthenticatedDashboard() {
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
   const runState = useRunTracker(gameState, user?.id ?? null);
+  // Side-effect only: logs choices to Supabase
   useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {

@@ -7,6 +7,7 @@ import type { EvaluationContext } from "@/evaluation/types";
 import { buildEvaluationContext } from "@/evaluation/context-builder";
 import { buildPromptContext } from "@/evaluation/context-builder";
 import { NODE_TYPE_ICONS } from "./map-scoring";
+import { getCached, setCache } from "@/lib/local-cache";
 
 const CACHE_KEY = "sts2-map-eval-cache";
 
@@ -20,30 +21,6 @@ export interface MapPathEvaluation {
     reasoning: string;
   }[];
   overallAdvice: string | null;
-}
-
-interface CachedEvaluation {
-  key: string;
-  evaluation: MapPathEvaluation;
-}
-
-function getCached(key: string): MapPathEvaluation | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem(CACHE_KEY);
-    if (!stored) return null;
-    const cached: CachedEvaluation = JSON.parse(stored);
-    return cached.key === key ? cached.evaluation : null;
-  } catch {
-    return null;
-  }
-}
-
-function setCache(key: string, evaluation: MapPathEvaluation) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ key, evaluation }));
-  } catch {}
 }
 
 interface UseMapEvaluationResult {
@@ -62,7 +39,7 @@ export function useMapEvaluation(
   const mapKey = options.map((o) => `${o.col},${o.row}`).sort().join("|");
 
   const cachedRef = useRef<string | null>(null);
-  const initialEval = cachedRef.current !== mapKey ? getCached(mapKey) : null;
+  const initialEval = cachedRef.current !== mapKey ? getCached<MapPathEvaluation>(CACHE_KEY, mapKey) : null;
 
   const [evaluation, setEvaluation] = useState<MapPathEvaluation | null>(initialEval);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,7 +57,7 @@ export function useMapEvaluation(
       return;
     }
 
-    const cached = getCached(mapKey);
+    const cached = getCached<MapPathEvaluation>(CACHE_KEY, mapKey);
     if (cached) {
       evaluatedKey.current = mapKey;
       setEvaluation(cached);
@@ -243,7 +220,7 @@ Respond as JSON:
       };
 
       setEvaluation(parsed);
-      setCache(mapKey, parsed);
+      setCache(CACHE_KEY, mapKey, parsed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

@@ -47,6 +47,16 @@ export interface GameRelic {
   keywords?: KeywordInfo[];
 }
 
+export interface GamePotion {
+  id: string;
+  name: string;
+  description: string;
+  slot: number;
+  can_use_in_combat: boolean;
+  target_type: string;
+  keywords?: KeywordInfo[];
+}
+
 export interface EnemyIntent {
   type: string;
   label: string;
@@ -83,7 +93,7 @@ export interface BattlePlayer {
   gold: number;
   status: StatusEffect[];
   relics: GameRelic[];
-  potions: unknown[];
+  potions: GamePotion[];
   stars?: number | null;
 }
 

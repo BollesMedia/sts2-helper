@@ -12,44 +12,42 @@ import {
 import { tierToValue } from "@/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logUsage } from "@/lib/usage-logger";
+import { requireAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
 
 const anthropic = new Anthropic();
 
-// Compact boss reference for Claude — loaded once from Supabase
-let bossReference: string | null = null;
-let bossReferenceLoading = false;
+// Compact boss reference for Claude — loaded once, shared via Promise
+let bossReferencePromise: Promise<string> | null = null;
 
-async function getBossReference(): Promise<string> {
-  if (bossReference) return bossReference;
-  if (bossReferenceLoading) return "";
+function getBossReference(): Promise<string> {
+  if (!bossReferencePromise) {
+    bossReferencePromise = loadBossReference();
+  }
+  return bossReferencePromise;
+}
 
-  bossReferenceLoading = true;
+async function loadBossReference(): Promise<string> {
   try {
-    const { createServiceClient } = await import("@/lib/supabase/server");
     const supabase = createServiceClient();
     const { data } = await supabase
       .from("monsters")
       .select("name, min_hp, max_hp, moves")
       .eq("type", "Boss");
 
-    if (data && data.length > 0) {
-      bossReference = data
-        .map((b) => {
-          const moves = Array.isArray(b.moves)
-            ? (b.moves as { name: string }[]).slice(0, 4).map((m) => m.name).join(", ")
-            : "";
-          return `${b.name} (${b.min_hp ?? "?"}HP): ${moves}`;
-        })
-        .join("\n");
-    } else {
-      bossReference = "";
-    }
+    if (!data || data.length === 0) return "";
+
+    return data
+      .map((b) => {
+        const moves = Array.isArray(b.moves)
+          ? (b.moves as { name: string }[]).slice(0, 4).map((m) => m.name).join(", ")
+          : "";
+        return `${b.name} (${b.min_hp ?? "?"}HP): ${moves}`;
+      })
+      .join("\n");
   } catch {
-    bossReference = "";
+    return "";
   }
-  bossReferenceLoading = false;
-  return bossReference ?? "";
 }
 
 const SYSTEM_PROMPT = `You are an expert Slay the Spire 2 advisor with deep knowledge of current STS2 meta strategies, card synergies, and high-ascension play patterns. You evaluate decisions the way a top-level player would — not in a vacuum, but in the context of the current run state.
@@ -97,6 +95,9 @@ interface EvaluateRequest {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+
   const body: EvaluateRequest = await request.json();
   const { type, context, items, runId, gameVersion } = body;
 

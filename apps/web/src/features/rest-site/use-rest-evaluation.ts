@@ -5,32 +5,9 @@ import type { RestSiteState, CombatCard } from "@/lib/types/game-state";
 import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
 import { buildEvaluationContext, buildPromptContext } from "@/evaluation/context-builder";
+import { getCached, setCache } from "@/lib/local-cache";
 
 const CACHE_KEY = "sts2-rest-eval-cache";
-
-interface CachedEvaluation {
-  key: string;
-  evaluation: CardRewardEvaluation;
-}
-
-function getCached(key: string): CardRewardEvaluation | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem(CACHE_KEY);
-    if (!stored) return null;
-    const cached: CachedEvaluation = JSON.parse(stored);
-    return cached.key === key ? cached.evaluation : null;
-  } catch {
-    return null;
-  }
-}
-
-function setCache(key: string, evaluation: CardRewardEvaluation) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ key, evaluation }));
-  } catch {}
-}
 
 interface UseRestEvaluationResult {
   evaluation: CardRewardEvaluation | null;
@@ -54,7 +31,7 @@ export function useRestEvaluation(
   const restKey = `rest:${state.run.floor}:${options.map((o) => o.id).join(",")}`;
 
   const cachedRef = useRef<string | null>(null);
-  const initialEval = cachedRef.current !== restKey ? getCached(restKey) : null;
+  const initialEval = cachedRef.current !== restKey ? getCached<CardRewardEvaluation>(CACHE_KEY, restKey) : null;
 
   const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,7 +43,7 @@ export function useRestEvaluation(
   const evaluate = useCallback(async () => {
     if (restKey === evaluatedKey.current) return;
 
-    const cached = getCached(restKey);
+    const cached = getCached<CardRewardEvaluation>(CACHE_KEY, restKey);
     if (cached) {
       evaluatedKey.current = restKey;
       setEvaluation(cached);
@@ -190,7 +167,7 @@ The #1 ranked option should be "strong_pick". The other option(s) should be "sit
       };
 
       setEvaluation(evaluation);
-      setCache(restKey, evaluation);
+      setCache(CACHE_KEY, restKey, evaluation);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

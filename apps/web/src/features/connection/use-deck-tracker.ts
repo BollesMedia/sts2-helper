@@ -13,7 +13,10 @@ function loadFromStorage(): CombatCard[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
-  } catch {
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[localStorage]", e);
+    }
     return [];
   }
 }
@@ -22,7 +25,11 @@ function saveToStorage(cards: CombatCard[]) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-  } catch {}
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[localStorage]", e);
+    }
+  }
 }
 
 /**
@@ -43,7 +50,11 @@ function initValidCardNames(): Set<string> | null {
         validCardNames = new Set(JSON.parse(cached) as string[]);
         return validCardNames;
       }
-    } catch {}
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[localStorage]", e);
+      }
+    }
   }
 
   // Trigger async load if not cached
@@ -68,7 +79,11 @@ function initValidCardNames(): Set<string> | null {
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem(VALID_CARDS_KEY, JSON.stringify([...names]));
-          } catch {}
+          } catch (e) {
+            if (process.env.NODE_ENV === "development") {
+              console.warn("[cache]", e);
+            }
+          }
         }
       });
   }
