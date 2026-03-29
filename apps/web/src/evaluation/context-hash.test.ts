@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createContextHash, createBroadContextHash } from "./context-hash";
+import { createContextHash } from "./context-hash";
 import type { EvaluationContext } from "./types";
 
 const baseContext: EvaluationContext = {
@@ -58,11 +58,3 @@ describe("createContextHash", () => {
   });
 });
 
-describe("createBroadContextHash", () => {
-  it("includes only character and act", () => {
-    const hash = createBroadContextHash(baseContext);
-    expect(hash).toContain("the ironclad");
-    expect(hash).toContain("act2");
-    expect(hash).not.toContain("exhaust");
-  });
-});
