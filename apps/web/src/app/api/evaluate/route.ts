@@ -104,6 +104,8 @@ export async function POST(request: Request) {
   const body: EvaluateRequest = await request.json();
   const { type, context, items, runId, gameVersion } = body;
 
+  console.log("[Evaluate] type:", type, "items:", items?.map(i => `${i.id}/${i.name}`));
+
   const supabase = createServiceClient();
 
   // Load contextual data
@@ -296,6 +298,7 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
       );
     }
 
+    console.log("[Evaluate] Tool use input:", JSON.stringify(toolUse.input));
     const parsed = parseToolUseInput(toolUse.input);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 

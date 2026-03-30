@@ -39,7 +39,21 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
   }
 
   const obj = input as Record<string, unknown>;
-  const rawRankings = Array.isArray(obj.rankings) ? obj.rankings : [];
+
+  // Claude sometimes returns rankings as a JSON string instead of an array
+  let rawRankings: unknown[];
+  if (Array.isArray(obj.rankings)) {
+    rawRankings = obj.rankings;
+  } else if (typeof obj.rankings === "string") {
+    try {
+      const parsed = JSON.parse(obj.rankings);
+      rawRankings = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      rawRankings = [];
+    }
+  } else {
+    rawRankings = [];
+  }
 
   const rankings: ClaudeCardEvaluation[] = rawRankings.map((r: unknown) => {
     if (!r || typeof r !== "object") {
@@ -61,10 +75,26 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
     };
   });
 
+  // When rankings was a string, other fields may also be embedded in it.
+  // Extract them via regex as a fallback.
+  const rankingsStr = typeof obj.rankings === "string" ? obj.rankings : "";
+
+  const skipRecommended = obj.skip_recommended
+    ?? (() => {
+      const m = rankingsStr.match(/"skip_recommended"\s*:\s*(true|false)/);
+      return m ? m[1] === "true" : false;
+    })();
+
+  const skipReasoning = obj.skip_reasoning
+    ?? (() => {
+      const m = rankingsStr.match(/"skip_reasoning"\s*:\s*"([^"]*)"/);
+      return m ? m[1] : null;
+    })();
+
   return {
     rankings,
-    skip_recommended: Boolean(obj.skip_recommended ?? false),
-    skip_reasoning: obj.skip_reasoning ? String(obj.skip_reasoning) : null,
+    skip_recommended: Boolean(skipRecommended),
+    skip_reasoning: skipReasoning ? String(skipReasoning) : null,
     spending_plan: obj.spending_plan ? String(obj.spending_plan) : null,
   };
 }
