@@ -73,11 +73,15 @@ export function detectArchetypes(
     }
   }
 
-  // Convert to confidence scores (relative to deck size)
+  // Convert to confidence scores
+  // Use max of absolute-count-based and ratio-based scoring
+  // so 3+ signal cards always registers as strong commitment regardless of deck size
   const results: ArchetypeScore[] = Object.entries(scores)
     .map(([archetype, score]) => ({
       archetype,
-      confidence: Math.min(100, Math.round((score / Math.max(1, deckSize)) * 200)),
+      confidence: Math.min(100, Math.round(
+        Math.max(score * 15, (score / Math.max(1, deckSize)) * 200)
+      )),
     }))
     .filter((a) => a.confidence > 10)
     .sort((a, b) => b.confidence - a.confidence);

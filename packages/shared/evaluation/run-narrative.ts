@@ -295,14 +295,13 @@ function updateBuildPhase(ctx: EvaluationContext) {
   const floor = ctx.floor;
 
   // Lock in conditions (once locked, never changes):
-  // 1. Strong signal at any point (60%+ = 3+ cards in small deck)
-  // 2. Moderate signal by mid-Act 1 (40%+ by floor 7)
-  // 3. Forced lock before Act 1 boss (floor 9) — must commit with whatever is strongest
-  if (primary) {
+  // 1. Never lock before floor 5 — too early, likely noise from starters
+  // 2. Strong signal (80%+ = 4+ archetype cards in small deck) — real commitment
+  // 3. Forced lock at floor 9 — must commit for Act 1 boss prep
+  if (primary && floor >= 5) {
     const shouldLock =
-      primary.confidence >= 60 ||
-      (primary.confidence >= 40 && floor >= 7) ||
-      (primary.confidence >= 15 && floor >= 9);
+      primary.confidence >= 80 ||
+      (primary.confidence >= 60 && floor >= 9);
 
     if (shouldLock) {
       narrative.lockedArchetype = primary.archetype;
@@ -313,7 +312,7 @@ function updateBuildPhase(ctx: EvaluationContext) {
   }
 
   // Not locked yet — still exploring or committing
-  if (!primary || primary.confidence < 20) {
+  if (!primary || primary.confidence < 30) {
     narrative.buildPhase = "exploring";
   } else {
     narrative.buildPhase = "committing";
