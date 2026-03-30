@@ -17,6 +17,8 @@ setAuthRedirectOrigin(API_BASE);
 
 if (SUPABASE_URL && SUPABASE_ANON_KEY) {
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+  console.warn("[STS2] Supabase credentials not configured. Auth features will not work.");
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

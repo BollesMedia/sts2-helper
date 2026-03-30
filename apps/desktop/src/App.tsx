@@ -3,8 +3,7 @@ import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracke
 import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
 import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
 import { HpBar } from "@sts2/shared/components/hp-bar";
-import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
-import { isCombatState, hasRun } from "@sts2/shared/types/game-state";
+import { hasRun } from "@sts2/shared/types/game-state";
 
 export function App() {
   const { gameState, connectionStatus } = useGameState();
