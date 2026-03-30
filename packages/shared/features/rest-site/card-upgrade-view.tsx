@@ -56,15 +56,15 @@ export function CardUpgradeView({ state, deckCards, player }: CardUpgradeViewPro
           runNarrative: narrative,
           mapPrompt: `${contextStr}
 
-CARD UPGRADE: Choose ONE card to upgrade. Upgrading improves a card's stats permanently.
-Upgradeable cards:
+CARD UPGRADE: Choose ONE card to upgrade. Cards with + are ALREADY upgraded and CANNOT be chosen.
+Only these cards can be upgraded:
 ${cardList}
 
-Pick the card that benefits MOST from upgrading. Prioritize:
-1. Key archetype/engine cards that gain significant power from upgrade
-2. Cards played every fight (high-frequency cards benefit most)
-3. Scaling cards where the upgrade increases scaling rate
-Do NOT recommend upgrading a card that is off-archetype or rarely drawn.
+Pick from the list above ONLY. Prioritize:
+1. Key archetype/engine card with biggest upgrade delta
+2. Most-played card in the deck
+3. Scaling card where upgrade increases rate
+Do NOT recommend any card with + in its name — it is already upgraded.
 
 Respond as JSON:
 {

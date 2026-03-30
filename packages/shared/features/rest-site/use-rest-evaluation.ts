@@ -115,9 +115,11 @@ export function useRestEvaluation(
     const upgradeCandidates = (ctx.deckCards ?? [])
       .filter((c) => !c.name.includes("+"))
       .map((c) => c.name);
-    const upgradeNote = upgradeCandidates.length > 0
-      ? `Unupgraded cards: ${upgradeCandidates.join(", ")}`
-      : "No upgradeable cards remaining.";
+    // Deduplicate (multiple copies of same card)
+    const uniqueCandidates = [...new Set(upgradeCandidates)];
+    const upgradeNote = uniqueCandidates.length > 0
+      ? `UPGRADEABLE (only these can be upgraded): ${uniqueCandidates.join(", ")}\nCards with + are ALREADY upgraded and CANNOT be upgraded again. Do NOT recommend upgrading any card with + in its name.`
+      : "No upgradeable cards remaining — all cards have been upgraded.";
 
     try {
       const res = await apiFetch("/api/evaluate", {
