@@ -8,6 +8,7 @@ import type { RunState } from "../connection/use-run-tracker";
 import { CardPickView } from "../card-pick/card-pick-view";
 import { CardRemovalView } from "../shop/card-removal-view";
 import { CardUpgradeView } from "../rest-site/card-upgrade-view";
+import { CardSelectEvalView } from "../card-select/card-select-eval-view";
 import { ShopView } from "../shop/shop-view";
 import { MapView } from "../map/map-view";
 import { RelicSelectView } from "../relic-select/relic-select-view";
@@ -66,7 +67,20 @@ export function GameStateView({
         return <CardUpgradeView state={state} deckCards={deckCards} player={player} />;
       }
 
-      // Treat all other card_select screens as card reward evaluations
+      // Detect if cards are from the player's deck (buff/enchant/transform)
+      // vs new cards being offered (reward). If most offered cards are already
+      // in the deck, this is a "pick from your deck" screen.
+      const deckNames = new Set(deckCards.map((c) => c.name.toLowerCase()));
+      const offeredCards = state.card_select.cards;
+      const fromDeckCount = offeredCards.filter((c) => deckNames.has(c.name.toLowerCase())).length;
+      const isFromDeck = offeredCards.length > 0 && fromDeckCount / offeredCards.length > 0.5;
+
+      if (isFromDeck) {
+        // Enchant, imbue, transform, etc. — pick from your deck
+        return <CardSelectEvalView state={state} deckCards={deckCards} player={player} />;
+      }
+
+      // New cards being offered (reward-style)
       const isMultiSelect = screenType === "simple_select";
       const asCardReward = {
         state_type: "card_reward" as const,

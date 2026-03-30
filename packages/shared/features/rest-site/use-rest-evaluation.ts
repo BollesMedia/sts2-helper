@@ -141,7 +141,7 @@ ${upgradeNote}
 REST SITE — choose ONE:
 ${optionsStr}
 
-${isBossNext ? `BOSS NEXT: Heal if missing >15% HP. Only upgrade if HP >85%.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. The player needs HP to survive the upcoming fight. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
+${missing <= 10 || effectiveHpPercent >= 90 ? `Missing only ${missing} HP — this is negligible. ALWAYS upgrade, never heal for this little HP regardless of what comes next.` : isBossNext ? `BOSS NEXT: Heal if missing >15% HP. Only upgrade if HP >85%.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
 
 Respond as JSON:
 {
