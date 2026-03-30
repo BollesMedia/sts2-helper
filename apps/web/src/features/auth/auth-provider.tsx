@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { createClient } from "@sts2/shared/supabase/client";
+import { createClient, initSupabase } from "@sts2/shared/supabase/client";
 import {
   signInWithMagicLink,
   signInWithPassword,
@@ -48,6 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (!initialized) {
     setInitialized(true);
+    // Initialize shared Supabase client with web app env vars
+    initSupabase(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
+    );
     const supabase = createClient();
 
     supabase.auth.getSession().then(({ data: { session } }) => {

@@ -9,7 +9,9 @@ export function App() {
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
-  const runState = useRunTracker(gameState);
+  // Side-effect only: tracks run start/end in Supabase
+  // TODO: Wire up useChoiceTracker when auth is added
+  useRunTracker(gameState);
 
   if (connectionStatus !== "connected" || !gameState) {
     return (
@@ -21,7 +23,7 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-1 flex-col min-h-screen">
+    <div className="flex flex-1 flex-col">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
         <div className="flex items-center gap-4">
