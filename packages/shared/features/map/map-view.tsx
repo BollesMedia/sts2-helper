@@ -42,9 +42,9 @@ const NODE_FILL: Record<string, string> = {
 };
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
-  strong_pick: "border-amber-500/60",
-  good_pick: "border-emerald-500/50",
-  situational: "border-blue-500/40",
+  strong_pick: "border-emerald-500/50",
+  good_pick: "border-blue-500/40",
+  situational: "border-amber-500/40",
   skip: "border-zinc-700/40",
 };
 
@@ -128,14 +128,14 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
                 return (
                   <g key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}>
-                    {/* Golden glow for best path */}
+                    {/* Emerald glow for best path */}
                     {isBestEdge && (
                       <line
                         x1={x1}
                         y1={y1}
                         x2={x2}
                         y2={y2}
-                        stroke="#fbbf24"
+                        stroke="#34d399"
                         strokeWidth={6}
                         opacity={0.3}
                         strokeLinecap="round"
@@ -148,7 +148,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                       y2={y2}
                       stroke={
                         isBestEdge
-                          ? "#fbbf24"
+                          ? "#34d399"
                           : isVisitedEdge
                             ? "#71717a"
                             : isNextEdge
@@ -182,14 +182,14 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
               return (
                 <g key={key}>
-                  {/* Golden glow halo for best option */}
+                  {/* Emerald glow halo for best option */}
                   {isBest && (
                     <>
                       <circle
                         cx={x}
                         cy={y}
                         r={NODE_RADIUS + 8}
-                        fill="#fbbf24"
+                        fill="#34d399"
                         opacity={0.15}
                       />
                       <circle
@@ -197,7 +197,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                         cy={y}
                         r={NODE_RADIUS + 5}
                         fill="none"
-                        stroke="#fbbf24"
+                        stroke="#34d399"
                         strokeWidth={2}
                         opacity={0.6}
                       />
@@ -278,9 +278,9 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                 evalData
                   ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-700/40"
                   : isBest
-                    ? "border-amber-500/50"
+                    ? "border-emerald-500/50"
                     : "border-zinc-700/40",
-                isBest && "shadow-[0_0_16px_rgba(251,191,36,0.2)] border-amber-500/60"
+                isBest && "shadow-[0_0_12px_rgba(52,211,153,0.2)] border-emerald-500/60"
               )}
               title={evalData?.reasoning}
             >
@@ -289,9 +289,9 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                 <div className="absolute -top-1.5 -right-1.5 z-10">
                   <span className={cn(
                     "px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider",
-                    "bg-gradient-to-r from-amber-600 to-amber-500 text-zinc-950",
-                    "shadow-[0_0_8px_rgba(251,191,36,0.5)]",
-                    "border border-amber-400/50"
+                    "bg-emerald-500 text-zinc-950",
+                    "shadow-[0_0_8px_rgba(52,211,153,0.5)]",
+                    "border border-emerald-400/50"
                   )}>
                     Best
                   </span>

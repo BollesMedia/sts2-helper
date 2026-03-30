@@ -31,7 +31,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
         {evaluation?.pickSummary && !isLoading && (
           <p className={cn(
             "text-xs font-medium truncate flex-1 text-right",
-            evaluation.skipRecommended ? "text-zinc-500" : "text-amber-400"
+            evaluation.skipRecommended ? "text-zinc-500" : "text-emerald-400"
           )}>
             {evaluation.pickSummary}
           </p>

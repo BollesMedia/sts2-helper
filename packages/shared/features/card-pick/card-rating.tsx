@@ -22,22 +22,21 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
       className={cn(
         "rounded-lg border bg-zinc-900/60 p-3 flex flex-col gap-2 relative card-depth card-depth-hover",
         isTopPick 
-          ? "border-amber-500/70 ring-2 ring-amber-500/30 shadow-[0_0_20px_rgba(251,191,36,0.25),0_0_40px_rgba(251,191,36,0.1)]" 
+          ? "border-emerald-500/60 ring-2 ring-emerald-500/30 shadow-[0_0_16px_rgba(52,211,153,0.2)]" 
           : border
       )}
       title={evaluation?.reasoning}
     >
-      {/* Dramatic "Pick This" banner - unmissable golden glow */}
+      {/* "Pick This" banner - emerald for strong pick semantic */}
       {isTopPick && (
         <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
           <div 
             className={cn(
               "relative px-3 py-0.5 rounded-full",
-              "bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600",
+              "bg-emerald-500",
               "text-[10px] font-bold uppercase tracking-widest text-zinc-950",
-              "shadow-[0_0_16px_rgba(251,191,36,0.6),0_0_32px_rgba(251,191,36,0.3),0_2px_8px_rgba(0,0,0,0.4)]",
-              "animate-pulse-glow",
-              "border border-amber-400/50"
+              "shadow-[0_0_12px_rgba(52,211,153,0.5),0_2px_8px_rgba(0,0,0,0.4)]",
+              "border border-emerald-400/50"
             )}
           >
             <span className="relative z-10">Pick This</span>
@@ -52,7 +51,7 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
           {rank != null && (
             <span className={cn(
               "text-lg font-bold tabular-nums",
-              isTopPick ? "text-amber-500/80" : "text-zinc-600"
+              isTopPick ? "text-emerald-500/80" : "text-zinc-600"
             )}>
               #{rank}
             </span>
@@ -61,7 +60,7 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
         {evaluation && (
           <span className={cn(
             "rounded px-1.5 py-0.5 text-[10px] font-medium border",
-            isTopPick ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : chip + " border-transparent"
+            isTopPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : chip + " border-transparent"
           )}>
             {label}
           </span>
@@ -83,6 +82,10 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
           <span className="text-zinc-700">·</span>
           <span>{card.cost}E</span>
         </div>
+        {/* Card description — compact, shows damage/mechanics */}
+        <p className="text-[10px] text-zinc-500 leading-snug line-clamp-1 mt-0.5">
+          {card.description}
+        </p>
       </div>
 
       {/* Reasoning — truncated to 2 lines, full text in tooltip */}

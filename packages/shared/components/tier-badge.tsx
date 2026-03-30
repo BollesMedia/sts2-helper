@@ -8,11 +8,11 @@ interface TierBadgeProps {
   glow?: boolean;
 }
 
-// Tier-specific glow effects for dungeon crawler aesthetic
+// Tier-specific glow effects
 const tierGlow: Record<TierLetter, string> = {
-  S: "shadow-[0_0_8px_rgba(251,191,36,0.5),0_0_16px_rgba(251,191,36,0.25)]",
-  A: "shadow-[0_0_6px_rgba(34,197,94,0.4),0_0_12px_rgba(34,197,94,0.2)]",
-  B: "shadow-[0_0_4px_rgba(59,130,246,0.3)]",
+  S: "shadow-[0_0_8px_rgba(52,211,153,0.5),0_0_16px_rgba(52,211,153,0.25)]",
+  A: "shadow-[0_0_6px_rgba(59,130,246,0.4),0_0_12px_rgba(59,130,246,0.2)]",
+  B: "shadow-[0_0_4px_rgba(251,191,36,0.3)]",
   C: "",
   D: "",
   F: "",

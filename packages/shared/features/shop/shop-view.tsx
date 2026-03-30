@@ -218,7 +218,7 @@ function ShopRow({
         "rounded-lg border bg-zinc-900/60 transition-all duration-200",
         border,
         !affordable && "opacity-40",
-        isStrongPick && affordable && "border-amber-500/50 shadow-[0_0_12px_rgba(251,191,36,0.15)]",
+        isStrongPick && affordable && "border-emerald-500/50 shadow-[0_0_12px_rgba(52,211,153,0.15)]",
         "hover:bg-zinc-800/60"
       )}
       title={tooltip}
@@ -234,7 +234,7 @@ function ShopRow({
           <span
             className={cn(
               "rounded px-1 py-0.5 text-[9px] font-medium shrink-0 border",
-              isStrongPick ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
+              isStrongPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
             )}
           >
             {RECOMMENDATION_LABEL[rec]}
