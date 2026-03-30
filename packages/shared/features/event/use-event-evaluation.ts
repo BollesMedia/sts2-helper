@@ -96,20 +96,20 @@ Respond as JSON:
 {
   "rankings": [
     {
-      "item_id": "EVENT_0",
+      "item_id": "EVENT_1",
       "rank": 1,
       "tier": "S|A|B|C|D|F",
       "synergy_score": 0-100,
       "confidence": 0-100,
       "recommendation": "strong_pick|good_pick|situational|skip",
-      "reasoning": "1-2 sentences"
+      "reasoning": "Max 12 words"
     }
   ],
   "skip_recommended": false,
   "skip_reasoning": null
 }
 
-Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-indexed).`,
+Use item_id EVENT_1, EVENT_2, EVENT_3 matching the numbered options above.`,
           runId,
           gameVersion: null,
         }),
@@ -124,9 +124,10 @@ Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-inde
 
       // Parse into CardRewardEvaluation format
       const rankings = (data.rankings ?? []).map((r: { item_id: string; rank: number; tier: string; synergy_score: number; confidence: number; recommendation: string; reasoning: string }) => {
-        // Extract index from EVENT_0, EVENT_1, etc.
+        // Extract index from EVENT_1, EVENT_2, etc. (1-indexed)
         const indexMatch = r.item_id.match(/(\d+)$/);
-        const optIndex = indexMatch ? parseInt(indexMatch[1], 10) : -1;
+        const oneIndexed = indexMatch ? parseInt(indexMatch[1], 10) : 0;
+        const optIndex = oneIndexed - 1; // convert to 0-indexed for array lookup
 
         return {
           itemId: r.item_id,
@@ -145,6 +146,7 @@ Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-inde
 
       const evaluation: CardRewardEvaluation = {
         rankings,
+        pickSummary: data.pick_summary ?? null,
         skipRecommended: data.skip_recommended ?? false,
         skipReasoning: data.skip_reasoning ?? null,
       };

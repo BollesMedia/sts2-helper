@@ -31,7 +31,9 @@ export function useChoiceTracker(
   runId: string | null
 ) {
   const pendingChoice = useRef<PendingChoice | null>(null);
+  const deferredCardReward = useRef<PendingChoice | null>(null);
   const prevStateType = useRef<string | null>(null);
+  const prevDeckSize = useRef(deckCards.length);
 
   if (!gameState) return;
 
@@ -52,51 +54,92 @@ export function useChoiceTracker(
     };
   }
 
-  // ─── Leaving card_reward: detect choice ───
+  // ─── Leaving card_reward: defer detection until deck updates ───
+  // The deck tracker only updates on next combat round 1, so we can't
+  // diff immediately. Store the pending choice and resolve it later.
   if (prevType === "card_reward" && currentType !== "card_reward") {
-    const pending = pendingChoice.current;
-    if (pending) {
-      const newCards = deckCards.filter(
-        (c) => !pending.previousDeckNames.has(c.name)
-      );
-      const chosenItemId = newCards.length > 0 ? newCards[0].name : null;
-
-      logChoice({
-        runId,
-        choiceType: chosenItemId ? "card_reward" : "skip",
-        floor: pending.floor,
-        act: pending.act,
-        offeredItemIds: pending.offeredItemIds,
-        chosenItemId,
-      });
-
-      // Append to run narrative
-      const lastEval = getLastEvaluation("card_reward");
-      appendDecision({
-        floor: pending.floor,
-        type: "card_reward",
-        chosen: chosenItemId,
-        advise: lastEval?.recommendedId ?? null,
-        aligned: lastEval
-          ? chosenItemId === lastEval.recommendedId ||
-            (chosenItemId === null && lastEval.recommendedId === null)
-          : true,
-      });
-
-      // Milestone: rare/uncommon power cards define the build
-      if (chosenItemId) {
-        const pickedCard = newCards[0];
-        const kwNames = (pickedCard?.keywords ?? []).map((k) =>
-          k.name.toLowerCase()
-        );
-        if (kwNames.includes("power") || kwNames.includes("rare")) {
-          addMilestone(`${chosenItemId} F${pending.floor}`, false);
-        }
-      }
-
+    if (pendingChoice.current) {
+      deferredCardReward.current = pendingChoice.current;
       pendingChoice.current = null;
     }
   }
+
+  // ─── Resolve deferred card_reward when deck changes ───
+  if (deferredCardReward.current && deckCards.length !== prevDeckSize.current) {
+    const pending = deferredCardReward.current;
+    const newCards = deckCards.filter(
+      (c) => !pending.previousDeckNames.has(c.name)
+    );
+    const chosenItemId = newCards.length > 0 ? newCards[0].name : null;
+
+    logChoice({
+      runId,
+      choiceType: chosenItemId ? "card_reward" : "skip",
+      floor: pending.floor,
+      act: pending.act,
+      offeredItemIds: pending.offeredItemIds,
+      chosenItemId,
+    });
+
+    // Append to run narrative
+    const lastEval = getLastEvaluation("card_reward");
+    appendDecision({
+      floor: pending.floor,
+      type: "card_reward",
+      chosen: chosenItemId,
+      advise: lastEval?.recommendedId ?? null,
+      aligned: lastEval
+        ? chosenItemId === lastEval.recommendedId ||
+          (chosenItemId === null && lastEval.recommendedId === null)
+        : true,
+    });
+
+    // Milestone: power cards define the build
+    if (chosenItemId) {
+      const pickedCard = newCards[0];
+      const kwNames = (pickedCard?.keywords ?? []).map((k) =>
+        k.name.toLowerCase()
+      );
+      if (kwNames.includes("power") || kwNames.includes("rare")) {
+        addMilestone(`${chosenItemId} F${pending.floor}`, false);
+      }
+    }
+
+    deferredCardReward.current = null;
+  }
+
+  // ─── If we leave combat_rewards without deck changing, it was a skip ───
+  if (
+    deferredCardReward.current &&
+    currentType !== "card_reward" &&
+    currentType !== "combat_rewards" &&
+    prevType === "combat_rewards"
+  ) {
+    const pending = deferredCardReward.current;
+    logChoice({
+      runId,
+      choiceType: "skip",
+      floor: pending.floor,
+      act: pending.act,
+      offeredItemIds: pending.offeredItemIds,
+      chosenItemId: null,
+    });
+
+    const lastEval = getLastEvaluation("card_reward");
+    appendDecision({
+      floor: pending.floor,
+      type: "card_reward",
+      chosen: null,
+      advise: lastEval?.recommendedId ?? null,
+      aligned: lastEval
+        ? lastEval.recommendedId === null
+        : true,
+    });
+
+    deferredCardReward.current = null;
+  }
+
+  prevDeckSize.current = deckCards.length;
 
   // ─── Entering shop: record what's available ───
   if (currentType === "shop" && prevType !== "shop") {

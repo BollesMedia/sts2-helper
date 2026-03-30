@@ -21,6 +21,7 @@ interface ClaudeCardEvaluation {
 
 interface ClaudeCardRewardResponse {
   rankings: ClaudeCardEvaluation[];
+  pick_summary: string | null;
   skip_recommended: boolean;
   skip_reasoning: string | null;
   spending_plan?: string | null;
@@ -28,6 +29,40 @@ interface ClaudeCardRewardResponse {
 
 const VALID_TIERS = new Set(["S", "A", "B", "C", "D", "F"]);
 const VALID_RECS = new Set(["strong_pick", "good_pick", "situational", "skip"]);
+
+/**
+ * Extract a JSON array from a string that may contain trailing fields.
+ * e.g., '[\n{...}\n],\n"skip_recommended": false' → parses just the array.
+ */
+function parseRankingsString(str: string): unknown[] {
+  // Try parsing the whole string first (valid JSON array)
+  try {
+    const parsed = JSON.parse(str);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Not valid JSON as-is — extract the array portion
+  }
+
+  // Find the array boundaries: first [ to its matching ]
+  const start = str.indexOf("[");
+  if (start === -1) return [];
+
+  let depth = 0;
+  for (let i = start; i < str.length; i++) {
+    if (str[i] === "[") depth++;
+    else if (str[i] === "]") depth--;
+    if (depth === 0) {
+      try {
+        const parsed = JSON.parse(str.slice(start, i + 1));
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  return [];
+}
 
 /**
  * Safely parse an unknown tool_use input into a ClaudeCardRewardResponse.
@@ -40,17 +75,14 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
 
   const obj = input as Record<string, unknown>;
 
-  // Claude sometimes returns rankings as a JSON string instead of an array
+  // Claude sometimes returns rankings as a JSON string instead of an array.
+  // The string may also contain trailing fields like "skip_recommended": false
+  // appended after the array, making it invalid JSON on its own.
   let rawRankings: unknown[];
   if (Array.isArray(obj.rankings)) {
     rawRankings = obj.rankings;
   } else if (typeof obj.rankings === "string") {
-    try {
-      const parsed = JSON.parse(obj.rankings);
-      rawRankings = Array.isArray(parsed) ? parsed : [];
-    } catch {
-      rawRankings = [];
-    }
+    rawRankings = parseRankingsString(obj.rankings);
   } else {
     rawRankings = [];
   }
@@ -91,8 +123,15 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
       return m ? m[1] : null;
     })();
 
+  const pickSummary = obj.pick_summary
+    ?? (() => {
+      const m = rankingsStr.match(/"pick_summary"\s*:\s*"([^"]*)"/);
+      return m ? m[1] : null;
+    })();
+
   return {
     rankings,
+    pick_summary: pickSummary ? String(pickSummary) : null,
     skip_recommended: Boolean(skipRecommended),
     skip_reasoning: skipReasoning ? String(skipReasoning) : null,
     spending_plan: obj.spending_plan ? String(obj.spending_plan) : null,
@@ -286,6 +325,7 @@ export function parseClaudeCardRewardResponse(
       reasoning: r.reasoning,
       source: "claude" as const,
     })),
+    pickSummary: raw.pick_summary ?? null,
     skipRecommended: raw.skip_recommended,
     skipReasoning: raw.skip_reasoning,
     spendingPlan: raw.spending_plan ?? null,

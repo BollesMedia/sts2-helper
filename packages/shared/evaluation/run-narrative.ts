@@ -40,6 +40,8 @@ export interface RunNarrative {
   winCondition: string;
   deckWeaknesses: string[];
   buildPhase: BuildPhase;
+  /** Once set, this archetype is locked for the rest of the run */
+  lockedArchetype: string | null;
   hpTrend: HpTrend;
   strikeDefendCount: { strikes: number; defends: number };
   removalCount: number;
@@ -73,6 +75,7 @@ export function initializeNarrative(
     winCondition: "",
     deckWeaknesses: [],
     buildPhase: "exploring",
+    lockedArchetype: null,
     hpTrend: "stable",
     strikeDefendCount: { strikes: 4, defends: 4 },
     removalCount: 0,
@@ -204,6 +207,21 @@ export function getPromptContext(): string | null {
     narrative.strategySummary || `${narrative.character} run (exploring)`;
   lines.push(`Build: ${archLabel} [${narrative.buildPhase}]`);
 
+  // Archetype commitment directive
+  if (narrative.lockedArchetype) {
+    lines.push(
+      `LOCKED ARCHETYPE: ${narrative.lockedArchetype}. ALL picks must directly support this archetype. Off-archetype cards are SKIPS regardless of individual power level. Do not recommend cards from other archetypes.`
+    );
+  } else if (narrative.buildPhase === "committing") {
+    lines.push(
+      `Archetype emerging — strongly prefer cards that synergize with this direction. Avoid cards from competing archetypes.`
+    );
+  } else {
+    lines.push(
+      `Exploring — take cards that solve immediate fights: front-loaded damage, AoE, efficient block. If an S-tier archetype-defining card appears, take it and commit.`
+    );
+  }
+
   // Win condition
   if (narrative.winCondition) {
     lines.push(`Win condition: ${narrative.winCondition}`);
@@ -266,11 +284,36 @@ export function getPromptContext(): string | null {
 function updateBuildPhase(ctx: EvaluationContext) {
   if (!narrative) return;
 
-  const primary = ctx.archetypes[0];
-  if (!primary || primary.confidence < 40) {
-    narrative.buildPhase = "exploring";
-  } else if (primary.confidence >= 70) {
+  // Once locked, stay committed
+  if (narrative.lockedArchetype) {
     narrative.buildPhase = "committed";
+    return;
+  }
+
+  const primary = ctx.archetypes[0];
+  const floor = ctx.floor;
+
+  // Lock in conditions (once locked, never changes):
+  // 1. Strong signal at any point (60%+ = 3+ cards in small deck)
+  // 2. Moderate signal by mid-Act 1 (40%+ by floor 7)
+  // 3. Forced lock before Act 1 boss (floor 9) — must commit with whatever is strongest
+  if (primary) {
+    const shouldLock =
+      primary.confidence >= 60 ||
+      (primary.confidence >= 40 && floor >= 7) ||
+      (primary.confidence >= 15 && floor >= 9);
+
+    if (shouldLock) {
+      narrative.lockedArchetype = primary.archetype;
+      narrative.buildPhase = "committed";
+      addMilestone(`Locked: ${primary.archetype} F${floor}`, true);
+      return;
+    }
+  }
+
+  // Not locked yet — still exploring or committing
+  if (!primary || primary.confidence < 20) {
+    narrative.buildPhase = "exploring";
   } else {
     narrative.buildPhase = "committing";
   }
@@ -324,8 +367,8 @@ function updateDeckWeaknesses(ctx: EvaluationContext) {
 function updateWinCondition(ctx: EvaluationContext) {
   if (!narrative) return;
 
-  const primary = ctx.archetypes[0];
-  if (!primary || primary.confidence < 30) {
+  const archetype = narrative.lockedArchetype ?? ctx.archetypes[0]?.archetype;
+  if (!archetype) {
     narrative.winCondition = "";
     return;
   }
@@ -333,11 +376,11 @@ function updateWinCondition(ctx: EvaluationContext) {
   const keyCards = ctx.scalingSources.slice(0, 3);
 
   if (keyCards.length === 0) {
-    narrative.winCondition = `${primary.archetype} build (key cards not yet identified)`;
+    narrative.winCondition = `${archetype} build (key cards not yet identified)`;
     return;
   }
 
-  narrative.winCondition = `${primary.archetype} via ${keyCards.join(" + ")}`;
+  narrative.winCondition = `${archetype} via ${keyCards.join(" + ")}`;
 }
 
 function updateStrategySummary(ctx: EvaluationContext) {

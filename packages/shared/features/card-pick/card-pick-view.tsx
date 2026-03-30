@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "../../lib/cn";
 import type { CardRewardState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
@@ -38,18 +39,21 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
         )}
       </div>
 
+      {/* Pick summary */}
+      {evaluation?.pickSummary && (
+        <p className={cn(
+          "text-sm font-medium",
+          evaluation.skipRecommended ? "text-amber-300" : "text-emerald-300"
+        )}>
+          {evaluation.pickSummary}
+        </p>
+      )}
+
       {/* Skip recommendation */}
-      {evaluation?.skipRecommended && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-          <p className="text-sm font-medium text-amber-300">
-            Consider skipping
-          </p>
-          {evaluation.skipReasoning && (
-            <p className="mt-1 text-sm text-zinc-400">
-              {evaluation.skipReasoning}
-            </p>
-          )}
-        </div>
+      {evaluation?.skipRecommended && !evaluation.pickSummary && (
+        <p className="text-sm font-medium text-amber-300">
+          Skip — {evaluation.skipReasoning ?? "none worth adding"}
+        </p>
       )}
 
       {/* Card ratings */}
@@ -68,12 +72,14 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
                 r.itemId.toLowerCase() === card.id.toLowerCase() ||
                 r.itemName.toLowerCase() === card.name.toLowerCase()
             );
+            const isTopPick = cardEval?.rank === 1 && !evaluation?.skipRecommended;
             return (
               <CardRating
                 key={card.index}
                 card={card}
                 evaluation={cardEval ?? null}
                 rank={cardEval?.rank}
+                isTopPick={isTopPick}
               />
             );
           })

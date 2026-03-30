@@ -31,6 +31,7 @@ export function useGameState() {
       },
       errorRetryInterval: ERROR_INTERVAL,
       revalidateOnFocus: false,
+      refreshWhenHidden: true,
       dedupingInterval: 200,
       shouldRetryOnError: true,
       errorRetryCount: Infinity,

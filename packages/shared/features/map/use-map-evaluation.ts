@@ -161,45 +161,16 @@ export function useMapEvaluation(
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
-Current HP: ${mapPlayer.hp}/${mapPlayer.max_hp} (${Math.round((mapPlayer.hp / Math.max(1, mapPlayer.max_hp)) * 100)}%)
-Gold: ${mapPlayer.gold}g ${mapPlayer.gold < 75 ? "(too low for most shop purchases)" : mapPlayer.gold < 150 ? "(enough for card removal or 1-2 cheap cards)" : "(healthy gold reserve)"}
-Card removal cost: ${player?.cardRemovalCost != null ? `${player.cardRemovalCost}g` : "unknown"} ${player?.cardRemovalCost != null && mapPlayer.gold < player.cardRemovalCost ? "(can't afford)" : ""}
+HP: ${mapPlayer.hp}/${mapPlayer.max_hp} (${Math.round((mapPlayer.hp / Math.max(1, mapPlayer.max_hp)) * 100)}%) | Gold: ${mapPlayer.gold}g | Removal cost: ${player?.cardRemovalCost ?? "?"}g
+Map: ${mapOverview} | Boss in ${state.map.boss.row - currentRow} floors
 
-Map overview (remaining nodes ahead): ${mapOverview}
-Boss at row ${state.map.boss.row}, currently at row ${currentRow}, ${state.map.boss.row - currentRow} floors to boss
-
-Available paths (read carefully — each shows the EXACT sequence of nodes you will encounter, including branching points):
+Paths (each line = node in order, ├─ = branch point):
 ${optionsStr}
-
-IMPORTANT: The tree above is the ground truth. Each line is a node you WILL pass through in order. Branch points (├─) show where the path splits into choices. Evaluate based on:
-
-ELITE DECISIONS (most important):
-- Elite fights give relics which are the strongest upgrades. PREFER elites when the deck can handle them.
-- Deck strength matters more than HP for elite readiness. A strong deck at 60% HP is elite-ready. A weak deck at 100% HP is not.
-- Only recommend resting before an elite if HP is genuinely dangerously low (<40%) AND a RestSite literally precedes the Elite in the path sequence.
-- 74/80 HP is NOT low. 50/80 is manageable. 30/80 is concerning.
-
-PATH ANALYSIS:
-- Count consecutive fights without rest — 3+ fights in a row is taxing
-- Rest sites: valuable for upgrading cards when HP is healthy, not just healing
-- Shops: only valuable if gold > card removal cost
-- Unknown events: can be positive or negative, treat as neutral
-
-Do NOT over-index on HP preservation. Aggressive pathing through elites wins more runs than cautious pathing that avoids them.
 
 Respond as JSON:
 {
-  "rankings": [
-    {
-      "option_index": 1,
-      "node_type": "Monster",
-      "tier": "S|A|B|C|D|F",
-      "confidence": 0-100,
-      "recommendation": "strong_pick|good_pick|situational|skip",
-      "reasoning": "1 sentence"
-    }
-  ],
-  "overall_advice": "1 sentence overall pathing strategy"
+  "rankings": [{"option_index": 1, "node_type": "Monster", "tier": "S-F", "confidence": 0-100, "recommendation": "strong_pick|good_pick|situational|skip", "reasoning": "max 10 words"}],
+  "overall_advice": "max 15 words"
 }`,
           runId: null,
           gameVersion: null,
