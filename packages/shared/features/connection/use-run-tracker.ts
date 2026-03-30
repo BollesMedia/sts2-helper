@@ -258,6 +258,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
+      localStorage.removeItem("sts2-player");
       localStorage.removeItem("sts2-eval-cache");
       localStorage.removeItem("sts2-shop-eval-cache");
       localStorage.removeItem("sts2-map-eval-cache");
