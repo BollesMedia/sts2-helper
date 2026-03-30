@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { cn } from "../../lib/cn";
 import type { ShopState, ShopItem, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
@@ -42,7 +41,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
     player,
     runId
   );
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   const items = state.shop.items.filter((i) => i.is_stocked);
   const cards = items.filter((i) => i.category === "card");
@@ -63,9 +61,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
         r.itemName.toLowerCase() === name.toLowerCase()
     );
   };
-
-  const toggle = (key: string) =>
-    setExpandedItem((prev) => (prev === key ? null : key));
 
   return (
     <div className="flex flex-col gap-3 h-full min-h-0">
@@ -96,7 +91,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
       {/* Items — two columns */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-x-4 gap-y-3 content-start overflow-y-auto">
         {/* Left column: Cards */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {cards.length > 0 && (
             <ShopSection title="Cards">
               {cards.map((item) => (
@@ -110,8 +105,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                   affordable={item.can_afford}
                   onSale={item.on_sale}
                   evaluation={findEval(item) ?? null}
-                  expanded={expandedItem === `card-${item.index}`}
-                  onToggle={() => toggle(`card-${item.index}`)}
                 />
               ))}
             </ShopSection>
@@ -119,7 +112,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
         </div>
 
         {/* Right column: Relics, Potions, Services */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {relics.length > 0 && (
             <ShopSection title="Relics">
               {relics.map((item) => (
@@ -131,8 +124,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                   type="Relic"
                   affordable={item.can_afford}
                   evaluation={findEval(item) ?? null}
-                  expanded={expandedItem === `relic-${item.index}`}
-                  onToggle={() => toggle(`relic-${item.index}`)}
                 />
               ))}
             </ShopSection>
@@ -149,8 +140,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                   type="Potion"
                   affordable={item.can_afford}
                   evaluation={findEval(item) ?? null}
-                  expanded={expandedItem === `potion-${item.index}`}
-                  onToggle={() => toggle(`potion-${item.index}`)}
                 />
               ))}
             </ShopSection>
@@ -165,8 +154,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                 type="Service"
                 affordable={cardRemoval.can_afford}
                 evaluation={findEval(cardRemoval) ?? null}
-                expanded={expandedItem === "removal"}
-                onToggle={() => toggle("removal")}
               />
             </ShopSection>
           )}
@@ -204,8 +191,6 @@ interface ShopRowProps {
   affordable: boolean;
   onSale?: boolean;
   evaluation: CardEvaluation | null;
-  expanded: boolean;
-  onToggle: () => void;
 }
 
 function ShopRow({
@@ -217,8 +202,6 @@ function ShopRow({
   affordable,
   onSale,
   evaluation,
-  expanded,
-  onToggle,
 }: ShopRowProps) {
   const rec = evaluation?.recommendation;
   const isStrongPick = rec === "strong_pick";
@@ -226,64 +209,49 @@ function ShopRow({
     ? RECOMMENDATION_BORDER[rec] ?? "border-zinc-800"
     : "border-zinc-700/40";
 
+  // Build tooltip: description + reasoning
+  const tooltip = [description, evaluation?.reasoning].filter(Boolean).join(" — ");
+
   return (
     <div
       className={cn(
-        "rounded-lg border bg-zinc-900/60 cursor-pointer transition-all duration-200",
+        "rounded-lg border bg-zinc-900/60 transition-all duration-200",
         border,
         !affordable && "opacity-40",
         isStrongPick && affordable && "border-amber-500/50 shadow-[0_0_12px_rgba(251,191,36,0.15)]",
         "hover:bg-zinc-800/60"
       )}
-      onClick={onToggle}
+      title={tooltip}
     >
-      {/* Compact row */}
-      <div className="flex items-center gap-2 px-2.5 py-2">
+      {/* Compact row — no expand, hover tooltip for details */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
         {evaluation && <TierBadge tier={evaluation.tier} size="sm" glow={isStrongPick && affordable} />}
         <span className={cn(
-          "text-sm truncate flex-1",
+          "text-xs truncate flex-1",
           isStrongPick && affordable ? "text-zinc-50 font-medium" : "text-zinc-200"
         )}>{name}</span>
         {rec && (
           <span
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0 border",
+              "rounded px-1 py-0.5 text-[9px] font-medium shrink-0 border",
               isStrongPick ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
             )}
           >
             {RECOMMENDATION_LABEL[rec]}
           </span>
         )}
-        <span className={cn("text-xs shrink-0", TYPE_COLORS[type] ?? "text-zinc-500")}>
+        <span className={cn("text-[10px] shrink-0", TYPE_COLORS[type] ?? "text-zinc-500")}>
           {type}
         </span>
         <span
           className={cn(
-            "text-xs font-medium shrink-0 tabular-nums",
+            "text-[10px] font-medium shrink-0 tabular-nums",
             affordable ? "text-amber-400" : "text-zinc-600"
           )}
         >
           {onSale && <span className="text-emerald-400 mr-1">SALE</span>}
           {cost}g
         </span>
-      </div>
-
-      {/* Expanded detail */}
-      <div 
-        className={cn(
-          "overflow-hidden transition-all duration-200",
-          expanded ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
-        )}
-      >
-        <div className="px-2.5 pb-2.5 space-y-1.5 border-t border-zinc-800/50">
-          <p className="text-xs text-zinc-400 pt-2 leading-relaxed">{description}</p>
-          {rarity && (
-            <span className="text-[10px] text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">{rarity}</span>
-          )}
-          {evaluation && (
-            <p className="text-xs text-zinc-300 leading-relaxed">{evaluation.reasoning}</p>
-          )}
-        </div>
       </div>
     </div>
   );

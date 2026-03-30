@@ -91,7 +91,7 @@ function AuthenticatedApp() {
   return (
     <div className="flex flex-1 flex-col h-screen overflow-hidden">
       <AppHeader gameState={gameState} player={player} onSignOut={signOut} />
-      <main className="flex-1 min-h-0 p-6">
+      <main className="flex-1 min-h-0 p-4">
         <GameStateView
           state={gameState}
           deckCards={deckCards}
@@ -100,32 +100,6 @@ function AuthenticatedApp() {
           runState={runState}
         />
       </main>
-      {gameState.state_type !== "menu" && (
-        <footer className="border-t border-zinc-800 px-6 py-2 flex justify-between">
-          <button
-            onClick={() => {
-              localStorage.clear();
-              window.location.reload();
-            }}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            Clear cache
-          </button>
-          <button
-            onClick={() => {
-              localStorage.removeItem("sts2-eval-cache");
-              localStorage.removeItem("sts2-shop-eval-cache");
-              localStorage.removeItem("sts2-map-eval-cache");
-              localStorage.removeItem("sts2-event-eval-cache");
-              localStorage.removeItem("sts2-rest-eval-cache");
-              window.location.reload();
-            }}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            Re-evaluate
-          </button>
-        </footer>
-      )}
     </div>
   );
 }
