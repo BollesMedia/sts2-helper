@@ -7,6 +7,8 @@ import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext } from "../../evaluation/types";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
 import { buildPromptContext } from "../../evaluation/context-builder";
+import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
+import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { NODE_TYPE_ICONS } from "./map-scoring";
 import { getCached, setCache } from "../../lib/local-cache";
 
@@ -81,6 +83,8 @@ export function useMapEvaluation(
       return;
     }
 
+    updateFromContext(ctx);
+
     // Override context gold/HP with map state's player data (most current)
     const mapPlayer = state.map.player;
     ctx.gold = mapPlayer.gold;
@@ -154,6 +158,7 @@ export function useMapEvaluation(
         body: JSON.stringify({
           type: "map",
           context: ctx,
+          runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
 Current HP: ${mapPlayer.hp}/${mapPlayer.max_hp} (${Math.round((mapPlayer.hp / Math.max(1, mapPlayer.max_hp)) * 100)}%)
@@ -221,6 +226,10 @@ Respond as JSON:
 
       setEvaluation(parsed);
       setCache(CACHE_KEY, mapKey, parsed);
+      registerLastEvaluation("map", {
+        recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
+        reasoning: parsed.rankings?.[0]?.reasoning ?? parsed.overallAdvice ?? "",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

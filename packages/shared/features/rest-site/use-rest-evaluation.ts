@@ -6,6 +6,8 @@ import type { RestSiteState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
 import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
+import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-rest-eval-cache";
@@ -67,6 +69,8 @@ export function useRestEvaluation(
       return;
     }
 
+    updateFromContext(ctx);
+
     const restPlayer = state.rest_site.player;
     ctx.hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
     ctx.gold = restPlayer.gold;
@@ -82,6 +86,7 @@ export function useRestEvaluation(
         body: JSON.stringify({
           type: "map",
           context: ctx,
+          runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
 Current HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%)
@@ -168,6 +173,10 @@ The #1 ranked option should be "strong_pick". The other option(s) should be "sit
 
       setEvaluation(evaluation);
       setCache(CACHE_KEY, restKey, evaluation);
+      registerLastEvaluation("rest_site", {
+        recommendedId: rankings?.[0]?.itemId ?? null,
+        reasoning: rankings?.[0]?.reasoning ?? "",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

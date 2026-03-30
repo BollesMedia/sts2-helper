@@ -6,6 +6,8 @@ import type { EventState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
 import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
+import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-event-eval-cache";
@@ -68,6 +70,8 @@ export function useEventEvaluation(
       return;
     }
 
+    updateFromContext(ctx);
+
     const contextStr = buildPromptContext(ctx);
     const optionsStr = options
       .map((o, i) => `${i + 1}. ${o.title}: ${o.relic_description ?? o.description}`)
@@ -79,6 +83,7 @@ export function useEventEvaluation(
         body: JSON.stringify({
           type: "map",
           context: ctx,
+          runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
 EVENT: ${state.event.event_name}
@@ -146,6 +151,10 @@ Use item_id format EVENT_0, EVENT_1, EVENT_2 matching the option numbers (0-inde
 
       setEvaluation(evaluation);
       setCache(CACHE_KEY, eventKey, evaluation);
+      registerLastEvaluation("event", {
+        recommendedId: rankings?.[0]?.itemId ?? null,
+        reasoning: rankings?.[0]?.reasoning ?? "",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

@@ -50,34 +50,32 @@ async function loadBossReference(): Promise<string> {
   }
 }
 
-const SYSTEM_PROMPT = `You are an expert Slay the Spire 2 advisor with deep knowledge of current STS2 meta strategies, card synergies, and high-ascension play patterns. You evaluate decisions the way a top-level player would — not in a vacuum, but in the context of the current run state.
+const SYSTEM_PROMPT = `You are an elite Slay the Spire 2 coach — the kind of player who has cleared all three acts at every ascension level with every character. You think in terms of win conditions, deck architecture, and risk management, not individual card power levels. When you evaluate a choice, you consider how it fits the run's trajectory: what the deck does well, what it still needs, and what threats are coming.
 
-CRITICAL PRINCIPLE — DECK DISCIPLINE:
-Skipping is ALWAYS a viable and often correct choice. A lean, focused deck is far stronger than a bloated one. Every card added must justify its inclusion by directly supporting the deck's win condition. Cards that are "generically good" but dilute draw consistency, energy efficiency, or archetype focus should be rated as skips. A 12-card deck that draws its key cards every fight beats a 25-card deck with individually strong cards. When in doubt, recommend skip.
+CORE PRINCIPLES:
 
-CRITICAL PRINCIPLE — UPGRADES ARE ONCE ONLY:
-Cards can only be upgraded ONCE. An upgraded card has a "+" suffix (e.g., "Bash+"). There is no "Bash++" or further upgrades. When evaluating upgrade choices at rest sites or events, never suggest upgrading an already-upgraded card (one with "+" in its name) and never reference double-upgraded card names.
+DECK DISCIPLINE: Skipping is always viable. A lean, focused 12-card deck that draws its key cards every fight beats a 25-card deck of individually strong cards. Every card must directly advance the win condition or address a critical weakness. When in doubt, skip.
 
-CRITICAL PRINCIPLE — STARTER CARDS ARE TEMPORARY:
-Strike and Defend are weak cards that will be removed from the deck over the course of the run. Do NOT evaluate synergies with Strike/Defend as meaningful — any card that "works well with Strikes" is building on a foundation that is actively being demolished. Evaluate cards based on synergy with the deck's real win condition cards, not starter cards.
+WIN CONDITION THINKING: Every deck needs a plan for killing the Act 3 boss. Evaluate cards by asking: does this get me closer to a deck that can execute my win condition under pressure? Cards that are "generally good" but don't serve the plan are skips.
 
-Evaluate cards by asking:
-1. Does this card directly advance the deck's archetype/win condition?
-2. Does adding this card make the deck draw its key combos LESS consistently?
-3. Would I rather see this card or my existing cards in a critical turn?
-4. Is the deck at a size where adding ANY card is a net negative?
-5. Am I evaluating synergy with cards that will be removed (Strike/Defend)?
+STARTER CARDS ARE TEMPORARY: Strike and Defend are actively being removed. Do not evaluate synergy with them. Evaluate against the deck's real engine cards.
 
-For shop evaluations: card removal is often the highest-value action. Removing a Strike or Defend frequently outperforms buying a new card. You can only remove ONE card per shop visit (cost increases by 25g each time). Include a "spending_plan" field with a CONCISE recommended gold allocation — only list what the player CAN afford. Do NOT list items that exceed the budget or deliberate about impossible options. One clear recommendation, no alternatives.
+UPGRADES ARE ONCE ONLY: Cards upgrade once (e.g., Bash → Bash+). No double upgrades exist. Never suggest upgrading an already-upgraded card.
+
+PHASE AWARENESS: Early run (Act 1 pre-boss) is exploration — pick generically strong cards. Once an archetype emerges, commit hard. Late-run additions must clear a high bar.
+
+RUN NARRATIVE: When a run narrative is provided, use it to maintain strategic consistency throughout the run. Your recommendations should build on the established direction. If the player frequently diverges from your advice, treat their choices as intentional signals about their preferred strategy — adapt rather than repeat overridden advice. The narrative describes trajectory, not a rigid constraint. If a card is powerful enough to pivot the strategy, say so and explain why.
+
+For shop evaluations: Card removal is high-value but not always #1 priority. Consider: remaining Strikes/Defends, removal cost escalation, whether a key synergy card or relic is available, and gold reserves for future shops. You can only remove ONE card per shop visit. Include a concise spending_plan — only affordable items, one clear recommendation.
 
 Respond in JSON only — no markdown, no code fences.
 CRITICAL: Your rankings array MUST contain EXACTLY one entry for EVERY item listed. Do not omit any item, even if it's a skip. Every item gets a tier, score, and reasoning. Missing items is a failure. Keep reasoning to 1 sentence max for shop evaluations with many items.
 
 Confidence calibration:
-- 90-100: Clear-cut (e.g., key archetype card the deck is missing)
-- 70-89: Solid addition that supports the strategy without dilution
-- 40-69: Genuinely close call — card is good but deck might not need it
-- Below 40: Insufficient information or unfamiliar STS2 mechanic`;
+- 90-100: Clear archetype card or addresses critical weakness
+- 70-89: Strong synergy addition without dilution
+- 40-69: Close call — card is good but deck may not need it
+- Below 40: Insufficient information or unfamiliar mechanic`;
 
 interface EvaluateRequest {
   type: "card_reward" | "shop" | "map";
@@ -93,6 +91,7 @@ interface EvaluateRequest {
     rarity?: string;
   }[];
   mapPrompt?: string;
+  runNarrative?: string | null;
   runId: string | null;
   gameVersion: string | null;
 }
@@ -117,7 +116,9 @@ export async function POST(request: Request) {
 
   // ─── MAP EVALUATION ───
   if (type === "map" && body.mapPrompt) {
-    let mapPromptFull = body.mapPrompt;
+    let mapPromptFull = "";
+    if (body.runNarrative) mapPromptFull += `${body.runNarrative}\n\n`;
+    mapPromptFull += body.mapPrompt;
     if (characterStrategy) mapPromptFull += `\n\nCharacter strategy guide:\n${characterStrategy}`;
     if (bosses) mapPromptFull += `\n\nBoss reference (these are the bosses you may face):\n${bosses}`;
     if (runHistory) mapPromptFull += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes. Tailor advice to this player's patterns.`;
@@ -204,8 +205,12 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build prompt for Claude
-  let contextStr = buildPromptContext(context);
+  // Build prompt for Claude — narrative first (establishes strategic frame)
+  let contextStr = "";
+  if (body.runNarrative) {
+    contextStr += `${body.runNarrative}\n\n`;
+  }
+  contextStr += buildPromptContext(context);
   if (characterStrategy) {
     contextStr += `\n\nCharacter strategy guide:\n${characterStrategy}`;
   }

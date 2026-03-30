@@ -1,5 +1,7 @@
 "use client";
 import { apiFetch } from "../../lib/api-client";
+import { initializeNarrative, clearNarrative } from "../../evaluation/run-narrative";
+import { clearEvaluationRegistry } from "../../evaluation/last-evaluation-registry";
 
 import { useCallback, useRef, useState } from "react";
 import type { GameState } from "../../types/game-state";
@@ -244,6 +246,10 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
       }),
     }).then(() => {}).catch(console.error);
 
+    // Initialize run narrative for evaluation context
+    initializeNarrative(newRunId, character ?? "unknown", ascension);
+    clearEvaluationRegistry();
+
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
       localStorage.removeItem("sts2-eval-cache");
@@ -312,6 +318,10 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
         `deck: ${lastDeckNames.current.length} cards`
       );
     }
+
+    // Clear run narrative and evaluation registry
+    clearNarrative();
+    clearEvaluationRegistry();
 
     runId.current = null;
     runStarted.current = false;
