@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { EvaluationContext } from "@/evaluation/types";
-import { buildPromptContext } from "@/evaluation/context-builder";
+import type { EvaluationContext } from "@sts2/shared/evaluation/types";
+import { buildPromptContext } from "@sts2/shared/evaluation/context-builder";
 import {
   getStatisticalEvaluation,
   logEvaluation,
   parseClaudeCardRewardResponse,
   parseToolUseInput,
-} from "@/evaluation/evaluation-service";
-import { tierToValue } from "@/evaluation/tier-utils";
+} from "@sts2/shared/evaluation/evaluation-service";
+import { tierToValue } from "@sts2/shared/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";

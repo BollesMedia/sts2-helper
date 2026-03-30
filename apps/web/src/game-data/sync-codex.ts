@@ -6,14 +6,14 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/types/database.types";
+import type { Database } from "@sts2/shared/types/database.types";
 import type {
   CardInsert,
   RelicInsert,
   PotionInsert,
   MonsterInsert,
   KeywordInsert,
-} from "@/lib/supabase/helpers";
+} from "@sts2/shared/supabase/helpers";
 
 const CODEX_BASE = "https://spire-codex.com/api";
 

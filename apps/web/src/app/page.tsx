@@ -3,26 +3,26 @@
 import { useState } from "react";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
-import { useGameState, ConnectionBanner } from "@/features/connection";
-import { useDeckTracker } from "@/features/connection/use-deck-tracker";
-import { usePlayerTracker } from "@/features/connection/use-player-tracker";
-import { useRunTracker } from "@/features/connection/use-run-tracker";
-import { useChoiceTracker } from "@/evaluation/choice-tracker";
-import { CardPickView } from "@/features/card-pick/card-pick-view";
-import { ShopView } from "@/features/shop/shop-view";
-import { MapView } from "@/features/map/map-view";
-import { EventView } from "@/features/event/event-view";
-import { RestSiteView } from "@/features/rest-site/rest-site-view";
-import { HpBar } from "@/components/hp-bar";
-import { BossBriefing } from "@/features/combat/boss-briefing";
-import { cn } from "@/lib/cn";
+import { useGameState, ConnectionBanner } from "@sts2/shared/features/connection";
+import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracker";
+import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
+import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
+import { useChoiceTracker } from "@sts2/shared/evaluation/choice-tracker";
+import { CardPickView } from "@sts2/shared/features/card-pick/card-pick-view";
+import { ShopView } from "@sts2/shared/features/shop/shop-view";
+import { MapView } from "@sts2/shared/features/map/map-view";
+import { EventView } from "@sts2/shared/features/event/event-view";
+import { RestSiteView } from "@sts2/shared/features/rest-site/rest-site-view";
+import { HpBar } from "@sts2/shared/components/hp-bar";
+import { BossBriefing } from "@sts2/shared/features/combat/boss-briefing";
+import { cn } from "@sts2/shared/lib/cn";
 import type {
   GameState,
   CombatState,
   CombatCard,
-} from "@/lib/types/game-state";
-import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
-import { isCombatState, hasRun } from "@/lib/types/game-state";
+} from "@sts2/shared/types/game-state";
+import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
+import { isCombatState, hasRun } from "@sts2/shared/types/game-state";
 
 // ─── State label formatting ───
 
@@ -117,7 +117,7 @@ function GameStateView({
   deckCards: CombatCard[];
   player: TrackedPlayer | null;
   runId: string | null;
-  runState: import("@/features/connection/use-run-tracker").RunState;
+  runState: import("@sts2/shared/features/connection/use-run-tracker").RunState;
 }) {
   if (isCombatState(state)) {
     return <CombatView state={state} deckCards={deckCards} />;
@@ -321,7 +321,7 @@ function CombatRewardsView({
 function MenuView({
   runState,
 }: {
-  runState: import("@/features/connection/use-run-tracker").RunState;
+  runState: import("@sts2/shared/features/connection/use-run-tracker").RunState;
 }) {
   const [notes, setNotes] = useState("");
   const handleOutcome = (victory: boolean) => {
@@ -449,7 +449,17 @@ function AuthenticatedDashboard() {
   useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {
-    return <ConnectionBanner status={connectionStatus} />;
+    return (
+      <ConnectionBanner
+        status={connectionStatus}
+        userEmail={user?.email}
+        onSignOut={signOut}
+        navLinks={[
+          { href: "/account", label: "Settings" },
+          { href: "/runs", label: "Run History" },
+        ]}
+      />
+    );
   }
 
   return (

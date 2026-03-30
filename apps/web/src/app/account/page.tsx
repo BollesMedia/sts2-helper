@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@sts2/shared/supabase/client";
 
 export default function AccountPage() {
   const { user, loading, signOut } = useAuth();
