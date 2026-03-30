@@ -86,6 +86,8 @@ If a card's power comes from counting or synergizing with starter cards, it is A
 
 UPGRADES: Cards upgrade once only (Bash → Bash+). Never suggest upgrading a card already marked with +.
 
+CHARACTER BUILD GUIDE: When a character build guide is provided, treat it as authoritative. Evaluate every card against the archetypes listed. Cards on the "always skip" list are skips. Cards on the "always good" list are strong picks in the exploring phase. Once an archetype is locked, only recommend cards listed as key cards for that archetype or that directly address a critical weakness.
+
 RUN NARRATIVE: When provided, maintain strategic consistency. If the player frequently diverges, adapt to their signals. If a card justifies a pivot, say so explicitly.
 
 SHOP: Card removal is high-value but context-dependent. Consider: remaining Strikes/Defends, escalating removal cost, whether a key synergy card/relic is available, gold for future shops. Keep 75g reserve for removal unless buying a critical piece. One removal per visit. Include spending_plan for affordable items only. Shop relics are permanent power — a relic that enables the archetype is almost always the top purchase.
@@ -160,8 +162,8 @@ export async function POST(request: Request) {
   if (type === "map" && body.mapPrompt) {
     let mapPromptFull = "";
     if (body.runNarrative) mapPromptFull += `${body.runNarrative}\n\n`;
+    if (characterStrategy) mapPromptFull += `=== CHARACTER BUILD GUIDE (follow this) ===\n${characterStrategy}\n\n`;
     mapPromptFull += body.mapPrompt;
-    if (characterStrategy) mapPromptFull += `\n\nCharacter strategy guide:\n${characterStrategy}`;
     if (bosses) mapPromptFull += `\n\nBoss reference (these are the bosses you may face):\n${bosses}`;
     if (runHistory) mapPromptFull += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes. Tailor advice to this player's patterns.`;
 
@@ -249,20 +251,20 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build prompt for Claude — narrative first (establishes strategic frame)
+  // Build prompt for Claude — narrative + archetype guide first (strategic frame)
   let contextStr = "";
   if (body.runNarrative) {
     contextStr += `${body.runNarrative}\n\n`;
   }
-  contextStr += buildPromptContext(context);
   if (characterStrategy) {
-    contextStr += `\n\nCharacter strategy guide:\n${characterStrategy}`;
+    contextStr += `=== CHARACTER BUILD GUIDE (follow this) ===\n${characterStrategy}\n\n`;
   }
+  contextStr += buildPromptContext(context);
   if (bosses) {
     contextStr += `\n\nBoss reference:\n${bosses}`;
   }
   if (runHistory) {
-    contextStr += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes.`;
+    contextStr += `\n\n${runHistory}`;
   }
   const itemsStr = items
     .map(

@@ -41,5 +41,5 @@ export async function getCharacterStrategy(
 ): Promise<string | null> {
   const strategies = await loadStrategies();
   const key = character.toLowerCase().trim();
-  return strategies[key] ?? null;
+  return strategies[key] ?? strategies[`the ${key}`] ?? null;
 }
