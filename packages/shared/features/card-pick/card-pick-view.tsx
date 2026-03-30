@@ -6,7 +6,6 @@ import type { TrackedPlayer } from "../connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "../../components/loading-skeleton";
-import { RefineInput } from "../../components/refine-input";
 import { EvalError } from "../../components/eval-error";
 
 interface CardPickViewProps {
