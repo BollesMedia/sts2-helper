@@ -76,9 +76,13 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
   const bestOptionIndex = useMemo(() => {
     if (!evaluation?.rankings.length) return null;
+    const tierOrder = ["S", "A", "B", "C", "D", "F"];
     const best = evaluation.rankings.reduce((a, b) => {
-      const tierOrder = ["S", "A", "B", "C", "D", "F"];
-      return tierOrder.indexOf(a.tier) <= tierOrder.indexOf(b.tier) ? a : b;
+      const aTier = tierOrder.indexOf(a.tier);
+      const bTier = tierOrder.indexOf(b.tier);
+      if (aTier !== bTier) return aTier < bTier ? a : b;
+      // Same tier: use confidence as tiebreaker
+      return (a.confidence ?? 0) >= (b.confidence ?? 0) ? a : b;
     });
     return best.optionIndex;
   }, [evaluation]);
