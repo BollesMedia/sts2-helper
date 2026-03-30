@@ -26,7 +26,7 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
     player,
     runId
   );
-  const options = state.event.options.filter((o) => !o.is_proceed);
+  const options = state.event.options.filter((o) => !o.is_proceed && !o.is_locked);
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,9 +64,11 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
             <CardSkeleton />
           </>
         ) : (
-          options.map((opt) => {
+          options.map((opt, arrayIdx) => {
+            // Match by array position (0-indexed) since Claude returns EVENT_1, EVENT_2
+            // and the parser converts to 0-indexed itemIndex
             const evalData = evaluation?.rankings.find(
-              (r) => r.itemIndex === opt.index || r.itemId === `EVENT_${opt.index}`
+              (r) => r.itemIndex === arrayIdx
             );
 
             return (
