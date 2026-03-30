@@ -3,15 +3,15 @@
 import { useMemo, useState } from "react";
 import { cn } from "@sts2/shared/lib/cn";
 import type { MapState } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
+import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
 import type { CombatCard } from "@sts2/shared/types/game-state";
 import { NODE_TYPE_ICONS } from "./map-scoring";
 import { useMapEvaluation } from "./use-map-evaluation";
-import { TierBadge } from "@/components/tier-badge";
-import { ConfidenceIndicator } from "@/components/confidence-indicator";
-import { RefineInput } from "@/components/refine-input";
-import { EvalError } from "@/components/eval-error";
-import type { TierLetter } from "@/evaluation/tier-utils";
+import { TierBadge } from "@sts2/shared/components/tier-badge";
+import { ConfidenceIndicator } from "@sts2/shared/components/confidence-indicator";
+import { RefineInput } from "@sts2/shared/components/refine-input";
+import { EvalError } from "@sts2/shared/components/eval-error";
+import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 
 interface MapViewProps {
   state: MapState;

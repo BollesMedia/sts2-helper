@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { ShopState, ShopItem, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
-import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
-import { buildEvaluationContext } from "@/evaluation/context-builder";
+import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
+import type { EvaluationContext, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
+import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { getCached, setCache } from "@sts2/shared/lib/local-cache";
 

@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { RestSiteState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@/features/connection/use-player-tracker";
-import type { EvaluationContext, CardRewardEvaluation } from "@/evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "@/evaluation/context-builder";
+import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
+import type { EvaluationContext, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
+import { buildEvaluationContext, buildPromptContext } from "@sts2/shared/evaluation/context-builder";
 import { getCached, setCache } from "@sts2/shared/lib/local-cache";
 
 const CACHE_KEY = "sts2-rest-eval-cache";

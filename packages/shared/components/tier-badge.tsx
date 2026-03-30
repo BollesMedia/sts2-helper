@@ -1,5 +1,5 @@
 import { cn } from "@sts2/shared/lib/cn";
-import { valueToTier, tierColor, tierBgColor, type TierLetter } from "@/evaluation/tier-utils";
+import { valueToTier, tierColor, tierBgColor, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
 
 interface TierBadgeProps {
   tier?: TierLetter;

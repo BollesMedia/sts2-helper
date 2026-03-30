@@ -1,7 +1,6 @@
 "use client";
 
 import type { ConnectionStatus } from "./use-game-state";
-import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@sts2/shared/lib/cn";
 
 const STATUS_CONFIG: Record<
@@ -26,43 +25,53 @@ const STATUS_CONFIG: Record<
   },
 };
 
-export function ConnectionBanner({ status }: { status: ConnectionStatus }) {
+interface ConnectionBannerProps {
+  status: ConnectionStatus;
+  userEmail?: string | null;
+  onSignOut?: () => void;
+  navLinks?: { href: string; label: string }[];
+}
+
+export function ConnectionBanner({
+  status,
+  userEmail,
+  onSignOut,
+  navLinks,
+}: ConnectionBannerProps) {
   const config = STATUS_CONFIG[status];
-  const { user, signOut } = useAuth();
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Header */}
       <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
         <span className="text-sm font-semibold text-zinc-100 tracking-tight">
           STS2 Replay
         </span>
-        {user && (
+        {(userEmail || onSignOut || navLinks) && (
           <div className="flex items-center gap-4 text-xs">
-            <span className="text-zinc-500">{user.email ?? "Account"}</span>
-            <a
-              href="/account"
-              className="text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Settings
-            </a>
-            <a
-              href="/runs"
-              className="text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Run History
-            </a>
-            <button
-              onClick={signOut}
-              className="text-zinc-600 hover:text-zinc-400 transition-colors"
-            >
-              Sign out
-            </button>
+            {userEmail && (
+              <span className="text-zinc-500">{userEmail}</span>
+            )}
+            {navLinks?.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                {link.label}
+              </a>
+            ))}
+            {onSignOut && (
+              <button
+                onClick={onSignOut}
+                className="text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                Sign out
+              </button>
+            )}
           </div>
         )}
       </header>
 
-      {/* Connection status */}
       <div className="flex flex-1 items-center justify-center">
         <div className="flex flex-col items-center gap-5 text-center">
           <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { cn } from "@sts2/shared/lib/cn";
-import { TierBadge } from "@/components/tier-badge";
-import { ConfidenceIndicator } from "@/components/confidence-indicator";
-import type { CardEvaluation } from "@/evaluation/types";
+import { TierBadge } from "@sts2/shared/components/tier-badge";
+import { ConfidenceIndicator } from "@sts2/shared/components/confidence-indicator";
+import type { CardEvaluation } from "@sts2/shared/evaluation/types";
 import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@sts2/shared/lib/recommendation-styles";
 
 interface ShopItemCardProps {

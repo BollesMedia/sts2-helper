@@ -7,11 +7,15 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "../../packages/shared/**/*.test.{ts,tsx}",
+    ],
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@sts2/shared": path.resolve(__dirname, "../../packages/shared"),
     },
   },
 });
