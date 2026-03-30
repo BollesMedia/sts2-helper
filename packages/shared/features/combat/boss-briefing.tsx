@@ -7,7 +7,8 @@ import { createClient } from "../../supabase/client";
 import type { Monster } from "../../supabase/helpers";
 import type { Enemy, CombatCard } from "../../types/game-state";
 
-const supabase = createClient();
+// Client created lazily inside functions, not at module scope
+// (initSupabase must be called before createClient works)
 
 interface MoveInfo {
   name: string;
@@ -47,6 +48,7 @@ async function fetchBossData(enemyIds: string[]): Promise<Monster[]> {
   // Strip numeric suffixes from entity IDs (KIN_PRIEST_0 -> KIN_PRIEST)
   const baseIds = [...new Set(enemyIds.map((id) => id.replace(/_\d+$/, "")))];
 
+  const supabase = createClient();
   const { data } = await supabase
     .from("monsters")
     .select("*")
