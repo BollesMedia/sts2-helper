@@ -342,6 +342,15 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
       try {
         const retryPrompt = `Evaluate these missing items in the same context:\n${missingItems.map((item, i) => `${i + 1}. ${item.name} (${item.cost ?? ""} ${item.type ?? ""}) — ${item.description}`).join("\n")}`;
 
+        // Build tool_result for the prior tool_use so the message history is valid
+        const toolResultBlocks = message.content
+          .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
+          .map((b) => ({
+            type: "tool_result" as const,
+            tool_use_id: b.id,
+            content: "Accepted, but some items were missing from your response.",
+          }));
+
         const retryMsg = await anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1024,
@@ -349,7 +358,7 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
           messages: [
             { role: "user", content: userPrompt },
             { role: "assistant", content: message.content },
-            { role: "user", content: retryPrompt },
+            { role: "user", content: [...toolResultBlocks, { type: "text" as const, text: retryPrompt }] },
           ],
           tools: [evaluationTool],
           tool_choice: { type: "tool", name: "submit_evaluation" },
