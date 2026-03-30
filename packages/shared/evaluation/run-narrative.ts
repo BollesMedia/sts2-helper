@@ -354,11 +354,18 @@ function updateDeckWeaknesses(ctx: EvaluationContext) {
     : 1;
   if (avgCost > ctx.energy * 0.6) weaknesses.push("energy-tight");
 
-  // Bloat check
+  // Bloat checks
   const sd = narrative.strikeDefendCount;
   const bloatRatio = (sd.strikes + sd.defends) / Math.max(1, ctx.deckSize);
   if (bloatRatio > 0.4 && ctx.deckSize > 10) {
     weaknesses.push("Strike/Defend bloat");
+  }
+
+  // Deck size check — critical for draw consistency
+  if (ctx.deckSize >= 26) {
+    weaknesses.push(`BLOATED (${ctx.deckSize} cards) — skip almost everything`);
+  } else if (ctx.deckSize >= 21) {
+    weaknesses.push(`deck too large (${ctx.deckSize}) — skip most offerings`);
   }
 
   narrative.deckWeaknesses = weaknesses;

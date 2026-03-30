@@ -9,6 +9,7 @@ import { CardPickView } from "../card-pick/card-pick-view";
 import { CardRemovalView } from "../shop/card-removal-view";
 import { ShopView } from "../shop/shop-view";
 import { MapView } from "../map/map-view";
+import { RelicSelectView } from "../relic-select/relic-select-view";
 import { EventView } from "../event/event-view";
 import { RestSiteView } from "../rest-site/rest-site-view";
 import { CombatView } from "./combat-view";
@@ -48,6 +49,8 @@ export function GameStateView({
       return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "rest_site":
       return <RestSiteView state={state} deckCards={deckCards} player={player} runId={runId} />;
+    case "relic_select":
+      return <RelicSelectView state={state} deckCards={deckCards} player={player} />;
     case "card_select": {
       const screenType = state.card_select.screen_type;
       const promptLower = state.card_select.prompt.toLowerCase();

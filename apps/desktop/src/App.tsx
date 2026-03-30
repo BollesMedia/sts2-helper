@@ -74,7 +74,7 @@ function AuthenticatedApp() {
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
-  const runState = useRunTracker(gameState, user?.id ?? null);
+  const runState = useRunTracker(gameState, user?.id ?? null, connectionStatus === "disconnected");
   // Side-effect only: logs choices to Supabase
   useChoiceTracker(gameState, deckCards, runState.runId);
 

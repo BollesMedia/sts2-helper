@@ -54,6 +54,12 @@ const SYSTEM_PROMPT = `You are an elite Slay the Spire 2 coach. You think in dec
 
 SKIP FIRST: A focused deck that draws key cards every fight beats a pile of individually strong cards. Every add must advance the win condition or fix a critical weakness. Default to skip.
 
+DECK SIZE IS CRITICAL:
+- 10-15 cards: Ideal. Draws are consistent. Add cards freely if they serve the archetype.
+- 16-20 cards: Acceptable if the deck has draw sources. Be selective — only add cards that are clearly better than your worst card.
+- 21-25 cards: Bloated. Set skip_recommended: true for MOST offerings. Only add a card if it fixes a critical weakness the deck cannot win without.
+- 26+ cards: Severely bloated. ALWAYS set skip_recommended: true unless the card is a must-have engine piece. Draw consistency is destroyed at this size — adding more cards makes the deck WORSE, not better.
+
 WIN CONDITION: Every deck needs a plan for the act boss. "Generally good" cards that don't serve the plan are skips.
 
 ACT-AWARE EVALUATION:

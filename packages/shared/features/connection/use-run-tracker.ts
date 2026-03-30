@@ -100,11 +100,17 @@ export interface RunState {
   confirmOutcome: (victory: boolean) => void;
 }
 
-export function useRunTracker(gameState: GameState | null, userId: string | null = null): RunState {
+export function useRunTracker(gameState: GameState | null, userId: string | null = null, wasDisconnected = false): RunState {
   const runId = useRef<string | null>(null);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
   const runStarted = useRef(false);
+  const hadDisconnect = useRef(false);
+
+  // Track if we experienced a disconnect during this run
+  if (wasDisconnected && runStarted.current) {
+    hadDisconnect.current = true;
+  }
   const lastFloor = useRef(0);
   const lastAct = useRef(1);
   const lastWasBoss = useRef(false);
@@ -278,12 +284,19 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
   ) {
     const endedRunId = runId.current;
     if (endedRunId) {
-      const victory = inferOutcome(
-        prevType,
-        lastWasBoss.current,
-        lastPlayerHp.current,
-        lastEnemiesAllDead.current
-      );
+      // If we had a disconnect, this is likely a crash/restart, not a death.
+      // Treat as unknown outcome and let the user confirm.
+      const wasGameCrash = hadDisconnect.current;
+      hadDisconnect.current = false;
+
+      const victory = wasGameCrash
+        ? null // unknown — let user confirm
+        : inferOutcome(
+            prevType,
+            lastWasBoss.current,
+            lastPlayerHp.current,
+            lastEnemiesAllDead.current
+          );
 
       // Determine cause of death
       let causeOfDeath: string | null = null;

@@ -65,24 +65,40 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
             <CardSkeleton />
           </>
         ) : (
-          cards.map((card, cardIndex) => {
-            const cardEval = evaluation?.rankings.find(
-              (r) =>
-                r.itemIndex === cardIndex ||
-                r.itemId.toLowerCase() === card.id.toLowerCase() ||
-                r.itemName.toLowerCase() === card.name.toLowerCase()
+          (() => {
+            // Derive the recommended card from pick_summary when available,
+            // fall back to the strong_pick/good_pick ranking
+            const summaryLower = evaluation?.pickSummary?.toLowerCase() ?? "";
+            const strongPick = evaluation?.rankings.find(
+              (r) => r.recommendation === "strong_pick" || r.recommendation === "good_pick"
             );
-            const isTopPick = cardEval?.rank === 1 && !evaluation?.skipRecommended;
-            return (
-              <CardRating
-                key={card.index}
-                card={card}
-                evaluation={cardEval ?? null}
-                rank={cardEval?.rank}
-                isTopPick={isTopPick}
-              />
-            );
-          })
+
+            return cards.map((card, cardIndex) => {
+              const cardEval = evaluation?.rankings.find(
+                (r) =>
+                  r.itemIndex === cardIndex ||
+                  r.itemId.toLowerCase() === card.id.toLowerCase() ||
+                  r.itemName.toLowerCase() === card.name.toLowerCase()
+              );
+
+              // Match from pick_summary text, then strong_pick recommendation, then rank
+              const matchesSummary = summaryLower.includes(card.name.toLowerCase());
+              const isStrongPick = cardEval && cardEval === strongPick;
+              const isTopPick = !evaluation?.skipRecommended && (
+                matchesSummary || (!summaryLower && isStrongPick) || (!summaryLower && !strongPick && cardEval?.rank === 1)
+              );
+
+              return (
+                <CardRating
+                  key={card.index}
+                  card={card}
+                  evaluation={cardEval ?? null}
+                  rank={cardEval?.rank}
+                  isTopPick={isTopPick}
+                />
+              );
+            });
+          })()
         )}
       </div>
 
