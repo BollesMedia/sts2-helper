@@ -17,6 +17,7 @@ interface ClaudeCardEvaluation {
   confidence: number;
   recommendation: "strong_pick" | "good_pick" | "situational" | "skip";
   reasoning: string;
+  _position?: number;
 }
 
 interface ClaudeCardRewardResponse {
@@ -87,23 +88,33 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
     rawRankings = [];
   }
 
-  const rankings: ClaudeCardEvaluation[] = rawRankings.map((r: unknown) => {
+  const rankings: ClaudeCardEvaluation[] = rawRankings.map((r: unknown, idx: number) => {
     if (!r || typeof r !== "object") {
       throw new Error("Ranking entry is not an object");
     }
     const entry = r as Record<string, unknown>;
 
     const tier = String(entry.tier ?? "C");
-    const rec = String(entry.recommendation ?? "situational");
+    // Derive recommendation from tier if not provided (simplified schema)
+    const rec = entry.recommendation
+      ? String(entry.recommendation)
+      : tier === "S" || tier === "A" ? "strong_pick"
+        : tier === "B" ? "good_pick"
+          : tier === "C" ? "situational"
+            : "skip";
+    // Use position (1-indexed) if available, fall back to item_id or array index
+    const position = entry.position ? Number(entry.position) - 1 : idx;
 
     return {
-      item_id: String(entry.item_id ?? ""),
-      rank: Number(entry.rank ?? 0),
+      item_id: entry.item_id ? String(entry.item_id) : String(position),
+      rank: entry.rank ? Number(entry.rank) : idx + 1,
       tier: (VALID_TIERS.has(tier) ? tier : "C") as TierLetter,
       synergy_score: Number(entry.synergy_score ?? 50),
       confidence: Number(entry.confidence ?? 50),
       recommendation: (VALID_RECS.has(rec) ? rec : "situational") as ClaudeCardEvaluation["recommendation"],
       reasoning: String(entry.reasoning ?? ""),
+      // Store position for position-based matching in route.ts
+      _position: position,
     };
   });
 
@@ -324,6 +335,7 @@ export function parseClaudeCardRewardResponse(
     rankings: raw.rankings.map((r) => ({
       itemId: r.item_id,
       itemName: r.item_id,
+      itemIndex: r._position,
       rank: r.rank,
       tier: r.tier,
       tierValue: tierToValue(r.tier),

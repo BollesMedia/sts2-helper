@@ -241,7 +241,9 @@ export async function POST(request: Request) {
     })
   );
 
-  const allCached = cachedResults.every((r) => r.stat !== null);
+  // DISABLED: Statistical cache aggregates across ascensions, serving A15 advice at A0.
+  // Re-enable when cache is ascension-scoped.
+  const allCached = false; // cachedResults.every((r) => r.stat !== null);
 
   if (allCached) {
     const rankings = cachedResults
@@ -298,22 +300,19 @@ export async function POST(request: Request) {
       properties: {
         rankings: {
           type: "array",
-          description: `Evaluation for EACH item, in the SAME ORDER they were listed. Must have exactly ${items.length} entries.`,
+          description: `Exactly ${items.length} entries, one per item in listed order. Position 1 = first item listed.`,
           items: {
             type: "object",
             properties: {
-              item_id: { type: "string", description: "The item ID exactly as provided" },
-              rank: { type: "integer", description: "Rank (1 = best)" },
+              position: { type: "integer", description: "Item position (1-indexed, matching listed order)" },
               tier: { type: "string", enum: ["S", "A", "B", "C", "D", "F"] },
-              synergy_score: { type: "integer", description: "0-100" },
               confidence: { type: "integer", description: "0-100" },
-              recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
-              reasoning: { type: "string", description: "Max 12 words. Reference archetypes, not cards player lacks." },
+              reasoning: { type: "string", description: "Under 20 words. Reference archetype fit, not cards player lacks." },
             },
-            required: ["item_id", "rank", "tier", "synergy_score", "confidence", "recommendation", "reasoning"],
+            required: ["position", "tier", "confidence", "reasoning"],
           },
         },
-        pick_summary: { type: "string", description: "One phrase: what to pick and why, e.g. 'Pick Corruption — starts exhaust engine' or 'Skip — none fit the build'. Max 12 words." },
+        pick_summary: { type: "string", description: "'Pick [name] — [reason]' or 'Skip — [reason]'. Max 15 words." },
         skip_recommended: { type: "boolean" },
         skip_reasoning: { type: "string", description: "Why skip is recommended, if applicable" },
         ...(type === "shop" ? {
@@ -330,8 +329,7 @@ ${type === "card_reward" ? "Offered cards" : "Shop items"}:
 ${itemsStr}
 ${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
 
-Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in listed order.
-REMINDER: Reference archetypes and strategies, but only NAME cards already in the deck. Say "enables exhaust" not "synergizes with [card not owned]".`;
+Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matching the order above.`;
 
   try {
     const message = await anthropic.messages.create({
@@ -365,106 +363,42 @@ REMINDER: Reference archetypes and strategies, but only NAME cards already in th
     const parsed = parseToolUseInput(toolUse.input);
     console.log("[Evaluate] Parsed rankings count:", parsed.rankings.length);
     const evaluation = parseClaudeCardRewardResponse(parsed);
-    console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
 
-    // Match Claude's returned IDs back to our original items
-    // and set a stable itemIndex for position-based client matching
-    const normalize = (s: string) =>
-      s.toLowerCase().replace(/[+\s_]/g, "").replace(/plus$/, "");
-
+    // Position-based matching: Claude returns items by position (1-indexed).
+    // Map each ranking to the original item using position, not name/ID matching.
     for (const ranking of evaluation.rankings) {
-      const rId = ranking.itemId.toLowerCase();
-      const rName = ranking.itemName?.toLowerCase() ?? "";
-      const rNorm = normalize(ranking.itemId);
-
-      const matchIdx = items.findIndex(
-        (item) => {
-          const iId = item.id.toLowerCase();
-          const iName = item.name.toLowerCase();
-          const iNorm = normalize(item.id);
-          const iNameNorm = normalize(item.name);
-
-          return (
-            iId === rId ||
-            iName === rId ||
-            iName === rName ||
-            iNorm === rNorm ||
-            iNameNorm === rNorm ||
-            // Partial match: Claude's ID contains the item name or vice versa
-            rId.includes(iName) ||
-            rId.includes(iId) ||
-            iName.includes(rNorm)
-          );
-        }
-      );
-      if (matchIdx !== -1) {
-        ranking.itemId = items[matchIdx].id;
-        ranking.itemName = items[matchIdx].name;
-        ranking.itemIndex = matchIdx;
+      // Position is 1-indexed from Claude, convert to 0-indexed array position
+      const idx = (ranking.itemIndex ?? -1);
+      if (idx >= 0 && idx < items.length) {
+        ranking.itemId = items[idx].id;
+        ranking.itemName = items[idx].name;
+        ranking.itemIndex = idx;
       }
     }
 
-    // If Claude omitted items, re-evaluate just the missing ones
-    const missingItems = items.filter(
-      (_, i) => !evaluation.rankings.some((r) => r.itemIndex === i)
-    );
-
-    if (missingItems.length > 0) {
-      try {
-        const retryPrompt = `Evaluate these missing items in the same context:\n${missingItems.map((item, i) => `${i + 1}. ${item.name} (${item.cost ?? ""} ${item.type ?? ""}) — ${item.description}`).join("\n")}`;
-
-        // Build tool_result for the prior tool_use so the message history is valid
-        const toolResultBlocks = message.content
-          .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
-          .map((b) => ({
-            type: "tool_result" as const,
-            tool_use_id: b.id,
-            content: "Accepted, but some items were missing from your response.",
-          }));
-
-        const retryMsg = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: [
-            { role: "user", content: userPrompt },
-            { role: "assistant", content: message.content },
-            { role: "user", content: [...toolResultBlocks, { type: "text" as const, text: retryPrompt }] },
-          ],
-          tools: [evaluationTool],
-          tool_choice: { type: "tool", name: "submit_evaluation" },
-        });
-
-        logUsage(supabase, {
-          userId: body.userId ?? null,
-          evalType: `${type}_retry`,
-          model: "claude-haiku-4-5-20251001",
-          inputTokens: retryMsg.usage.input_tokens,
-          outputTokens: retryMsg.usage.output_tokens,
-        }).catch(console.error);
-
-        const retryToolUse = retryMsg.content.find((b) => b.type === "tool_use");
-        if (retryToolUse && retryToolUse.type === "tool_use") {
-          const retryParsed = parseClaudeCardRewardResponse(parseToolUseInput(retryToolUse.input));
-
-          for (const ranking of retryParsed.rankings) {
-            const matchIdx = items.findIndex(
-              (item) =>
-                item.id.toLowerCase() === ranking.itemId.toLowerCase() ||
-                normalize(item.name) === normalize(ranking.itemId)
-            );
-            if (matchIdx !== -1) {
-              ranking.itemId = items[matchIdx].id;
-              ranking.itemName = items[matchIdx].name;
-              ranking.itemIndex = matchIdx;
-              evaluation.rankings.push(ranking);
-            }
-          }
+    // If we got fewer rankings than items, fill missing with position-based fallback
+    if (evaluation.rankings.length < items.length) {
+      const coveredPositions = new Set(evaluation.rankings.map((r) => r.itemIndex));
+      for (let i = 0; i < items.length; i++) {
+        if (!coveredPositions.has(i)) {
+          evaluation.rankings.push({
+            itemId: items[i].id,
+            itemName: items[i].name,
+            itemIndex: i,
+            rank: items.length,
+            tier: "C" as const,
+            tierValue: 3,
+            synergyScore: 50,
+            confidence: 30,
+            recommendation: "situational",
+            reasoning: "Not evaluated",
+            source: "claude",
+          });
         }
-      } catch (retryError) {
-        console.error("Retry evaluation failed:", retryError);
       }
     }
+
+    console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
 
     // Log evaluations async (don't block response)
     Promise.all(
