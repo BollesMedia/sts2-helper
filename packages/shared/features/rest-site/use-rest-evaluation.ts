@@ -92,7 +92,17 @@ export function useRestEvaluation(
     }
 
     const missing = restPlayer.max_hp - restPlayer.hp;
-    const effectiveMissing = Math.max(0, missing - passiveHealPerCombat);
+    const floor = state.run.floor;
+
+    // Detect if boss is imminent — boss floors are typically 17, 34, 51
+    // Rest site on floor 16, 33, or 50 = boss is next
+    const bossFloors = [17, 34, 51];
+    const isBossNext = bossFloors.some((bf) => floor >= bf - 1 && floor < bf);
+    const floorsToNextBoss = Math.min(...bossFloors.filter((bf) => bf > floor).map((bf) => bf - floor));
+
+    // If boss is next, passive healing is irrelevant (no combat before the boss)
+    const effectivePassiveHeal = isBossNext ? 0 : passiveHealPerCombat;
+    const effectiveMissing = Math.max(0, missing - effectivePassiveHeal);
     const effectiveHpPercent = Math.round(((restPlayer.max_hp - effectiveMissing) / Math.max(1, restPlayer.max_hp)) * 100);
 
     // Find best upgrade target candidates (unupgraded cards only)
@@ -112,15 +122,15 @@ export function useRestEvaluation(
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
-HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing}
-Passive healing per combat: ${passiveHealPerCombat} HP (from relics)
-Effective missing HP: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%
+HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing} HP
+${isBossNext ? `⚠ BOSS IS NEXT FLOOR. No hallway fights before boss. Passive healing will NOT apply. Current HP is your boss HP.` : `Passive healing per combat: ${passiveHealPerCombat} HP | Effective missing: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%`}
+${!isBossNext && floorsToNextBoss <= 3 ? `Boss in ${floorsToNextBoss} floors.` : ""}
 ${upgradeNote}
 
 REST SITE — choose ONE:
 ${optionsStr}
 
-UPGRADE IS DEFAULT. Only heal if effective HP <40% (or <50% with elite/boss next). See system prompt for full guidance. If recommending Smith, NAME the specific card and why. Already-upgraded cards (with +) cannot be upgraded.
+${isBossNext ? `BOSS NEXT: Entering boss at full HP matters more than any upgrade. Heal if missing >15% HP. Only upgrade if HP is >85%.` : `UPGRADE IS DEFAULT. Only heal if effective HP <40% (or <50% with elite/boss next).`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
 
 Respond as JSON:
 {
