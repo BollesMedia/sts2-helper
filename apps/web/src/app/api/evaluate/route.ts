@@ -96,16 +96,26 @@ MAP PATHING:
 - Elites give relics = strongest upgrades. PREFER elites when deck has scaling + AoE + adequate block.
 - Elite-ready = has a scaling source, can handle 3-turn fights, has AoE or single-target burst.
 - Only avoid elites if deck lacks scaling AND HP < 40%.
-- Rest sites: upgrade at >60% HP, heal at <50% HP, always heal if boss is next.
+- Rest sites: UPGRADE IS DEFAULT. Heal only at effective HP <40% or <50% with elite next.
 - Shops: valuable if gold > removal cost or a key card/relic might appear.
 - 3+ fights without rest is dangerous at <60% HP.
 - Boss proximity: 2-3 floors = last chance to upgrade/remove. 1 floor = heal to safe HP.
 
-REST SITES:
-- Dig (if available): Almost always take — free relic. Skip only at <30% HP before a boss.
-- Smith (upgrade): Take at >60% HP. Best targets: key scaling card, primary AoE, high-impact power. NAME the specific card.
-- Rest (heal): Take at <50% HP, or <65% if elite/boss is next.
-- CRITICAL: Check the player's relics for passive healing (e.g., Burning Blood heals 6 HP after combat). If passive healing covers the missing HP, resting to heal is WRONG — upgrade instead. Missing 4-6 HP with a healing relic = always upgrade or dig.
+REST SITES — UPGRADE IS DEFAULT. Heal is the exception, not the rule.
+- Dig (if available): Best option. Skip only at effective HP <30% before a boss.
+- Smith (upgrade): DEFAULT CHOICE. NAME the best upgrade target using this priority:
+  1. Win-condition scaler (Demon Form, Limit Break, Noxious Fumes, etc.)
+  2. Most-played damage/block card that gains the most per upgrade
+  3. AoE card (especially pre-Act 2)
+  4. Power that gains meaningful stats from upgrade
+  Pick the card you play most often that gains the most. +4 damage on a card played 2x/combat > +1 on a power played once.
+- Rest (heal): ONLY when effective missing HP puts you at death risk:
+  - Effective HP <40%: heal (or <50% if elite/boss is next)
+  - Effective HP 40-70%: UPGRADE. You die from weak decks, not chip damage.
+  - Effective HP >70%: ALWAYS upgrade. Healing 10-15 HP is near-worthless.
+- Act matters: Act 1 upgrades benefit ~30 fights. Act 3 upgrades benefit ~3. Upgrade MORE aggressively in Act 1.
+- If all key archetype cards are already upgraded (+), heal threshold rises to <55%.
+- "Effective HP" = current HP + passive healing from relics (shown in prompt as effective_missing).
 - Already-upgraded cards (with +) cannot be upgraded again.
 
 EVENTS:

@@ -80,6 +80,29 @@ export function useRestEvaluation(
       .map((o, i) => `${i + 1}. ${o.name} (${o.id}): ${o.description}`)
       .join("\n");
 
+    // Compute passive healing per combat from relics
+    const relicDescs = (ctx.relics ?? []).map((r) => `${r.name}: ${r.description}`.toLowerCase());
+    let passiveHealPerCombat = 0;
+    for (const desc of relicDescs) {
+      // Match patterns like "heal 6 hp" at end of combat
+      const healMatch = desc.match(/(?:end of combat|after combat|heal)\D*(\d+)\s*hp/);
+      if (healMatch) passiveHealPerCombat += parseInt(healMatch[1], 10);
+      // Meat on the Bone: heal 12 HP if below 50% at end of combat
+      if (desc.includes("meat on the bone")) passiveHealPerCombat += 6; // average value
+    }
+
+    const missing = restPlayer.max_hp - restPlayer.hp;
+    const effectiveMissing = Math.max(0, missing - passiveHealPerCombat);
+    const effectiveHpPercent = Math.round(((restPlayer.max_hp - effectiveMissing) / Math.max(1, restPlayer.max_hp)) * 100);
+
+    // Find best upgrade target candidates (unupgraded cards only)
+    const upgradeCandidates = (ctx.deckCards ?? [])
+      .filter((c) => !c.name.includes("+"))
+      .map((c) => c.name);
+    const upgradeNote = upgradeCandidates.length > 0
+      ? `Unupgraded cards: ${upgradeCandidates.join(", ")}`
+      : "No upgradeable cards remaining.";
+
     try {
       const res = await apiFetch("/api/evaluate", {
         method: "POST",
@@ -89,12 +112,15 @@ export function useRestEvaluation(
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
-HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${restPlayer.max_hp - restPlayer.hp}
+HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing}
+Passive healing per combat: ${passiveHealPerCombat} HP (from relics)
+Effective missing HP: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%
+${upgradeNote}
 
 REST SITE — choose ONE:
 ${optionsStr}
 
-Decision guidance is in the system prompt. If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
+UPGRADE IS DEFAULT. Only heal if effective HP <40% (or <50% with elite/boss next). See system prompt for full guidance. If recommending Smith, NAME the specific card and why. Already-upgraded cards (with +) cannot be upgraded.
 
 Respond as JSON:
 {
