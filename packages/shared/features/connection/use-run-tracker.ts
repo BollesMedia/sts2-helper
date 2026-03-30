@@ -1,11 +1,17 @@
 "use client";
-import { apiUrl } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
 import type { GameState } from "../../types/game-state";
 import { hasRun, isCombatState } from "../../types/game-state";
 
 const STORAGE_KEY = "sts2-run-id";
+
+/**
+ * Promise that resolves when the current run has been persisted to the API.
+ * Choice logging awaits this to avoid FK violations.
+ */
+let runCreatedPromise: Promise<void> = Promise.resolve();
 
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -68,10 +74,17 @@ function inferOutcome(
 /**
  * Call this to confirm or override the run outcome.
  */
+/**
+ * Returns a promise that resolves once the current run has been persisted.
+ * Used by choice-tracker to avoid FK violations.
+ */
+export function waitForRunCreated(): Promise<void> {
+  return runCreatedPromise;
+}
+
 export function confirmRunOutcome(runId: string, victory: boolean) {
-  fetch(apiUrl("/api/run"), {
+  apiFetch("/api/run", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "end", runId, victory }),
   }).catch(console.error);
 }
@@ -219,9 +232,8 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
     const character = getCharacter(gameState);
     const ascension = hasRun(gameState) ? gameState.run.ascension : 0;
 
-    fetch(apiUrl("/api/run"), {
+    runCreatedPromise = apiFetch("/api/run", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "start",
         runId: newRunId,
@@ -230,7 +242,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
         gameMode: "singleplayer",
         userId,
       }),
-    }).catch(console.error);
+    }).then(() => {}).catch(console.error);
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
@@ -270,9 +282,8 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
 
       const bossNames = [...bossesFought.current];
 
-      fetch(apiUrl("/api/run"), {
+      apiFetch("/api/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "end",
           runId: endedRunId,

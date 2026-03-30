@@ -55,6 +55,9 @@ const SYSTEM_PROMPT = `You are an expert Slay the Spire 2 advisor with deep know
 CRITICAL PRINCIPLE — DECK DISCIPLINE:
 Skipping is ALWAYS a viable and often correct choice. A lean, focused deck is far stronger than a bloated one. Every card added must justify its inclusion by directly supporting the deck's win condition. Cards that are "generically good" but dilute draw consistency, energy efficiency, or archetype focus should be rated as skips. A 12-card deck that draws its key cards every fight beats a 25-card deck with individually strong cards. When in doubt, recommend skip.
 
+CRITICAL PRINCIPLE — UPGRADES ARE ONCE ONLY:
+Cards can only be upgraded ONCE. An upgraded card has a "+" suffix (e.g., "Bash+"). There is no "Bash++" or further upgrades. When evaluating upgrade choices at rest sites or events, never suggest upgrading an already-upgraded card (one with "+" in its name) and never reference double-upgraded card names.
+
 CRITICAL PRINCIPLE — STARTER CARDS ARE TEMPORARY:
 Strike and Defend are weak cards that will be removed from the deck over the course of the run. Do NOT evaluate synergies with Strike/Defend as meaningful — any card that "works well with Strikes" is building on a foundation that is actively being demolished. Evaluate cards based on synergy with the deck's real win condition cards, not starter cards.
 
@@ -100,6 +103,8 @@ export async function POST(request: Request) {
 
   const body: EvaluateRequest = await request.json();
   const { type, context, items, runId, gameVersion } = body;
+
+  console.log("[Evaluate] type:", type, "items:", items?.map(i => `${i.id}/${i.name}`));
 
   const supabase = createServiceClient();
 
@@ -293,6 +298,7 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
       );
     }
 
+    console.log("[Evaluate] Tool use input:", JSON.stringify(toolUse.input));
     const parsed = parseToolUseInput(toolUse.input);
     const evaluation = parseClaudeCardRewardResponse(parsed);
 
@@ -342,6 +348,15 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
       try {
         const retryPrompt = `Evaluate these missing items in the same context:\n${missingItems.map((item, i) => `${i + 1}. ${item.name} (${item.cost ?? ""} ${item.type ?? ""}) — ${item.description}`).join("\n")}`;
 
+        // Build tool_result for the prior tool_use so the message history is valid
+        const toolResultBlocks = message.content
+          .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
+          .map((b) => ({
+            type: "tool_result" as const,
+            tool_use_id: b.id,
+            content: "Accepted, but some items were missing from your response.",
+          }));
+
         const retryMsg = await anthropic.messages.create({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1024,
@@ -349,7 +364,7 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
           messages: [
             { role: "user", content: userPrompt },
             { role: "assistant", content: message.content },
-            { role: "user", content: retryPrompt },
+            { role: "user", content: [...toolResultBlocks, { type: "text" as const, text: retryPrompt }] },
           ],
           tools: [evaluationTool],
           tool_choice: { type: "tool", name: "submit_evaluation" },

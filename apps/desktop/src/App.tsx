@@ -5,11 +5,42 @@ import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker"
 import { useChoiceTracker } from "@sts2/shared/evaluation/choice-tracker";
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
+import { invoke } from "@tauri-apps/api/core";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
+import { SetupWizard } from "./setup-wizard";
+import { useState, useRef } from "react";
+
+type ModCheckState = "checking" | "ready" | "needs-setup";
+
+interface ModStatus {
+  game_found: boolean;
+  required_mods: {
+    id: string;
+    installed: boolean;
+    needs_update: boolean;
+  }[];
+}
 
 export function App() {
   const { user, loading } = useAuth();
+  const [modCheck, setModCheck] = useState<ModCheckState>("checking");
+  const checkStarted = useRef(false);
+
+  // Quick mod check on startup — only runs once
+  if (!checkStarted.current && user) {
+    checkStarted.current = true;
+    invoke<ModStatus>("get_mod_status")
+      .then((status) => {
+        const allInstalled =
+          status.game_found &&
+          status.required_mods.every((m) => m.installed);
+        setModCheck(allInstalled ? "ready" : "needs-setup");
+      })
+      .catch(() => {
+        setModCheck("needs-setup");
+      });
+  }
 
   if (loading) {
     return (
@@ -21,6 +52,18 @@ export function App() {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (modCheck === "checking") {
+    return (
+      <div className="flex flex-1 items-center justify-center min-h-screen">
+        <p className="text-sm text-zinc-500">Checking mod status...</p>
+      </div>
+    );
+  }
+
+  if (modCheck === "needs-setup") {
+    return <SetupWizard onComplete={() => setModCheck("ready")} />;
   }
 
   return <AuthenticatedApp />;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { apiUrl } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 import type { RunState } from "../connection/use-run-tracker";
 
 interface MenuViewProps {
@@ -14,9 +14,8 @@ export function MenuView({ runState, footer }: MenuViewProps) {
 
   const handleOutcome = (victory: boolean) => {
     if (notes.trim() && runState.endedRunId) {
-      fetch(apiUrl("/api/run"), {
+      apiFetch("/api/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "end",
           runId: runState.endedRunId,
