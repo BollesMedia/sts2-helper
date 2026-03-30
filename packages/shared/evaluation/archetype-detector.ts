@@ -2,29 +2,34 @@ import type { CombatCard, GameRelic } from "../types/game-state";
 import type { ArchetypeScore } from "./types";
 
 // Card keywords/tags that signal archetypes
+// VERIFIED against Supabase cards table 2026-03-30
 const ARCHETYPE_SIGNALS: Record<string, string[]> = {
   // Ironclad
-  strength: ["strength", "demon form", "inflame", "rupture", "crimson mantle", "brand"],
-  exhaust: ["exhaust", "feel no pain", "dark embrace", "corruption", "burning pact", "stoke"],
-  block_ironclad: ["barricade", "body slam", "impervious", "unmovable", "colossus", "shrug it off"],
+  strength: ["demon form", "inflame", "rupture", "crimson mantle", "brand", "howl from beyond", "primal force"],
+  exhaust: ["feel no pain", "dark embrace", "corruption", "burning pact", "stoke", "second wind", "fiend fire", "pyre"],
+  block_ironclad: ["barricade", "body slam", "impervious", "unmovable", "colossus", "shrug it off", "stone armor", "blood wall", "flame barrier"],
+  vulnerable: ["cruelty", "molten fist", "taunt", "tremble", "dismantle", "stomp"],
 
   // Silent
-  poison: ["poison", "noxious fumes", "catalyst", "deadly poison", "bouncing flask", "crippling cloud"],
-  shiv: ["shiv", "blade dance", "cloak and dagger", "infinite blades", "accuracy"],
-  discard: ["discard", "calculated gamble", "prepared", "acrobatics", "tactician", "reflex"],
+  poison: ["noxious fumes", "deadly poison", "bouncing flask", "envenom", "corrosive wave", "outbreak", "snakebite"],
+  shiv: ["blade dance", "cloak and dagger", "infinite blades", "accuracy", "storm of steel", "afterimage", "finisher"],
+  discard: ["calculated gamble", "prepared", "acrobatics", "reflex", "expertise", "tools of the trade"],
 
   // Defect
-  orb_lightning: ["lightning", "electrodynamics", "storm", "tempest", "thunder strike"],
-  orb_frost: ["frost", "glacier", "coolheaded", "blizzard", "chill"],
-  orb_dark: ["dark", "doom and gloom", "darkness"],
-  focus: ["focus", "defragment", "consume", "biased cognition", "inserter"],
+  orb_frost: ["glacier", "coolheaded", "chill", "hailstorm", "cold snap", "refract"],
+  orb_lightning: ["ball lightning", "storm", "thunder", "voltaic", "sweeping beam", "lightning rod"],
+  focus: ["defragment", "biased cognition", "capacitor", "signal boost", "creative ai"],
+  zero_cost: ["claw", "all for one", "scrape", "ftl", "compile driver"],
 
   // Necrobinder
-  minion: ["summon", "osty", "bind", "bone", "animate"],
-  ritual: ["ritual", "sacrifice", "offering"],
+  reaper: ["reaper form", "deathbringer", "death's door", "death march", "reap", "drain power"],
+  spirit: ["soul storm", "capture spirit", "spirit of ash", "call of the void", "seance"],
+  bone: ["bone shards", "legion of bone", "reanimate", "sentry mode", "protector", "bodyguard"],
 
   // Regent
-  star: ["star", "stance", "retain", "divinity", "mantra"],
+  star: ["seven stars", "child of the stars", "cloak of stars", "guiding star", "stardust", "gather light", "celestial might"],
+  cosmic: ["big bang", "quasar", "meteor shower", "supermassive", "gamma blast", "black hole", "cosmic indifference"],
+  royal: ["manifest authority", "hegemony", "conqueror", "guards!!!", "know thy place", "tyranny"],
 };
 
 // Relics that strongly signal archetypes
@@ -90,11 +95,13 @@ export function detectArchetypes(
 }
 
 // Check if deck has scaling sources (powers, passive damage, etc.)
+// Verified against STS2 card DB
 export function hasScalingSources(deckCards: CombatCard[]): boolean {
   const scalingKeywords = [
-    "demon form", "noxious fumes", "afterimage", "thousand cuts",
-    "electrodynamics", "defragment", "focus", "biased cognition",
-    "limit break", "strength", "deva form",
+    "demon form", "noxious fumes", "afterimage", "defragment",
+    "biased cognition", "corruption", "crimson mantle", "inflame",
+    "reaper form", "necro mastery", "void form", "creative ai",
+    "serpent form", "envenom", "infinite blades",
   ];
 
   return deckCards.some((card) => {
@@ -106,9 +113,10 @@ export function hasScalingSources(deckCards: CombatCard[]): boolean {
 // Get draw source card names from deck
 export function getDrawSources(deckCards: CombatCard[]): string[] {
   const drawKeywords = [
-    "draw", "acrobatics", "backflip", "offering", "battle trance",
+    "acrobatics", "backflip", "offering", "battle trance",
     "pommel strike", "shrug it off", "prepared", "adrenaline",
-    "skim", "compile driver", "coolheaded",
+    "skim", "compile driver", "coolheaded", "burning pact",
+    "dark embrace", "expertise",
   ];
 
   return deckCards
@@ -122,9 +130,9 @@ export function getDrawSources(deckCards: CombatCard[]): string[] {
 // Get scaling source card names from deck
 export function getScalingSources(deckCards: CombatCard[]): string[] {
   const scalingKeywords = [
-    "demon form", "noxious fumes", "afterimage", "thousand cuts",
-    "electrodynamics", "defragment", "biased cognition",
-    "limit break", "deva form", "corruption",
+    "demon form", "noxious fumes", "afterimage", "defragment",
+    "biased cognition", "corruption", "crimson mantle",
+    "reaper form", "void form", "creative ai", "envenom",
   ];
 
   return deckCards
