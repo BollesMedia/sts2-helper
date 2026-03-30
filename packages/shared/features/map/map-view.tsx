@@ -43,9 +43,9 @@ const NODE_FILL: Record<string, string> = {
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
   strong_pick: "border-emerald-500/50",
-  good_pick: "border-blue-500/50",
-  situational: "border-amber-500/50",
-  skip: "border-zinc-700",
+  good_pick: "border-blue-500/40",
+  situational: "border-amber-500/40",
+  skip: "border-zinc-700/40",
 };
 
 export function MapView({ state, player, deckCards }: MapViewProps) {
@@ -127,24 +127,39 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                   bestOptionKey === `${childCol},${childRow}`;
 
                 return (
-                  <line
-                    key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke={
-                      isBestEdge
-                        ? "#34d399"
-                        : isVisitedEdge
-                          ? "#71717a"
-                          : isNextEdge
-                            ? "#a1a1aa"
-                            : "#27272a"
-                    }
-                    strokeWidth={isBestEdge ? 2.5 : isNextEdge ? 2 : 1}
-                    strokeDasharray={isNextEdge && !isBestEdge ? "4 4" : undefined}
-                  />
+                  <g key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}>
+                    {/* Emerald glow for best path */}
+                    {isBestEdge && (
+                      <line
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke="#34d399"
+                        strokeWidth={6}
+                        opacity={0.3}
+                        strokeLinecap="round"
+                      />
+                    )}
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={
+                        isBestEdge
+                          ? "#34d399"
+                          : isVisitedEdge
+                            ? "#71717a"
+                            : isNextEdge
+                              ? "#a1a1aa"
+                              : "#27272a"
+                      }
+                      strokeWidth={isBestEdge ? 2.5 : isNextEdge ? 2 : 1}
+                      strokeDasharray={isNextEdge && !isBestEdge ? "4 4" : undefined}
+                      strokeLinecap="round"
+                    />
+                  </g>
                 );
               })
             )}
@@ -167,16 +182,26 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
               return (
                 <g key={key}>
+                  {/* Emerald glow halo for best option */}
                   {isBest && (
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={NODE_RADIUS + 4}
-                      fill="none"
-                      stroke="#34d399"
-                      strokeWidth={2}
-                      opacity={0.5}
-                    />
+                    <>
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={NODE_RADIUS + 8}
+                        fill="#34d399"
+                        opacity={0.15}
+                      />
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={NODE_RADIUS + 5}
+                        fill="none"
+                        stroke="#34d399"
+                        strokeWidth={2}
+                        opacity={0.6}
+                      />
+                    </>
                   )}
                   {isCurrent && (
                     <circle
@@ -227,18 +252,18 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
         </div>
       </div>
 
-      {/* Sidebar — Evaluation */}
-      <div className="w-56 shrink-0 flex flex-col gap-2">
-        {/* Overall advice */}
+      {/* Sidebar — Compact Evaluation */}
+      <div className="w-44 shrink-0 flex flex-col gap-1.5">
+        {/* Overall advice — truncated */}
         {evaluation?.overallAdvice && (
-          <p className="text-xs text-zinc-400 leading-relaxed">
+          <p className="text-[10px] text-zinc-400 leading-snug line-clamp-2" title={evaluation.overallAdvice}>
             {evaluation.overallAdvice}
           </p>
         )}
 
         {error && <EvalError error={error} onRetry={retry} />}
 
-        {/* Path recommendations — stacked cards */}
+        {/* Path recommendations — compact stacked cards */}
         {next_options.map((opt, i) => {
           const evalData = evaluation?.rankings.find(
             (r) => r.optionIndex === i + 1
@@ -249,39 +274,48 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
             <div
               key={opt.index}
               className={cn(
-                "rounded-lg border bg-zinc-900/50 p-2.5",
+                "rounded-lg border bg-zinc-900/60 p-2 transition-all duration-200 relative",
                 evalData
-                  ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
+                  ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-700/40"
                   : isBest
                     ? "border-emerald-500/50"
-                    : "border-zinc-800"
+                    : "border-zinc-700/40",
+                isBest && "shadow-[0_0_12px_rgba(52,211,153,0.2)] border-emerald-500/60"
               )}
+              title={evalData?.reasoning}
             >
-              <div className="flex items-center gap-1.5">
-                {evalData && (
-                  <TierBadge tier={evalData.tier as TierLetter} size="sm" />
-                )}
-                <span className="text-sm">
-                  {NODE_TYPE_ICONS[opt.type] ?? "•"}
-                </span>
-                <span className="font-medium text-zinc-100 text-xs">
-                  {opt.type}
-                </span>
-                {isBest && (
-                  <span className="ml-auto rounded bg-emerald-400/10 px-1 py-0.5 text-[10px] font-medium text-emerald-400">
+              {/* "Best" banner for top recommendation */}
+              {isBest && (
+                <div className="absolute -top-1.5 -right-1.5 z-10">
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider",
+                    "bg-emerald-500 text-zinc-950",
+                    "shadow-[0_0_8px_rgba(52,211,153,0.5)]",
+                    "border border-emerald-400/50"
+                  )}>
                     Best
                   </span>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-1">
+                {evalData && (
+                  <TierBadge tier={evalData.tier as TierLetter} size="sm" glow={isBest} />
                 )}
+                <span className="text-xs">
+                  {NODE_TYPE_ICONS[opt.type] ?? "•"}
+                </span>
+                <span className={cn(
+                  "font-medium text-xs truncate",
+                  isBest ? "text-zinc-50" : "text-zinc-100"
+                )}>
+                  {opt.type}
+                </span>
               </div>
 
-              {opt.leads_to && opt.leads_to.length > 0 && (
-                <p className="mt-1 text-[10px] text-zinc-600 truncate">
-                  → {opt.leads_to.map((l) => `${NODE_TYPE_ICONS[l.type] ?? ""} ${l.type}`).join(", ")}
-                </p>
-              )}
-
+              {/* Reasoning — truncated to 1 line, full in tooltip */}
               {evalData && (
-                <p className="mt-1.5 text-[11px] text-zinc-400 leading-snug">
+                <p className="mt-1 text-[10px] text-zinc-400 leading-snug line-clamp-1">
                   {evalData.reasoning}
                 </p>
               )}

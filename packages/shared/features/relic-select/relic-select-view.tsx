@@ -149,17 +149,19 @@ Use RELIC_1, RELIC_2, RELIC_3 matching the numbered options above.`,
   const topRank = evaluation?.rankings.find((r) => r.rank === 1);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Boss Relic</h2>
+    <div className="flex flex-col gap-3">
+      {/* Header with inline summary */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-zinc-100 shrink-0">Boss Relic</h2>
+        {evaluation?.pickSummary && !isLoading && (
+          <p className="text-xs font-medium text-emerald-400 truncate flex-1 text-right">
+            {evaluation.pickSummary}
+          </p>
+        )}
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">Evaluating...</span>
         )}
       </div>
-
-      {evaluation?.pickSummary && (
-        <p className="text-sm font-medium text-emerald-300">{evaluation.pickSummary}</p>
-      )}
 
       {error && <EvalError error={error} onRetry={() => { evaluatedKey.current = ""; setError(null); }} />}
 
@@ -172,29 +174,33 @@ Use RELIC_1, RELIC_2, RELIC_3 matching the numbered options above.`,
             <div
               key={relic.index}
               className={cn(
-                "rounded-lg border bg-zinc-900/50 p-3 relative",
+                "rounded-lg border bg-zinc-900/60 p-3 relative card-depth card-depth-hover",
                 isTopPick
-                  ? "border-emerald-500/60 ring-1 ring-emerald-500/20"
+                  ? "border-emerald-500/60 ring-2 ring-emerald-500/30 shadow-[0_0_16px_rgba(52,211,153,0.2)]"
                   : evalData
                     ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
                     : "border-zinc-800"
               )}
+              title={evalData?.reasoning}
             >
+              {/* "Pick This" banner */}
               {isTopPick && (
-                <div className="absolute -top-2.5 left-3 rounded bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-950">
-                  Pick this
+                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
+                  <div className="px-3 py-0.5 rounded-full bg-emerald-500 text-[10px] font-bold uppercase tracking-widest text-zinc-950 shadow-[0_0_12px_rgba(52,211,153,0.5),0_2px_8px_rgba(0,0,0,0.4)] border border-emerald-400/50">
+                    Pick This
+                  </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
-                {evalData && <TierBadge tier={evalData.tier} size="sm" />}
-                <span className="font-medium text-sm text-zinc-100">{relic.name}</span>
+              <div className={cn("flex items-center gap-2", isTopPick && "mt-1.5")}>
+                {evalData && <TierBadge tier={evalData.tier} size="sm" glow={isTopPick} />}
+                <span className="font-medium text-sm text-zinc-100 truncate">{relic.name}</span>
               </div>
 
-              <p className="mt-1.5 text-xs text-zinc-400">{relic.description}</p>
+              <p className="mt-1 text-[10px] text-zinc-500 leading-snug line-clamp-2">{relic.description}</p>
 
               {evalData && (
-                <p className="mt-2 text-[11px] text-zinc-300">{evalData.reasoning}</p>
+                <p className="mt-1.5 text-xs text-zinc-400 leading-snug line-clamp-2">{evalData.reasoning}</p>
               )}
             </div>
           );

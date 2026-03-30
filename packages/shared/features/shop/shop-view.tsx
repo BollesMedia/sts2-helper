@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { cn } from "../../lib/cn";
 import type { ShopState, ShopItem, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
@@ -42,7 +41,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
     player,
     runId
   );
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   const items = state.shop.items.filter((i) => i.is_stocked);
   const cards = items.filter((i) => i.category === "card");
@@ -63,9 +61,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
         r.itemName.toLowerCase() === name.toLowerCase()
     );
   };
-
-  const toggle = (key: string) =>
-    setExpandedItem((prev) => (prev === key ? null : key));
 
   return (
     <div className="flex flex-col gap-3 h-full min-h-0">
@@ -96,7 +91,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
       {/* Items — two columns */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-x-4 gap-y-3 content-start overflow-y-auto">
         {/* Left column: Cards */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {cards.length > 0 && (
             <ShopSection title="Cards">
               {cards.map((item) => (
@@ -110,8 +105,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                   affordable={item.can_afford}
                   onSale={item.on_sale}
                   evaluation={findEval(item) ?? null}
-                  expanded={expandedItem === `card-${item.index}`}
-                  onToggle={() => toggle(`card-${item.index}`)}
                 />
               ))}
             </ShopSection>
@@ -119,7 +112,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
         </div>
 
         {/* Right column: Relics, Potions, Services */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {relics.length > 0 && (
             <ShopSection title="Relics">
               {relics.map((item) => (
@@ -131,8 +124,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                   type="Relic"
                   affordable={item.can_afford}
                   evaluation={findEval(item) ?? null}
-                  expanded={expandedItem === `relic-${item.index}`}
-                  onToggle={() => toggle(`relic-${item.index}`)}
                 />
               ))}
             </ShopSection>
@@ -149,8 +140,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                   type="Potion"
                   affordable={item.can_afford}
                   evaluation={findEval(item) ?? null}
-                  expanded={expandedItem === `potion-${item.index}`}
-                  onToggle={() => toggle(`potion-${item.index}`)}
                 />
               ))}
             </ShopSection>
@@ -165,8 +154,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
                 type="Service"
                 affordable={cardRemoval.can_afford}
                 evaluation={findEval(cardRemoval) ?? null}
-                expanded={expandedItem === "removal"}
-                onToggle={() => toggle("removal")}
               />
             </ShopSection>
           )}
@@ -185,10 +172,12 @@ function ShopSection({
 }) {
   return (
     <div>
-      <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+        <span className="h-px flex-1 bg-gradient-to-r from-zinc-700/50 to-transparent" />
         {title}
+        <span className="h-px flex-1 bg-gradient-to-l from-zinc-700/50 to-transparent" />
       </h3>
-      <div className="space-y-1">{children}</div>
+      <div className="space-y-1.5">{children}</div>
     </div>
   );
 }
@@ -202,8 +191,6 @@ interface ShopRowProps {
   affordable: boolean;
   onSale?: boolean;
   evaluation: CardEvaluation | null;
-  expanded: boolean;
-  onToggle: () => void;
 }
 
 function ShopRow({
@@ -215,43 +202,50 @@ function ShopRow({
   affordable,
   onSale,
   evaluation,
-  expanded,
-  onToggle,
 }: ShopRowProps) {
   const rec = evaluation?.recommendation;
+  const isStrongPick = rec === "strong_pick";
   const border = rec
     ? RECOMMENDATION_BORDER[rec] ?? "border-zinc-800"
-    : "border-zinc-800";
+    : "border-zinc-700/40";
+
+  // Build tooltip: description + reasoning
+  const tooltip = [description, evaluation?.reasoning].filter(Boolean).join(" — ");
 
   return (
     <div
       className={cn(
-        "rounded border bg-zinc-900/50 transition-colors cursor-pointer",
+        "rounded-lg border bg-zinc-900/60 transition-all duration-200",
         border,
-        !affordable && "opacity-50"
+        !affordable && "opacity-40",
+        isStrongPick && affordable && "border-emerald-500/50 shadow-[0_0_12px_rgba(52,211,153,0.15)]",
+        "hover:bg-zinc-800/60"
       )}
-      onClick={onToggle}
+      title={tooltip}
     >
-      {/* Compact row */}
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
-        {evaluation && <TierBadge tier={evaluation.tier} size="sm" />}
-        <span className="text-sm text-zinc-100 truncate flex-1">{name}</span>
+      {/* Compact row — no expand, hover tooltip for details */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        {evaluation && <TierBadge tier={evaluation.tier} size="sm" glow={isStrongPick && affordable} />}
+        <span className={cn(
+          "text-xs truncate flex-1",
+          isStrongPick && affordable ? "text-zinc-50 font-medium" : "text-zinc-200"
+        )}>{name}</span>
         {rec && (
           <span
             className={cn(
-              "rounded px-1 py-0.5 text-[10px] font-medium shrink-0",
-              RECOMMENDATION_CHIP[rec]
+              "rounded px-1 py-0.5 text-[9px] font-medium shrink-0 border",
+              isStrongPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
             )}
           >
             {RECOMMENDATION_LABEL[rec]}
           </span>
         )}
-        <span className={cn("text-xs shrink-0", TYPE_COLORS[type] ?? "text-zinc-500")}>
+        <span className={cn("text-[10px] shrink-0", TYPE_COLORS[type] ?? "text-zinc-500")}>
           {type}
         </span>
         <span
           className={cn(
-            "text-xs font-medium shrink-0 tabular-nums",
+            "text-[10px] font-medium shrink-0 tabular-nums",
             affordable ? "text-amber-400" : "text-zinc-600"
           )}
         >
@@ -259,19 +253,6 @@ function ShopRow({
           {cost}g
         </span>
       </div>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-2.5 pb-2 space-y-1 border-t border-zinc-800/50">
-          <p className="text-xs text-zinc-500 pt-1.5">{description}</p>
-          {rarity && (
-            <span className="text-[10px] text-zinc-600">{rarity}</span>
-          )}
-          {evaluation && (
-            <p className="text-xs text-zinc-300">{evaluation.reasoning}</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

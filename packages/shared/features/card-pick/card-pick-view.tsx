@@ -6,7 +6,6 @@ import type { TrackedPlayer } from "../connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "../../components/loading-skeleton";
-import { RefineInput } from "../../components/refine-input";
 import { EvalError } from "../../components/eval-error";
 
 interface CardPickViewProps {
@@ -22,42 +21,35 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
   const cards = state.card_reward.cards;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-xl font-semibold text-zinc-100">Card Reward</h2>
+    <div className="flex flex-col gap-3">
+      {/* Header row with inline summary */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-zinc-100 shrink-0">Card Reward</h2>
+        
+        {/* Inline pick summary or skip message */}
+        {evaluation?.pickSummary && !isLoading && (
+          <p className={cn(
+            "text-xs font-medium truncate flex-1 text-right",
+            evaluation.skipRecommended ? "text-zinc-500" : "text-emerald-400"
+          )}>
+            {evaluation.pickSummary}
+          </p>
+        )}
+        {evaluation?.skipRecommended && !evaluation.pickSummary && !isLoading && (
+          <p className="text-xs font-medium text-zinc-500 truncate flex-1 text-right">
+            Skip — {evaluation.skipReasoning ?? "none worth adding"}
+          </p>
+        )}
+        
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">
             Evaluating...
           </span>
         )}
-        {evaluation && !isLoading && (
-          <span className="text-xs text-zinc-600">
-            {evaluation.rankings[0]?.source === "statistical"
-              ? "Historical data"
-              : "Claude evaluation"}
-          </span>
-        )}
       </div>
 
-      {/* Pick summary */}
-      {evaluation?.pickSummary && (
-        <p className={cn(
-          "text-sm font-medium",
-          evaluation.skipRecommended ? "text-amber-300" : "text-emerald-300"
-        )}>
-          {evaluation.pickSummary}
-        </p>
-      )}
-
-      {/* Skip recommendation */}
-      {evaluation?.skipRecommended && !evaluation.pickSummary && (
-        <p className="text-sm font-medium text-amber-300">
-          Skip — {evaluation.skipReasoning ?? "none worth adding"}
-        </p>
-      )}
-
-      {/* Card ratings */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Card ratings — compact grid */}
+      <div className="grid grid-cols-3 gap-3">
         {isLoading && !evaluation ? (
           <>
             <CardSkeleton />
@@ -104,19 +96,6 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
 
       {error && <EvalError error={error} onRetry={retry} />}
 
-      {evaluation && !isLoading && (
-        <RefineInput
-          originalContext={`Card reward: ${cards.map((c) => c.name).join(", ")}. Deck size: ${deckCards.length}. Character: ${player?.character ?? "unknown"}.`}
-          originalResponse={[
-            evaluation.skipRecommended ? `Skip recommended: ${evaluation.skipReasoning}` : null,
-            ...evaluation.rankings.map((r) => `#${r.rank} ${r.itemName}: ${r.reasoning}`),
-          ].filter(Boolean).join(" ")}
-        />
-      )}
-
-      {state.card_reward.can_skip && !evaluation?.skipRecommended && (
-        <p className="text-xs text-zinc-600">You can skip this reward</p>
-      )}
     </div>
   );
 }

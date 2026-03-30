@@ -8,7 +8,6 @@ import type { EvaluationContext } from "../../evaluation/types";
 import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { apiFetch } from "../../lib/api-client";
-import { RefineInput } from "../../components/refine-input";
 import type { GameState } from "../../types/game-state";
 
 interface CardRemovalViewProps {
@@ -94,24 +93,24 @@ Respond as JSON (one card_name, not an array):
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Remove a Card</h2>
+    <div className="flex flex-col gap-2">
+      {/* Header with inline recommendation */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-zinc-100 shrink-0">Remove a Card</h2>
+        {recommendation && !isLoading && (
+          <p className="text-xs font-medium text-emerald-400 truncate flex-1 text-right">
+            Remove {recommendation.cardName}
+            {recommendation.reasoning && (
+              <span className="text-zinc-500 font-normal"> — {recommendation.reasoning}</span>
+            )}
+          </p>
+        )}
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">Evaluating...</span>
         )}
       </div>
 
-      {recommendation && (
-        <p className="text-sm text-emerald-300 font-medium">
-          Remove {recommendation.cardName}
-          {recommendation.reasoning && (
-            <span className="text-zinc-400 font-normal"> — {recommendation.reasoning}</span>
-          )}
-        </p>
-      )}
-
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-5 gap-1">
         {(() => {
           let highlightedOne = false;
           return cards.map((card) => {
@@ -123,30 +122,24 @@ Respond as JSON (one card_name, not an array):
               <div
                 key={card.index}
                 className={cn(
-                  "rounded border px-2.5 py-1.5 text-xs",
+                  "rounded border px-2 py-1 text-[10px]",
                   isRecommended
-                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
+                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
                     : "border-zinc-800 bg-zinc-900/50 text-zinc-400"
                 )}
+                title={card.description}
               >
-                <span className={cn("font-medium", isRecommended ? "text-emerald-200" : "text-zinc-200")}>
+                <span className={cn("font-medium truncate block", isRecommended ? "text-emerald-200" : "text-zinc-200")}>
                   {card.name}
                 </span>
                 {isRecommended && (
-                  <span className="ml-1.5 text-[10px] text-emerald-400 uppercase font-bold">remove</span>
+                  <span className="text-[8px] text-emerald-400 uppercase font-bold">remove</span>
                 )}
               </div>
             );
           });
         })()}
       </div>
-
-      {recommendation && (
-        <RefineInput
-          originalContext={`Card removal. Deck: ${cards.map((c) => c.name).join(", ")}`}
-          originalResponse={`Remove ${recommendation.cardName}: ${recommendation.reasoning}`}
-        />
-      )}
     </div>
   );
 }
