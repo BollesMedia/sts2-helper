@@ -292,7 +292,7 @@ export async function POST(request: Request) {
               synergy_score: { type: "integer", description: "0-100" },
               confidence: { type: "integer", description: "0-100" },
               recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
-              reasoning: { type: "string", description: "Max 12 words, fragment not sentence" },
+              reasoning: { type: "string", description: "Max 12 words. NEVER mention Strikes or Defends. Explain via archetype cards only." },
             },
             required: ["item_id", "rank", "tier", "synergy_score", "confidence", "recommendation", "reasoning"],
           },
@@ -314,7 +314,8 @@ ${type === "card_reward" ? "Offered cards" : "Shop items"}:
 ${itemsStr}
 ${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
 
-Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in the SAME ORDER as listed above.`;
+Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in listed order.
+REMINDER: NEVER reference Strikes or Defends in reasoning. They are being removed. Explain card value through archetype synergies only.`;
 
   try {
     const message = await anthropic.messages.create({
