@@ -1,4 +1,6 @@
-@import "tailwindcss" source("../../../packages/shared");
+@import "tailwindcss" source(none);
+@source "../../../packages/shared";
+@source ".";
 
 :root {
   --background: #0a0a0a;
