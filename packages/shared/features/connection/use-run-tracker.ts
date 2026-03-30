@@ -1,6 +1,6 @@
 "use client";
 import { apiFetch } from "../../lib/api-client";
-import { initializeNarrative, clearNarrative } from "../../evaluation/run-narrative";
+import { initializeNarrative, clearNarrative, restoreForRun } from "../../evaluation/run-narrative";
 import { clearEvaluationRegistry } from "../../evaluation/last-evaluation-registry";
 
 import { useCallback, useRef, useState } from "react";
@@ -125,6 +125,12 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
     initialized.current = true;
     runId.current = loadRunId();
     runStarted.current = runId.current !== null;
+
+    // Restore narrative for existing run (app restart mid-run)
+    // If runId doesn't match stored narrative, stale data is discarded
+    if (runId.current) {
+      restoreForRun(runId.current);
+    }
   }
 
   const confirmOutcome = useCallback(

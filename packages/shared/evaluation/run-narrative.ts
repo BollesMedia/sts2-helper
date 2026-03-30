@@ -60,6 +60,11 @@ export function initializeNarrative(
   character: string,
   ascension: number
 ) {
+  // Clear any stale data before creating fresh narrative
+  if (typeof window !== "undefined") {
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
+
   narrative = {
     runId,
     character,
@@ -80,10 +85,24 @@ export function initializeNarrative(
 }
 
 export function getNarrative(): RunNarrative | null {
-  if (!narrative) {
-    load();
-  }
   return narrative;
+}
+
+/**
+ * Try to restore narrative from localStorage for a specific run.
+ * Only restores if the stored runId matches. Otherwise discards stale data.
+ */
+export function restoreForRun(runId: string) {
+  if (narrative?.runId === runId) return; // already active
+
+  load();
+  if (narrative && narrative.runId !== runId) {
+    // Stale narrative from a different run — discard
+    narrative = null;
+    if (typeof window !== "undefined") {
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    }
+  }
 }
 
 export function clearNarrative() {
@@ -95,6 +114,11 @@ export function clearNarrative() {
       // ignore
     }
   }
+}
+
+/** Get the current run ID if a narrative is active */
+export function getActiveRunId(): string | null {
+  return narrative?.runId ?? null;
 }
 
 export function appendDecision(decision: RunDecision) {
