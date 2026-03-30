@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "./index.css";
 import { App } from "./App";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
 import { initSupabase } from "@sts2/shared/supabase/client";
