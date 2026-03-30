@@ -2,14 +2,12 @@
 
 import { cn } from "../../lib/cn";
 import { TierBadge } from "../../components/tier-badge";
-import { ConfidenceIndicator } from "../../components/confidence-indicator";
 import { HpBar } from "../../components/hp-bar";
 import type { RestSiteState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { TierLetter } from "../../evaluation/tier-utils";
 import { useRestEvaluation } from "./use-rest-evaluation";
 import { CardSkeleton } from "../../components/loading-skeleton";
-import { RefineInput } from "../../components/refine-input";
 import { EvalError } from "../../components/eval-error";
 import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "../../lib/recommendation-styles";
 
@@ -38,40 +36,37 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
   );
   const restPlayer = state.rest_site.player;
   const options = state.rest_site.options;
+  const topRank = evaluation?.rankings.find((r) => r.rank === 1);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-xl font-semibold text-zinc-100">Rest Site</h2>
+    <div className="flex flex-col gap-3">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-zinc-100">Rest Site</h2>
         {isLoading && (
-          <span className="text-xs text-zinc-500 animate-pulse">
-            Evaluating...
-          </span>
-        )}
-        {evaluation && !isLoading && (
-          <span className="text-xs text-zinc-600">Claude evaluation</span>
+          <span className="text-xs text-zinc-500 animate-pulse">Evaluating...</span>
         )}
       </div>
 
-      {/* HP context */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      {/* HP context — compact */}
+      <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <HpBar current={restPlayer.hp} max={restPlayer.max_hp} />
-          <span className="text-sm text-zinc-400">
+          <span className="text-xs text-zinc-400">
             {restPlayer.max_hp - restPlayer.hp > 0
               ? `Missing ${restPlayer.max_hp - restPlayer.hp} HP`
               : "Full health"}
           </span>
         </div>
-        <span className="text-sm font-mono tabular-nums text-amber-400">
+        <span className="text-xs font-mono tabular-nums text-amber-400">
           {restPlayer.gold}g
         </span>
       </div>
 
       {error && <EvalError error={error} onRetry={retry} />}
 
-      {/* Options */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Options — compact grid */}
+      <div className="grid grid-cols-2 gap-3">
         {isLoading && !evaluation ? (
           <>
             <CardSkeleton />
@@ -85,61 +80,67 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
                 r.itemId.toLowerCase() === opt.id.toLowerCase() ||
                 r.itemName.toLowerCase() === opt.name.toLowerCase()
             );
+            const isTopPick = topRank?.itemIndex === opt.index ||
+              topRank?.itemId.toLowerCase() === opt.id.toLowerCase() ||
+              topRank?.itemName.toLowerCase() === opt.name.toLowerCase();
 
             return (
               <div
                 key={opt.index}
                 className={cn(
-                  "rounded-lg border bg-zinc-900/50 p-4 flex flex-col gap-3 transition-colors",
+                  "rounded-lg border bg-zinc-900/60 p-3 flex flex-col gap-2 relative card-depth card-depth-hover",
                   !opt.is_enabled && "opacity-50",
-                  evalData
-                    ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
-                    : "border-zinc-800"
+                  isTopPick
+                    ? "border-emerald-500/60 ring-2 ring-emerald-500/30 shadow-[0_0_16px_rgba(52,211,153,0.2)]"
+                    : evalData
+                      ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
+                      : "border-zinc-800"
                 )}
+                title={evalData?.reasoning}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2.5">
+                {/* "Pick This" banner */}
+                {isTopPick && (
+                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
+                    <div className="px-3 py-0.5 rounded-full bg-emerald-500 text-[10px] font-bold uppercase tracking-widest text-zinc-950 shadow-[0_0_12px_rgba(52,211,153,0.5),0_2px_8px_rgba(0,0,0,0.4)] border border-emerald-400/50">
+                      Pick This
+                    </div>
+                  </div>
+                )}
+
+                <div className={cn("flex items-center justify-between", isTopPick && "mt-1.5")}>
+                  <div className="flex items-center gap-2">
                     {evalData && (
-                      <TierBadge tier={evalData.tier as TierLetter} size="lg" />
+                      <TierBadge tier={evalData.tier as TierLetter} size="md" glow={isTopPick} />
                     )}
-                    <span className="text-xl">
+                    <span className="text-sm">
                       {OPTION_ICONS[opt.id] ?? "🔥"}
                     </span>
-                    <h3 className="font-semibold text-zinc-100">{opt.name}</h3>
+                    <h3 className="font-semibold text-sm text-zinc-100">{opt.name}</h3>
                   </div>
                   {evalData && (
-                    <span className={cn("rounded px-2 py-0.5 text-xs font-medium", RECOMMENDATION_CHIP[evalData.recommendation])}>
+                    <span className={cn(
+                      "rounded px-1.5 py-0.5 text-[10px] font-medium border",
+                      isTopPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : RECOMMENDATION_CHIP[evalData.recommendation] + " border-transparent"
+                    )}>
                       {RECOMMENDATION_LABEL[evalData.recommendation]}
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm text-zinc-400 leading-relaxed whitespace-pre-line">
+                <p className="text-[10px] text-zinc-500 leading-snug line-clamp-2">
                   {opt.description}
                 </p>
 
                 {evalData && (
-                  <div className="border-t border-zinc-800 pt-3 space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-zinc-500">
-                      <ConfidenceIndicator confidence={evalData.confidence} showLabel={false} />
-                    </div>
-                    <p className="text-sm text-zinc-300 leading-relaxed">
-                      {evalData.reasoning}
-                    </p>
-                  </div>
+                  <p className="text-xs text-zinc-400 leading-snug line-clamp-2">
+                    {evalData.reasoning}
+                  </p>
                 )}
               </div>
             );
           })
         )}
       </div>
-
-      {evaluation && !isLoading && (
-        <RefineInput
-          originalContext={`Rest site. HP: ${restPlayer.hp}/${restPlayer.max_hp}. Options: ${options.map((o) => o.name).join(", ")}.`}
-          originalResponse={evaluation.rankings.map((r) => `#${r.rank} ${r.itemName}: ${r.reasoning}`).join(" ")}
-        />
-      )}
     </div>
   );
 }

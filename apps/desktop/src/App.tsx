@@ -100,6 +100,32 @@ function AuthenticatedApp() {
           runState={runState}
         />
       </main>
+      {gameState.state_type !== "menu" && (
+        <footer className="border-t border-zinc-800/60 px-4 py-1.5 flex justify-end gap-3">
+          <button
+            onClick={() => {
+              localStorage.removeItem("sts2-eval-cache");
+              localStorage.removeItem("sts2-shop-eval-cache");
+              localStorage.removeItem("sts2-map-eval-cache");
+              localStorage.removeItem("sts2-event-eval-cache");
+              localStorage.removeItem("sts2-rest-eval-cache");
+              window.location.reload();
+            }}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Re-evaluate
+          </button>
+          <button
+            onClick={() => {
+              localStorage.clear();
+              window.location.reload();
+            }}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Clear cache
+          </button>
+        </footer>
+      )}
     </div>
   );
 }
