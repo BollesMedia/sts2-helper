@@ -8,6 +8,7 @@ import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/t
 import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
+import { loadMapContext } from "../map/map-context-cache";
 import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-rest-eval-cache";
@@ -95,10 +96,15 @@ export function useRestEvaluation(
     const floor = state.run.floor;
 
     // Detect if boss is imminent — boss floors are typically 17, 34, 51
-    // Rest site on floor 16, 33, or 50 = boss is next
     const bossFloors = [17, 34, 51];
     const isBossNext = bossFloors.some((bf) => floor >= bf - 1 && floor < bf);
     const floorsToNextBoss = Math.min(...bossFloors.filter((bf) => bf > floor).map((bf) => bf - floor));
+
+    // Load cached map context for upcoming threat awareness
+    const mapCtx = loadMapContext();
+    const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
+    const hasRestAhead = mapCtx?.hasRestAhead ?? false;
+    const isEliteOrBossNext = isBossNext || hasEliteAhead;
 
     // If boss is next, passive healing is irrelevant (no combat before the boss)
     const effectivePassiveHeal = isBossNext ? 0 : passiveHealPerCombat;
@@ -123,14 +129,16 @@ export function useRestEvaluation(
           mapPrompt: `${contextStr}
 
 HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing} HP
-${isBossNext ? `⚠ BOSS IS NEXT FLOOR. No hallway fights before boss. Passive healing will NOT apply. Current HP is your boss HP.` : `Passive healing per combat: ${passiveHealPerCombat} HP | Effective missing: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%`}
+${isBossNext ? `⚠ BOSS IS NEXT FLOOR. Passive healing will NOT apply. Current HP is your boss HP.` : `Passive healing per combat: ${passiveHealPerCombat} HP | Effective missing: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%`}
+${hasEliteAhead && !isBossNext ? `⚠ ELITE FIGHT AHEAD on the current path. Factor elite damage (~20-30 HP) into heal decision.` : ""}
 ${!isBossNext && floorsToNextBoss <= 3 ? `Boss in ${floorsToNextBoss} floors.` : ""}
+${!hasRestAhead && !isBossNext ? `No rest site ahead before boss — this is the last chance to heal.` : ""}
 ${upgradeNote}
 
 REST SITE — choose ONE:
 ${optionsStr}
 
-${isBossNext ? `BOSS NEXT: Entering boss at full HP matters more than any upgrade. Heal if missing >15% HP. Only upgrade if HP is >85%.` : `UPGRADE IS DEFAULT. Only heal if effective HP <40% (or <50% with elite/boss next).`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
+${isBossNext ? `BOSS NEXT: Heal if missing >15% HP. Only upgrade if HP >85%.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. The player needs HP to survive the upcoming fight. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
 
 Respond as JSON:
 {

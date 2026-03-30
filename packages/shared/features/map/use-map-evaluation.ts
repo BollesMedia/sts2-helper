@@ -10,6 +10,7 @@ import { buildPromptContext } from "../../evaluation/context-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { NODE_TYPE_ICONS } from "./map-scoring";
+import { saveMapContext } from "./map-context-cache";
 import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-map-eval-cache";
@@ -143,6 +144,19 @@ export function useMapEvaluation(
       .join("\n\n");
 
     const currentRow = state.map.current_position?.row ?? 0;
+
+    // Cache map context for other evaluations (rest site, etc.)
+    const nextNodeTypes = options.map((o) => o.type);
+    const allFutureNodeTypes = allNodes.filter((n) => n.row > currentRow).map((n) => n.type);
+    saveMapContext({
+      floor: state.run.floor,
+      nextNodeTypes,
+      floorsToNextBoss: Math.min(...[17, 34, 51].filter((bf) => bf > state.run.floor).map((bf) => bf - state.run.floor)),
+      hasEliteAhead: allFutureNodeTypes.includes("Elite"),
+      hasRestAhead: allFutureNodeTypes.includes("RestSite"),
+      hasShopAhead: allFutureNodeTypes.includes("Shop"),
+    });
+
     const futureNodes = allNodes.filter((n) => n.row > currentRow);
     const typeCounts: Record<string, number> = {};
     for (const n of futureNodes) {
