@@ -6,7 +6,7 @@ import type { MapState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext } from "../../evaluation/types";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
-import { buildPromptContext } from "../../evaluation/context-builder";
+import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { NODE_TYPE_ICONS } from "./map-scoring";
@@ -91,7 +91,7 @@ export function useMapEvaluation(
     ctx.gold = mapPlayer.gold;
     ctx.hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
 
-    const contextStr = buildPromptContext(ctx);
+    const contextStr = buildCompactContext(ctx);
 
     // Build a node lookup for path tracing
     const allNodes = state.map.nodes;

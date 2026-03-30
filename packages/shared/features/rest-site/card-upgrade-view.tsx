@@ -5,7 +5,8 @@ import { cn } from "../../lib/cn";
 import type { CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext } from "../../evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { apiFetch } from "../../lib/api-client";
 import { RefineInput } from "../../components/refine-input";
@@ -43,7 +44,7 @@ export function CardUpgradeView({ state, deckCards, player }: CardUpgradeViewPro
     }
 
     updateFromContext(ctx);
-    const contextStr = buildPromptContext(ctx);
+    const contextStr = buildCompactContext(ctx);
     const narrative = getPromptContext();
     const cardList = cards.map((c) => `- ${c.name}: ${c.description}`).join("\n");
 

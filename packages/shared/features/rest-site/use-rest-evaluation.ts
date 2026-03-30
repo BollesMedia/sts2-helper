@@ -5,7 +5,8 @@ import { useCallback, useRef, useState } from "react";
 import type { RestSiteState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { loadMapContext } from "../map/map-context-cache";
@@ -76,7 +77,7 @@ export function useRestEvaluation(
     ctx.hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
     ctx.gold = restPlayer.gold;
 
-    const contextStr = buildPromptContext(ctx);
+    const contextStr = buildCompactContext(ctx);
     const optionsStr = options
       .map((o, i) => `${i + 1}. ${o.name} (${o.id}): ${o.description}`)
       .join("\n");
