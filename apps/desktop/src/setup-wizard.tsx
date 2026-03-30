@@ -60,6 +60,9 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
+  const allInstalled = status?.required_mods.every((m) => m.installed && !m.needs_update) ?? false;
+  const needsUpdate = status?.required_mods.some((m) => m.installed && m.needs_update) ?? false;
+
   if (!initialized) {
     setInitialized(true);
     invoke<ModStatus>("get_mod_status")
@@ -260,28 +263,33 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onComplete}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            Skip setup
-          </button>
-
+        <div className="flex items-center justify-end">
           {status?.game_found && !status.game_running && (
             <button
-              onClick={handleInstall}
-              disabled={installing || status.required_mods.every((m) => m.installed && !m.needs_update)}
+              onClick={
+                allInstalled
+                  ? onComplete
+                  : handleInstall
+              }
+              disabled={installing}
               className="rounded-lg bg-zinc-100 px-6 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors disabled:opacity-50"
             >
               {installing
                 ? "Installing..."
-                : status.required_mods.every((m) => m.installed && !m.needs_update)
-                  ? "All installed ✓"
-                  : "Install Required Mods"}
+                : allInstalled
+                  ? "Continue to App →"
+                  : needsUpdate
+                    ? "Update & Continue"
+                    : "Install & Continue"}
             </button>
           )}
         </div>
+
+        {!status?.game_found && (
+          <p className="text-xs text-zinc-600 text-center">
+            STS2 Replay requires Slay the Spire 2 installed via Steam.
+          </p>
+        )}
       </div>
     </div>
   );
