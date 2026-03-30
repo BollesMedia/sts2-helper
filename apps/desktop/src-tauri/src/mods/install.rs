@@ -7,21 +7,9 @@ use super::{InstallOutcome, ModError};
 const STS2MCP_REPO: &str = "Gennadiyev/STS2MCP";
 const STS2MCP_ASSETS: &[&str] = &["STS2_MCP.dll", "STS2_MCP.json"];
 
-/// Verify a downloaded file against an expected SHA-256 hash.
-async fn verify_sha256(path: &Path, expected: &str) -> Result<(), ModError> {
-    use sha2::{Digest, Sha256};
-    let bytes = tokio::fs::read(path).await?;
-    let hash = hex::encode(Sha256::digest(&bytes));
-    if hash != expected {
-        return Err(ModError::Download(format!(
-            "Integrity check failed for {}: expected {}, got {}",
-            path.file_name().unwrap_or_default().to_string_lossy(),
-            &expected[..12],
-            &hash[..12],
-        )));
-    }
-    Ok(())
-}
+/// Max download size (20 MB) — mod files are typically a few MB.
+/// Rejects unexpectedly large responses to prevent memory exhaustion.
+const MAX_DOWNLOAD_BYTES: u64 = 20 * 1024 * 1024;
 
 const UNIFIED_SAVE_PATH_ZIP_URL: &str =
     "https://raw.githubusercontent.com/luojiesi/SLS2Mods/master/nexus_packages/UnifiedSavePath.zip";
@@ -86,6 +74,15 @@ pub async fn install_sts2mcp(
                 asset_name,
                 response.status()
             )));
+        }
+
+        if let Some(len) = response.content_length() {
+            if len > MAX_DOWNLOAD_BYTES {
+                return Err(ModError::Download(format!(
+                    "{}: response too large ({} bytes)",
+                    asset_name, len
+                )));
+            }
         }
 
         let bytes = response
@@ -172,6 +169,15 @@ pub async fn install_unified_save_path(
             "UnifiedSavePath: HTTP {}",
             response.status()
         )));
+    }
+
+    if let Some(len) = response.content_length() {
+        if len > MAX_DOWNLOAD_BYTES {
+            return Err(ModError::Download(format!(
+                "UnifiedSavePath: response too large ({} bytes)",
+                len
+            )));
+        }
     }
 
     let bytes = response

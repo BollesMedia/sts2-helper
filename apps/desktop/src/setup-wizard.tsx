@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -45,6 +45,10 @@ function formatOutcome(outcome: InstallOutcome): string {
   return `Failed: ${outcome.Failed}`;
 }
 
+function hasFailure(result: InstallResult): boolean {
+  return typeof result.sts2mcp === "object" || typeof result.unified_save_path === "object";
+}
+
 interface ProgressEvent {
   modName: string;
   stage: string;
@@ -58,13 +62,13 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [installResult, setInstallResult] = useState<InstallResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const initialized = useRef(false);
 
   const allInstalled = status?.required_mods.every((m) => m.installed && !m.needs_update) ?? false;
   const needsUpdate = status?.required_mods.some((m) => m.installed && m.needs_update) ?? false;
 
-  if (!initialized) {
-    setInitialized(true);
+  if (!initialized.current) {
+    initialized.current = true;
     invoke<ModStatus>("get_mod_status")
       .then((s) => {
         setStatus(s);
@@ -242,8 +246,22 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
 
         {/* Install result */}
         {installResult && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-1">
-            <p className="text-sm text-emerald-400">Installation complete</p>
+          <div
+            className={`rounded-lg border p-4 space-y-1 ${
+              hasFailure(installResult)
+                ? "border-red-500/30 bg-red-500/5"
+                : "border-emerald-500/30 bg-emerald-500/5"
+            }`}
+          >
+            <p
+              className={`text-sm ${
+                hasFailure(installResult) ? "text-red-400" : "text-emerald-400"
+              }`}
+            >
+              {hasFailure(installResult)
+                ? "Installation completed with errors"
+                : "Installation complete"}
+            </p>
             <p className="text-xs text-zinc-500">
               STS2 MCP: {formatOutcome(installResult.sts2mcp)} · Save Path: {formatOutcome(installResult.unified_save_path)}
             </p>

@@ -99,9 +99,8 @@ pub fn check_required_mods(mods_dir: &Path) -> Vec<RequiredModStatus> {
     let unified = installed
         .iter()
         .find(|m| {
-            m.id == "UnifiedSavePath"
-                || m.id == "unified_save_path"
-                || m.id == "UnifiedSavePath"
+            m.id.eq_ignore_ascii_case("unifiedsavepath")
+                || m.id.eq_ignore_ascii_case("unified_save_path")
         });
 
     // Also check if saves are already synced (manually or via the mod)
@@ -159,8 +158,12 @@ fn check_saves_synced() -> bool {
                             std::fs::metadata(&modded_progress),
                             std::fs::metadata(&unmodded_progress),
                         ) {
-                            // If modded save is substantial (>10KB), consider it synced
-                            if modded_meta.len() > 10000 && unmodded_meta.len() > 10000 {
+                            // Substantial save = >10KB (typical progress file with
+                            // unlocks/run history); below that is likely a fresh/empty save
+                            const MIN_SAVE_SIZE: u64 = 10_000;
+                            if modded_meta.len() > MIN_SAVE_SIZE
+                                && unmodded_meta.len() > MIN_SAVE_SIZE
+                            {
                                 return true;
                             }
                         }
