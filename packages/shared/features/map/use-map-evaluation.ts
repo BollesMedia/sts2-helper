@@ -1,5 +1,5 @@
 "use client";
-import { apiUrl } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
 import type { MapState, CombatCard } from "../../types/game-state";
@@ -149,9 +149,8 @@ export function useMapEvaluation(
       .join(", ");
 
     try {
-      const res = await fetch(apiUrl("/api/evaluate"), {
+      const res = await apiFetch("/api/evaluate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "map",
           context: ctx,

@@ -1,5 +1,5 @@
 "use client";
-import { apiUrl } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
 import type { GameState } from "../../types/game-state";
@@ -69,9 +69,8 @@ function inferOutcome(
  * Call this to confirm or override the run outcome.
  */
 export function confirmRunOutcome(runId: string, victory: boolean) {
-  fetch(apiUrl("/api/run"), {
+  apiFetch("/api/run", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "end", runId, victory }),
   }).catch(console.error);
 }
@@ -219,9 +218,8 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
     const character = getCharacter(gameState);
     const ascension = hasRun(gameState) ? gameState.run.ascension : 0;
 
-    fetch(apiUrl("/api/run"), {
+    apiFetch("/api/run", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "start",
         runId: newRunId,
@@ -270,9 +268,8 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
 
       const bossNames = [...bossesFought.current];
 
-      fetch(apiUrl("/api/run"), {
+      apiFetch("/api/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "end",
           runId: endedRunId,

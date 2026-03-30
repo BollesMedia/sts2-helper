@@ -1,5 +1,5 @@
 "use client";
-import { apiUrl } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
 
 import { useRef, useState } from "react";
 import useSWR from "swr";
@@ -94,9 +94,8 @@ export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProp
 
     const deckSummary = deckCards.map((c) => c.name).join(", ");
 
-    fetch(apiUrl("/api/evaluate"), {
+    apiFetch("/api/evaluate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "map",
         context: null,

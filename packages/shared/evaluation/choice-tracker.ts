@@ -1,5 +1,5 @@
 "use client";
-import { apiUrl } from "../lib/api-client";
+import { apiFetch } from "../lib/api-client";
 
 import { useRef } from "react";
 import type { GameState, CombatCard } from "../types/game-state";
@@ -135,9 +135,8 @@ function logChoice(choice: {
 }) {
   console.log("[ChoiceTracker]", choice.choiceType, choice.chosenItemId ?? "skip");
 
-  fetch(apiUrl("/api/choice"), {
+  apiFetch("/api/choice", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...choice, userId: getUserId() }),
   }).catch(console.error);
 }

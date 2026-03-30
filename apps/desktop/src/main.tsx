@@ -3,8 +3,8 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
 import { AuthProvider } from "./auth-provider";
-import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
-import { initSupabase } from "@sts2/shared/supabase/client";
+import { setApiBaseUrl, setAccessTokenGetter } from "@sts2/shared/lib/api-client";
+import { initSupabase, createClient } from "@sts2/shared/supabase/client";
 import { setAuthRedirectOrigin } from "@sts2/shared/supabase/auth";
 
 // Configure shared package for desktop environment
@@ -18,6 +18,12 @@ setAuthRedirectOrigin(API_BASE);
 
 if (SUPABASE_URL && SUPABASE_ANON_KEY) {
   initSupabase(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Desktop app sends Bearer token for API auth (no cookies cross-origin)
+  setAccessTokenGetter(async () => {
+    const { data } = await createClient().auth.getSession();
+    return data.session?.access_token ?? null;
+  });
 } else {
   console.warn("[STS2] Supabase credentials not configured. Auth features will not work.");
 }
