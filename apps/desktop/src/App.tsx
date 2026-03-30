@@ -5,24 +5,49 @@ import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker"
 import { useChoiceTracker } from "@sts2/shared/evaluation/choice-tracker";
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
+import { useAuth } from "./auth-provider";
+import { LoginScreen } from "./login-screen";
 
 export function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center min-h-screen">
+        <p className="text-sm text-zinc-500">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  const { user, signOut } = useAuth();
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
-  // TODO: Pass userId when desktop auth is implemented
-  const runState = useRunTracker(gameState);
+  const runState = useRunTracker(gameState, user?.id ?? null);
   // Side-effect only: logs choices to Supabase
   useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {
-    // TODO: Wire up auth props (userEmail, onSignOut) when desktop auth is added
-    return <ConnectionBanner status={connectionStatus} />;
+    return (
+      <ConnectionBanner
+        status={connectionStatus}
+        userEmail={user?.email}
+        onSignOut={signOut}
+      />
+    );
   }
 
   return (
     <div className="flex flex-1 flex-col">
-      <AppHeader gameState={gameState} player={player} />
+      <AppHeader gameState={gameState} player={player} onSignOut={signOut} />
       <main className="flex-1 p-6">
         <GameStateView
           state={gameState}
