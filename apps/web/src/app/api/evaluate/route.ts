@@ -76,6 +76,12 @@ PHASE DISCIPLINE:
 
 STARTER CARDS: Strikes and Defends are removal targets, not engine cards. But a deck still full of them needs raw damage/block upgrades more than engine pieces.
 
+TRAP CARDS — NEVER RECOMMEND THESE:
+- Cards that scale with Strikes/Defends (e.g., Perfected Strike, Twin Strike scaling). These get WORSE as the deck improves because Strikes are being removed. They are anti-synergy with every good deck.
+- Cards that add Strikes/Defends or other weak cards to the deck (deck pollution).
+- Cards whose only value is in a deck full of starter cards. A good deck removes starters, so these cards become dead draws.
+If a card's power comes from counting or synergizing with starter cards, it is ALWAYS a skip regardless of current deck composition.
+
 UPGRADES: Cards upgrade once only (Bash → Bash+). Never suggest upgrading a card already marked with +.
 
 RUN NARRATIVE: When provided, maintain strategic consistency. If the player frequently diverges, adapt to their signals. If a card justifies a pivot, say so explicitly.
