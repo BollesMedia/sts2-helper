@@ -7,6 +7,7 @@ import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { RunState } from "../connection/use-run-tracker";
 import { CardPickView } from "../card-pick/card-pick-view";
 import { CardRemovalView } from "../shop/card-removal-view";
+import { CardUpgradeView } from "../rest-site/card-upgrade-view";
 import { ShopView } from "../shop/shop-view";
 import { MapView } from "../map/map-view";
 import { RelicSelectView } from "../relic-select/relic-select-view";
@@ -55,9 +56,14 @@ export function GameStateView({
       const screenType = state.card_select.screen_type;
       const promptLower = state.card_select.prompt.toLowerCase();
       const isRemoval = promptLower.includes("remove") || promptLower.includes("purge");
+      const isUpgrade = promptLower.includes("upgrade") || promptLower.includes("smith") || promptLower.includes("enhance");
 
       if (isRemoval) {
         return <CardRemovalView state={state} deckCards={deckCards} player={player} />;
+      }
+
+      if (isUpgrade) {
+        return <CardUpgradeView state={state} deckCards={deckCards} player={player} />;
       }
 
       // Treat all other card_select screens as card reward evaluations
