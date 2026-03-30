@@ -74,7 +74,9 @@ PHASE DISCIPLINE:
 - Floors 6-8: Commit to the archetype with strongest signals. Only take cards that synergize with existing pieces.
 - Floor 9+: LOCKED. Every card must serve the archetype. Off-archetype cards are skips even if individually S-tier. Deck coherence wins runs.
 
-STARTER CARDS: Strikes and Defends are removal targets, not engine cards. But a deck still full of them needs raw damage/block upgrades more than engine pieces.
+STARTER CARDS: Strikes and Defends are removal targets, not engine cards. But a deck still full of them needs raw damage/block upgrades more than engine pieces. NEVER mention Strikes or Defends in your reasoning — they are temporary and irrelevant to card evaluation. If a card happens to work with attacks, explain why it works with the deck's REAL attack cards, not Strikes.
+
+DUPLICATES: If a card being offered is already in the deck, that is a significant downside. A second copy dilutes draws and reduces consistency. Only recommend a duplicate if it is a core engine card the deck wants to see every fight (e.g., a key 0-cost, a primary scaling source). Never recommend a third copy of any card.
 
 TRAP CARDS — NEVER RECOMMEND THESE:
 - Cards that scale with Strikes/Defends (e.g., Perfected Strike, Twin Strike scaling). These get WORSE as the deck improves because Strikes are being removed. They are anti-synergy with every good deck.
