@@ -3,8 +3,22 @@
 import { createClient } from "./client";
 
 /**
- * Get the current user ID from the active session.
+ * Configurable auth redirect origin.
+ * Web app uses window.location.origin (default).
+ * Tauri app sets this to "https://sts2replay.com" so OAuth
+ * redirects through the web app.
  */
+let authRedirectOrigin = "";
+
+export function setAuthRedirectOrigin(origin: string) {
+  authRedirectOrigin = origin;
+}
+
+function getRedirectUrl(path: string): string {
+  const origin = authRedirectOrigin || window.location.origin;
+  return `${origin}${path}`;
+}
+
 export async function getCurrentUserId(): Promise<string | null> {
   const supabase = createClient();
   const {
@@ -13,9 +27,6 @@ export async function getCurrentUserId(): Promise<string | null> {
   return session?.user?.id ?? null;
 }
 
-/**
- * Sign in with magic link (passwordless email).
- */
 export async function signInWithMagicLink(
   email: string
 ): Promise<{ error: string | null }> {
@@ -23,15 +34,12 @@ export async function signInWithMagicLink(
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: getRedirectUrl("/auth/callback"),
     },
   });
   return { error: error?.message ?? null };
 }
 
-/**
- * Sign in with email and password.
- */
 export async function signInWithPassword(
   email: string,
   password: string
@@ -44,9 +52,6 @@ export async function signInWithPassword(
   return { error: error?.message ?? null };
 }
 
-/**
- * Sign up with email and password.
- */
 export async function signUpWithPassword(
   email: string,
   password: string
@@ -56,29 +61,23 @@ export async function signUpWithPassword(
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: getRedirectUrl("/auth/callback"),
     },
   });
   return { error: error?.message ?? null };
 }
 
-/**
- * Sign in with Discord OAuth.
- */
 export async function signInWithDiscord(): Promise<{ error: string | null }> {
   const supabase = createClient();
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "discord",
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo: getRedirectUrl("/auth/callback"),
     },
   });
   return { error: error?.message ?? null };
 }
 
-/**
- * Sign out the current user.
- */
 export async function signOut(): Promise<void> {
   const supabase = createClient();
   await supabase.auth.signOut();

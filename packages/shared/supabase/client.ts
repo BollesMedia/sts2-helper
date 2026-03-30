@@ -15,7 +15,8 @@ export function initSupabase(url: string, anonKey: string) {
 
 export function createClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
-    // Fallback to NEXT_PUBLIC_ for backwards compatibility during migration
+    // TODO: Remove this fallback when desktop app is added — both apps
+    // should call initSupabase() explicitly on startup
     const url = supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
     const key = supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
     if (!url || !key) {
