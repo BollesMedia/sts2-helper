@@ -60,24 +60,19 @@ export function GameStateView({
         return <CardRemovalView state={state} deckCards={deckCards} player={player} />;
       }
 
-      if (screenType === "simple_select" || screenType === "choose") {
-        const isMultiSelect = screenType === "simple_select";
-        const asCardReward = {
-          state_type: "card_reward" as const,
-          card_reward: {
-            cards: state.card_select.cards,
-            can_skip: !!state.card_select.can_cancel,
-          },
-          run: state.run,
-        };
-        return (
-          <div className="flex flex-col gap-6">
-            <p className="text-sm text-zinc-400">{state.card_select.prompt}</p>
-            <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
-          </div>
-        );
-      }
-      return <PlaceholderView title="Card Select" state={state} />;
+      // Treat all other card_select screens as card reward evaluations
+      const isMultiSelect = screenType === "simple_select";
+      const asCardReward = {
+        state_type: "card_reward" as const,
+        card_reward: {
+          cards: state.card_select.cards,
+          can_skip: !!state.card_select.can_cancel,
+        },
+        run: state.run,
+      };
+      return (
+        <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
+      );
     }
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
