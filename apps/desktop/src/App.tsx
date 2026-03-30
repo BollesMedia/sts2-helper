@@ -10,11 +10,13 @@ export function App() {
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
+  // TODO: Pass userId when desktop auth is implemented
   const runState = useRunTracker(gameState);
   // Side-effect only: logs choices to Supabase
   useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {
+    // TODO: Wire up auth props (userEmail, onSignOut) when desktop auth is added
     return <ConnectionBanner status={connectionStatus} />;
   }
 
@@ -30,21 +32,23 @@ export function App() {
           runState={runState}
         />
       </main>
-      <footer className="border-t border-zinc-800 px-6 py-2 flex justify-end">
-        <button
-          onClick={() => {
-            localStorage.removeItem("sts2-eval-cache");
-            localStorage.removeItem("sts2-shop-eval-cache");
-            localStorage.removeItem("sts2-map-eval-cache");
-            localStorage.removeItem("sts2-event-eval-cache");
-            localStorage.removeItem("sts2-rest-eval-cache");
-            window.location.reload();
-          }}
-          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          Re-evaluate
-        </button>
-      </footer>
+      {gameState.state_type !== "menu" && (
+        <footer className="border-t border-zinc-800 px-6 py-2 flex justify-end">
+          <button
+            onClick={() => {
+              localStorage.removeItem("sts2-eval-cache");
+              localStorage.removeItem("sts2-shop-eval-cache");
+              localStorage.removeItem("sts2-map-eval-cache");
+              localStorage.removeItem("sts2-event-eval-cache");
+              localStorage.removeItem("sts2-rest-eval-cache");
+              window.location.reload();
+            }}
+            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Re-evaluate
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

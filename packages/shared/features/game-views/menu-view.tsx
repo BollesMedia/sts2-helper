@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { apiUrl } from "../../lib/api-client";
 import type { RunState } from "../connection/use-run-tracker";
 
-export function MenuView({ runState }: { runState: RunState }) {
+interface MenuViewProps {
+  runState: RunState;
+  footer?: ReactNode;
+}
+
+export function MenuView({ runState, footer }: MenuViewProps) {
   const [notes, setNotes] = useState("");
 
   const handleOutcome = (victory: boolean) => {
@@ -34,7 +39,7 @@ export function MenuView({ runState }: { runState: RunState }) {
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="What went wrong? What would you do differently?"
+              placeholder="What went wrong? What would you do differently? Any card picks you regret?"
               className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
               rows={3}
             />
@@ -63,6 +68,7 @@ export function MenuView({ runState }: { runState: RunState }) {
             </p>
           </>
         )}
+        {footer}
       </div>
     </div>
   );

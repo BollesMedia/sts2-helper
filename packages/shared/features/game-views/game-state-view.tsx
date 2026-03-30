@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { GameState, CombatCard } from "../../types/game-state";
 import { isCombatState, hasRun } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
@@ -20,6 +21,7 @@ interface GameStateViewProps {
   player: TrackedPlayer | null;
   runId: string | null;
   runState: RunState;
+  menuFooter?: ReactNode;
 }
 
 export function GameStateView({
@@ -28,6 +30,7 @@ export function GameStateView({
   player,
   runId,
   runState,
+  menuFooter,
 }: GameStateViewProps) {
   if (isCombatState(state)) {
     return <CombatView state={state} deckCards={deckCards} />;
@@ -68,7 +71,7 @@ export function GameStateView({
     case "combat_rewards":
       return <CombatRewardsView state={state} />;
     case "menu":
-      return <MenuView runState={runState} />;
+      return <MenuView runState={runState} footer={menuFooter} />;
     default:
       return <PlaceholderView title={STATE_LABELS[state.state_type] ?? state.state_type} state={state} />;
   }
