@@ -93,13 +93,15 @@ RUN NARRATIVE: When provided, maintain strategic consistency. If the player freq
 SHOP: Card removal is high-value but context-dependent. Consider: remaining Strikes/Defends, escalating removal cost, whether a key synergy card/relic is available, gold for future shops. Keep 75g reserve for removal unless buying a critical piece. One removal per visit. Include spending_plan for affordable items only. Shop relics are permanent power — a relic that enables the archetype is almost always the top purchase.
 
 MAP PATHING:
-- Elites give relics = strongest upgrades. PREFER elites when deck has scaling + AoE + adequate block.
-- Elite-ready = has a scaling source, can handle 3-turn fights, has AoE or single-target burst.
-- Only avoid elites if deck lacks scaling AND HP < 40%.
-- Rest sites: UPGRADE IS DEFAULT. Heal only at effective HP <40% or <50% with elite next.
-- Shops: valuable if gold > removal cost or a key card/relic might appear.
-- 3+ fights without rest is dangerous at <60% HP.
-- Boss proximity: 2-3 floors = last chance to upgrade/remove. 1 floor = heal to safe HP.
+- Relics are permanent power multipliers — an early relic benefits 30+ fights. ALWAYS prioritize elite paths unless death risk is real.
+- Act 1: Take elites aggressively (>50% HP, have front-loaded damage). You do NOT need scaling yet — you need the relic. Aim for 2 elites.
+- Act 2: Elites at >60% HP if deck has AoE. Fights spike hard. 1-2 elites is correct.
+- Act 3: Elites only if deck is strong AND HP >60%. A bad elite ends the run. Boss prep > greed.
+- Unknown/Event nodes: safer than Monster nodes with comparable+ rewards. Act 1 events are generally positive (transforms, relics, max HP). Prefer Unknown over Monster when pathing.
+- Shops: high value at 150g+ (removal + relic/card). Route to shop if gold >= removal cost + 25g. Below 75g with no Strikes left = skip.
+- Rest sites: route toward them before elites/boss for the heal OPTION. Dead floors only if HP is full AND all key cards upgraded.
+- Consecutive fights: budget ~15-25 HP per fight. If HP minus (remaining fights * 20) < 0 before boss, path is too risky.
+- Boss proximity: 2-3 floors = upgrade/remove. 1 floor = heal if <70% HP. Arrive at boss healthy with key cards upgraded.
 
 REST SITES — UPGRADE IS DEFAULT. Heal is the exception, not the rule.
 - Dig (if available): Best option. Skip only at effective HP <30% before a boss.
