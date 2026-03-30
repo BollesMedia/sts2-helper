@@ -21,29 +21,48 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
   return (
     <div
       className={cn(
-        "rounded-lg border bg-zinc-900/50 p-4 transition-colors flex flex-col gap-3 relative",
-        isTopPick ? "border-emerald-500/60 ring-1 ring-emerald-500/20" : border
+        "rounded-lg border bg-zinc-900/60 p-4 flex flex-col gap-3 relative card-depth card-depth-hover",
+        isTopPick 
+          ? "border-amber-500/70 ring-2 ring-amber-500/30 shadow-[0_0_20px_rgba(251,191,36,0.25),0_0_40px_rgba(251,191,36,0.1)]" 
+          : border
       )}
     >
-      {/* Recommended banner */}
+      {/* Dramatic "Pick This" banner - unmissable golden glow */}
       {isTopPick && (
-        <div className="absolute -top-2.5 left-3 rounded bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-950">
-          Pick this
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+          <div 
+            className={cn(
+              "relative px-4 py-1 rounded-full",
+              "bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600",
+              "text-[11px] font-bold uppercase tracking-widest text-zinc-950",
+              "shadow-[0_0_16px_rgba(251,191,36,0.6),0_0_32px_rgba(251,191,36,0.3),0_2px_8px_rgba(0,0,0,0.4)]",
+              "animate-pulse-glow",
+              "border border-amber-400/50"
+            )}
+          >
+            <span className="relative z-10">Pick This</span>
+          </div>
         </div>
       )}
 
       {/* Top: tier + rank */}
-      <div className="flex items-start justify-between">
+      <div className={cn("flex items-start justify-between", isTopPick && "mt-2")}>
         <div className="flex items-center gap-2.5">
-          {evaluation && <TierBadge tier={evaluation.tier} size="lg" />}
+          {evaluation && <TierBadge tier={evaluation.tier} size="lg" glow={isTopPick} />}
           {rank != null && (
-            <span className="text-2xl font-bold tabular-nums text-zinc-600">
+            <span className={cn(
+              "text-2xl font-bold tabular-nums",
+              isTopPick ? "text-amber-500/80" : "text-zinc-600"
+            )}>
               #{rank}
             </span>
           )}
         </div>
         {evaluation && (
-          <span className={cn("rounded px-2 py-0.5 text-xs font-medium", chip)}>
+          <span className={cn(
+            "rounded px-2 py-0.5 text-xs font-medium border",
+            isTopPick ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : chip + " border-transparent"
+          )}>
             {label}
           </span>
         )}

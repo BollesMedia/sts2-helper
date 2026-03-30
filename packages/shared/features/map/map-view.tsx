@@ -42,10 +42,10 @@ const NODE_FILL: Record<string, string> = {
 };
 
 const RECOMMENDATION_BORDER: Record<string, string> = {
-  strong_pick: "border-emerald-500/50",
-  good_pick: "border-blue-500/50",
-  situational: "border-amber-500/50",
-  skip: "border-zinc-700",
+  strong_pick: "border-amber-500/60",
+  good_pick: "border-emerald-500/50",
+  situational: "border-blue-500/40",
+  skip: "border-zinc-700/40",
 };
 
 export function MapView({ state, player, deckCards }: MapViewProps) {
@@ -127,24 +127,39 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                   bestOptionKey === `${childCol},${childRow}`;
 
                 return (
-                  <line
-                    key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke={
-                      isBestEdge
-                        ? "#34d399"
-                        : isVisitedEdge
-                          ? "#71717a"
-                          : isNextEdge
-                            ? "#a1a1aa"
-                            : "#27272a"
-                    }
-                    strokeWidth={isBestEdge ? 2.5 : isNextEdge ? 2 : 1}
-                    strokeDasharray={isNextEdge && !isBestEdge ? "4 4" : undefined}
-                  />
+                  <g key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}>
+                    {/* Golden glow for best path */}
+                    {isBestEdge && (
+                      <line
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        stroke="#fbbf24"
+                        strokeWidth={6}
+                        opacity={0.3}
+                        strokeLinecap="round"
+                      />
+                    )}
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={
+                        isBestEdge
+                          ? "#fbbf24"
+                          : isVisitedEdge
+                            ? "#71717a"
+                            : isNextEdge
+                              ? "#a1a1aa"
+                              : "#27272a"
+                      }
+                      strokeWidth={isBestEdge ? 2.5 : isNextEdge ? 2 : 1}
+                      strokeDasharray={isNextEdge && !isBestEdge ? "4 4" : undefined}
+                      strokeLinecap="round"
+                    />
+                  </g>
                 );
               })
             )}
@@ -167,16 +182,26 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
               return (
                 <g key={key}>
+                  {/* Golden glow halo for best option */}
                   {isBest && (
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={NODE_RADIUS + 4}
-                      fill="none"
-                      stroke="#34d399"
-                      strokeWidth={2}
-                      opacity={0.5}
-                    />
+                    <>
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={NODE_RADIUS + 8}
+                        fill="#fbbf24"
+                        opacity={0.15}
+                      />
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={NODE_RADIUS + 5}
+                        fill="none"
+                        stroke="#fbbf24"
+                        strokeWidth={2}
+                        opacity={0.6}
+                      />
+                    </>
                   )}
                   {isCurrent && (
                     <circle
@@ -249,33 +274,46 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
             <div
               key={opt.index}
               className={cn(
-                "rounded-lg border bg-zinc-900/50 p-2.5",
+                "rounded-lg border bg-zinc-900/60 p-2.5 transition-all duration-200 relative",
                 evalData
-                  ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
+                  ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-700/40"
                   : isBest
-                    ? "border-emerald-500/50"
-                    : "border-zinc-800"
+                    ? "border-amber-500/50"
+                    : "border-zinc-700/40",
+                isBest && "shadow-[0_0_16px_rgba(251,191,36,0.2)] border-amber-500/60"
               )}
             >
+              {/* "Best" banner for top recommendation */}
+              {isBest && (
+                <div className="absolute -top-2 -right-2 z-10">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                    "bg-gradient-to-r from-amber-600 to-amber-500 text-zinc-950",
+                    "shadow-[0_0_8px_rgba(251,191,36,0.5)]",
+                    "border border-amber-400/50"
+                  )}>
+                    Best
+                  </span>
+                </div>
+              )}
+              
               <div className="flex items-center gap-1.5">
                 {evalData && (
-                  <TierBadge tier={evalData.tier as TierLetter} size="sm" />
+                  <TierBadge tier={evalData.tier as TierLetter} size="sm" glow={isBest} />
                 )}
                 <span className="text-sm">
                   {NODE_TYPE_ICONS[opt.type] ?? "•"}
                 </span>
-                <span className="font-medium text-zinc-100 text-xs">
+                <span className={cn(
+                  "font-medium text-xs",
+                  isBest ? "text-zinc-50" : "text-zinc-100"
+                )}>
                   {opt.type}
                 </span>
-                {isBest && (
-                  <span className="ml-auto rounded bg-emerald-400/10 px-1 py-0.5 text-[10px] font-medium text-emerald-400">
-                    Best
-                  </span>
-                )}
               </div>
 
               {opt.leads_to && opt.leads_to.length > 0 && (
-                <p className="mt-1 text-[10px] text-zinc-600 truncate">
+                <p className="mt-1 text-[10px] text-zinc-500 truncate">
                   → {opt.leads_to.map((l) => `${NODE_TYPE_ICONS[l.type] ?? ""} ${l.type}`).join(", ")}
                 </p>
               )}

@@ -5,9 +5,20 @@ interface TierBadgeProps {
   tier?: TierLetter;
   tierValue?: number;
   size?: "sm" | "md" | "lg";
+  glow?: boolean;
 }
 
-export function TierBadge({ tier, tierValue, size = "md" }: TierBadgeProps) {
+// Tier-specific glow effects for dungeon crawler aesthetic
+const tierGlow: Record<TierLetter, string> = {
+  S: "shadow-[0_0_8px_rgba(251,191,36,0.5),0_0_16px_rgba(251,191,36,0.25)]",
+  A: "shadow-[0_0_6px_rgba(34,197,94,0.4),0_0_12px_rgba(34,197,94,0.2)]",
+  B: "shadow-[0_0_4px_rgba(59,130,246,0.3)]",
+  C: "",
+  D: "",
+  F: "",
+};
+
+export function TierBadge({ tier, tierValue, size = "md", glow = false }: TierBadgeProps) {
   const letter = tier ?? (tierValue != null ? valueToTier(tierValue) : "C");
 
   const sizeClasses = {
@@ -19,10 +30,11 @@ export function TierBadge({ tier, tierValue, size = "md" }: TierBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded border font-bold",
+        "inline-flex items-center justify-center rounded border font-bold transition-shadow duration-200",
         sizeClasses[size],
         tierColor(letter),
-        tierBgColor(letter)
+        tierBgColor(letter),
+        glow && tierGlow[letter]
       )}
     >
       {letter}

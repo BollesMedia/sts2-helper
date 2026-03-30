@@ -42,8 +42,10 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
       {/* Pick summary */}
       {evaluation?.pickSummary && (
         <p className={cn(
-          "text-sm font-medium",
-          evaluation.skipRecommended ? "text-amber-300" : "text-emerald-300"
+          "text-sm font-medium px-3 py-2 rounded-lg border",
+          evaluation.skipRecommended 
+            ? "text-zinc-400 bg-zinc-800/50 border-zinc-700/50" 
+            : "text-amber-300 bg-amber-500/10 border-amber-500/30"
         )}>
           {evaluation.pickSummary}
         </p>

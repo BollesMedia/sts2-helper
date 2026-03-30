@@ -185,10 +185,12 @@ function ShopSection({
 }) {
   return (
     <div>
-      <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+        <span className="h-px flex-1 bg-gradient-to-r from-zinc-700/50 to-transparent" />
         {title}
+        <span className="h-px flex-1 bg-gradient-to-l from-zinc-700/50 to-transparent" />
       </h3>
-      <div className="space-y-1">{children}</div>
+      <div className="space-y-1.5">{children}</div>
     </div>
   );
 }
@@ -219,28 +221,34 @@ function ShopRow({
   onToggle,
 }: ShopRowProps) {
   const rec = evaluation?.recommendation;
+  const isStrongPick = rec === "strong_pick";
   const border = rec
     ? RECOMMENDATION_BORDER[rec] ?? "border-zinc-800"
-    : "border-zinc-800";
+    : "border-zinc-700/40";
 
   return (
     <div
       className={cn(
-        "rounded border bg-zinc-900/50 transition-colors cursor-pointer",
+        "rounded-lg border bg-zinc-900/60 cursor-pointer transition-all duration-200",
         border,
-        !affordable && "opacity-50"
+        !affordable && "opacity-40",
+        isStrongPick && affordable && "border-amber-500/50 shadow-[0_0_12px_rgba(251,191,36,0.15)]",
+        "hover:bg-zinc-800/60"
       )}
       onClick={onToggle}
     >
       {/* Compact row */}
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
-        {evaluation && <TierBadge tier={evaluation.tier} size="sm" />}
-        <span className="text-sm text-zinc-100 truncate flex-1">{name}</span>
+      <div className="flex items-center gap-2 px-2.5 py-2">
+        {evaluation && <TierBadge tier={evaluation.tier} size="sm" glow={isStrongPick && affordable} />}
+        <span className={cn(
+          "text-sm truncate flex-1",
+          isStrongPick && affordable ? "text-zinc-50 font-medium" : "text-zinc-200"
+        )}>{name}</span>
         {rec && (
           <span
             className={cn(
-              "rounded px-1 py-0.5 text-[10px] font-medium shrink-0",
-              RECOMMENDATION_CHIP[rec]
+              "rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0 border",
+              isStrongPick ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
             )}
           >
             {RECOMMENDATION_LABEL[rec]}
@@ -261,17 +269,22 @@ function ShopRow({
       </div>
 
       {/* Expanded detail */}
-      {expanded && (
-        <div className="px-2.5 pb-2 space-y-1 border-t border-zinc-800/50">
-          <p className="text-xs text-zinc-500 pt-1.5">{description}</p>
+      <div 
+        className={cn(
+          "overflow-hidden transition-all duration-200",
+          expanded ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
+        )}
+      >
+        <div className="px-2.5 pb-2.5 space-y-1.5 border-t border-zinc-800/50">
+          <p className="text-xs text-zinc-400 pt-2 leading-relaxed">{description}</p>
           {rarity && (
-            <span className="text-[10px] text-zinc-600">{rarity}</span>
+            <span className="text-[10px] text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded">{rarity}</span>
           )}
           {evaluation && (
-            <p className="text-xs text-zinc-300">{evaluation.reasoning}</p>
+            <p className="text-xs text-zinc-300 leading-relaxed">{evaluation.reasoning}</p>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
