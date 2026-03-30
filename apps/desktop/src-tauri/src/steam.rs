@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-const STS2_APP_ID: &str = "2868840";
-
 /// Find the Steam root directory.
 pub fn find_steam_root() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]

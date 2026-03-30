@@ -29,9 +29,20 @@ interface ModStatus {
   }[];
 }
 
+type InstallOutcome =
+  | "Installed"
+  | "AlreadyUpToDate"
+  | "Updated"
+  | { Failed: string };
+
 interface InstallResult {
-  sts2mcp: string;
-  unified_save_path: string;
+  sts2mcp: InstallOutcome;
+  unified_save_path: InstallOutcome;
+}
+
+function formatOutcome(outcome: InstallOutcome): string {
+  if (typeof outcome === "string") return outcome.replace(/([A-Z])/g, " $1").trim();
+  return `Failed: ${outcome.Failed}`;
 }
 
 interface ProgressEvent {
@@ -236,7 +247,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
           <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-1">
             <p className="text-sm text-emerald-400">Installation complete</p>
             <p className="text-xs text-zinc-500">
-              STS2 MCP: {installResult.sts2mcp} · Save Path: {installResult.unified_save_path}
+              STS2 MCP: {formatOutcome(installResult.sts2mcp)} · Save Path: {formatOutcome(installResult.unified_save_path)}
             </p>
           </div>
         )}

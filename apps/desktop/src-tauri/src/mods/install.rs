@@ -7,6 +7,22 @@ const STS2MCP_REPO: &str = "Gennadiyev/STS2MCP";
 const STS2MCP_VERSION: &str = "0.3.2";
 const STS2MCP_ASSETS: &[&str] = &["STS2_MCP.dll", "STS2_MCP.json"];
 
+/// Verify a downloaded file against an expected SHA-256 hash.
+async fn verify_sha256(path: &Path, expected: &str) -> Result<(), ModError> {
+    use sha2::{Digest, Sha256};
+    let bytes = tokio::fs::read(path).await?;
+    let hash = hex::encode(Sha256::digest(&bytes));
+    if hash != expected {
+        return Err(ModError::Download(format!(
+            "Integrity check failed for {}: expected {}, got {}",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            &expected[..12],
+            &hash[..12],
+        )));
+    }
+    Ok(())
+}
+
 const UNIFIED_SAVE_PATH_ZIP_URL: &str =
     "https://raw.githubusercontent.com/luojiesi/SLS2Mods/master/nexus_packages/UnifiedSavePath.zip";
 
@@ -28,11 +44,17 @@ pub async fn install_sts2mcp(
         }
     }
 
+    let was_installed = manifest_path.exists();
+
     log::info!("Installing STS2MCP v{}...", STS2MCP_VERSION);
     emit_progress(app, "STS2 MCP", "downloading", 0);
 
     let temp_dir = tempfile::tempdir()?;
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| ModError::Download(e.to_string()))?;
 
     // Download each asset
     for (i, asset_name) in STS2MCP_ASSETS.iter().enumerate() {
@@ -98,7 +120,7 @@ pub async fn install_sts2mcp(
     emit_progress(app, "STS2 MCP", "complete", 100);
     log::info!("STS2MCP v{} installed successfully", STS2MCP_VERSION);
 
-    if manifest_path.exists() {
+    if was_installed {
         Ok(InstallOutcome::Updated)
     } else {
         Ok(InstallOutcome::Installed)
@@ -121,7 +143,11 @@ pub async fn install_unified_save_path(
     emit_progress(app, "Unified Save Path", "downloading", 0);
 
     let temp_dir = tempfile::tempdir()?;
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| ModError::Download(e.to_string()))?;
 
     // Download the zip
     let response = client
@@ -165,7 +191,13 @@ pub async fn install_unified_save_path(
             let mut zip_file = archive
                 .by_index(i)
                 .map_err(|e| ModError::Extraction(e.to_string()))?;
-            let outpath = temp_extract_clone.join(zip_file.name());
+
+            // Prevent zip path traversal attacks
+            let Some(name) = zip_file.enclosed_name() else {
+                log::warn!("Skipping suspicious zip entry: {}", zip_file.name());
+                continue;
+            };
+            let outpath = temp_extract_clone.join(name);
 
             if zip_file.is_dir() {
                 std::fs::create_dir_all(&outpath)?;
