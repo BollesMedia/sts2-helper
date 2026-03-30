@@ -54,9 +54,7 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
       <div className="grid grid-cols-3 gap-3">
         {isLoading && !evaluation ? (
           <>
-            <CardSkeleton />
-            <CardSkeleton />
-            <CardSkeleton />
+            {options.map((o) => <CardSkeleton key={o.index} />)}
           </>
         ) : (
           options.map((opt, arrayIdx) => {

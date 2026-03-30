@@ -69,8 +69,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
       <div className="grid grid-cols-2 gap-3">
         {isLoading && !evaluation ? (
           <>
-            <CardSkeleton />
-            <CardSkeleton />
+            {options.map((o) => <CardSkeleton key={o.index} />)}
           </>
         ) : (
           options.map((opt) => {
