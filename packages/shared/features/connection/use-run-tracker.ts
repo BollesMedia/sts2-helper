@@ -7,6 +7,12 @@ import { hasRun, isCombatState } from "../../types/game-state";
 
 const STORAGE_KEY = "sts2-run-id";
 
+/**
+ * Promise that resolves when the current run has been persisted to the API.
+ * Choice logging awaits this to avoid FK violations.
+ */
+let runCreatedPromise: Promise<void> = Promise.resolve();
+
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -68,6 +74,14 @@ function inferOutcome(
 /**
  * Call this to confirm or override the run outcome.
  */
+/**
+ * Returns a promise that resolves once the current run has been persisted.
+ * Used by choice-tracker to avoid FK violations.
+ */
+export function waitForRunCreated(): Promise<void> {
+  return runCreatedPromise;
+}
+
 export function confirmRunOutcome(runId: string, victory: boolean) {
   apiFetch("/api/run", {
     method: "POST",
@@ -218,7 +232,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
     const character = getCharacter(gameState);
     const ascension = hasRun(gameState) ? gameState.run.ascension : 0;
 
-    apiFetch("/api/run", {
+    runCreatedPromise = apiFetch("/api/run", {
       method: "POST",
       body: JSON.stringify({
         action: "start",
@@ -228,7 +242,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
         gameMode: "singleplayer",
         userId,
       }),
-    }).catch(console.error);
+    }).then(() => {}).catch(console.error);
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
