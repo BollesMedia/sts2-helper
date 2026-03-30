@@ -215,10 +215,15 @@ export async function POST(request: Request) {
   }
 
   // Items go LAST for Haiku's recency bias
+  // Flag duplicates and energy cost inline so Claude can't miss them
+  const deckCardNames = new Set((context.deckCards ?? []).map((c) => c.name.toLowerCase()));
   const itemsStr = items
     .map(
-      (item, i) =>
-        `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}E` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""} — ${item.description}`
+      (item, i) => {
+        const isDuplicate = deckCardNames.has(item.name.toLowerCase());
+        const dupWarning = isDuplicate ? " ⚠ ALREADY IN DECK (2nd copy = draw dilution)" : "";
+        return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}E` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""} — ${item.description}${dupWarning}`;
+      }
     )
     .join("\n");
 
