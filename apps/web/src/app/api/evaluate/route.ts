@@ -101,6 +101,7 @@ REST SITES:
 - Dig (if available): Almost always take — free relic. Skip only at <30% HP before a boss.
 - Smith (upgrade): Take at >60% HP. Best targets: key scaling card, primary AoE, high-impact power. NAME the specific card.
 - Rest (heal): Take at <50% HP, or <65% if elite/boss is next.
+- CRITICAL: Check the player's relics for passive healing (e.g., Burning Blood heals 6 HP after combat). If passive healing covers the missing HP, resting to heal is WRONG — upgrade instead. Missing 4-6 HP with a healing relic = always upgrade or dig.
 - Already-upgraded cards (with +) cannot be upgraded again.
 
 EVENTS:
