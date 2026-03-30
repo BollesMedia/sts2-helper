@@ -1,13 +1,14 @@
 "use client";
+import { apiUrl } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
-import type { MapState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
-import type { EvaluationContext } from "@sts2/shared/evaluation/types";
-import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
-import { buildPromptContext } from "@sts2/shared/evaluation/context-builder";
+import type { MapState, CombatCard } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { EvaluationContext } from "../../evaluation/types";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { buildPromptContext } from "../../evaluation/context-builder";
 import { NODE_TYPE_ICONS } from "./map-scoring";
-import { getCached, setCache } from "@sts2/shared/lib/local-cache";
+import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-map-eval-cache";
 
@@ -148,7 +149,7 @@ export function useMapEvaluation(
       .join(", ");
 
     try {
-      const res = await fetch("/api/evaluate", {
+      const res = await fetch(apiUrl("/api/evaluate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

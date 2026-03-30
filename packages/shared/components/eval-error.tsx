@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@sts2/shared/lib/cn";
+import { cn } from "../lib/cn";
 
 interface EvalErrorProps {
   error: string;

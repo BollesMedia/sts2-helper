@@ -1,8 +1,8 @@
 "use client";
 
 import useSWR from "swr";
-import { createClient } from "@sts2/shared/supabase/client";
-import type { Card } from "@sts2/shared/supabase/helpers";
+import { createClient } from "../supabase/client";
+import type { Card } from "../supabase/helpers";
 import { createGameDataHook } from "./create-game-data-hook";
 
 export const useCards = createGameDataHook<Card>("cards", async () => {

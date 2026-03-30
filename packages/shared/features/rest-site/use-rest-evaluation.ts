@@ -1,11 +1,12 @@
 "use client";
+import { apiUrl } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
-import type { RestSiteState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
-import type { EvaluationContext, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "@sts2/shared/evaluation/context-builder";
-import { getCached, setCache } from "@sts2/shared/lib/local-cache";
+import type { RestSiteState, CombatCard } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
+import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-rest-eval-cache";
 
@@ -76,7 +77,7 @@ export function useRestEvaluation(
       .join("\n");
 
     try {
-      const res = await fetch("/api/evaluate", {
+      const res = await fetch(apiUrl("/api/evaluate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,7 +1,7 @@
 "use client";
 
-import type { ShopState, ShopItem, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
+import type { ShopState, ShopItem, CombatCard } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
 import {
   useShopEvaluation,
   getItemId,
@@ -9,9 +9,9 @@ import {
   getItemDescription,
 } from "./use-shop-evaluation";
 import { ShopItemCard } from "./shop-item-card";
-import { CardSkeleton } from "@sts2/shared/components/loading-skeleton";
-import { RefineInput } from "@sts2/shared/components/refine-input";
-import { EvalError } from "@sts2/shared/components/eval-error";
+import { CardSkeleton } from "../../components/loading-skeleton";
+import { RefineInput } from "../../components/refine-input";
+import { EvalError } from "../../components/eval-error";
 
 interface ShopViewProps {
   state: ShopState;

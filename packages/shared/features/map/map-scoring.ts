@@ -1,5 +1,5 @@
-import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
+import type { MapState, MapNode, MapNextOption } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
 
 interface PathScore {
   option: MapNextOption;

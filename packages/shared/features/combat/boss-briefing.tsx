@@ -1,10 +1,11 @@
 "use client";
+import { apiUrl } from "../../lib/api-client";
 
 import { useRef, useState } from "react";
 import useSWR from "swr";
-import { createClient } from "@sts2/shared/supabase/client";
-import type { Monster } from "@sts2/shared/supabase/helpers";
-import type { Enemy, CombatCard } from "@sts2/shared/types/game-state";
+import { createClient } from "../../supabase/client";
+import type { Monster } from "../../supabase/helpers";
+import type { Enemy, CombatCard } from "../../types/game-state";
 
 const supabase = createClient();
 
@@ -91,7 +92,7 @@ export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProp
 
     const deckSummary = deckCards.map((c) => c.name).join(", ");
 
-    fetch("/api/evaluate", {
+    fetch(apiUrl("/api/evaluate"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

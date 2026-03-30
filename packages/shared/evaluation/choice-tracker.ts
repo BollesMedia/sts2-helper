@@ -1,9 +1,10 @@
 "use client";
+import { apiUrl } from "../lib/api-client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
-import { hasRun } from "@sts2/shared/types/game-state";
-import { getUserId } from "@sts2/shared/lib/get-user-id";
+import type { GameState, CombatCard } from "../types/game-state";
+import { hasRun } from "../types/game-state";
+import { getUserId } from "../lib/get-user-id";
 
 interface PendingChoice {
   choiceType: string;
@@ -134,7 +135,7 @@ function logChoice(choice: {
 }) {
   console.log("[ChoiceTracker]", choice.choiceType, choice.chosenItemId ?? "skip");
 
-  fetch("/api/choice", {
+  fetch(apiUrl("/api/choice"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...choice, userId: getUserId() }),

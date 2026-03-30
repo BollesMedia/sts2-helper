@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
-import { isCombatState } from "@sts2/shared/types/game-state";
-import { createClient } from "@sts2/shared/supabase/client";
+import type { GameState, CombatCard } from "../../types/game-state";
+import { isCombatState } from "../../types/game-state";
+import { createClient } from "../../supabase/client";
 
 const STORAGE_KEY = "sts2-deck";
 const VALID_CARDS_KEY = "sts2-valid-cards";

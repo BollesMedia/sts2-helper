@@ -1,12 +1,12 @@
 "use client";
 
-import type { CardRewardState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
+import type { CardRewardState, CombatCard } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
-import { CardSkeleton } from "@sts2/shared/components/loading-skeleton";
-import { RefineInput } from "@sts2/shared/components/refine-input";
-import { EvalError } from "@sts2/shared/components/eval-error";
+import { CardSkeleton } from "../../components/loading-skeleton";
+import { RefineInput } from "../../components/refine-input";
+import { EvalError } from "../../components/eval-error";
 
 interface CardPickViewProps {
   state: CardRewardState;

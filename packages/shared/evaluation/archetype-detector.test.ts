@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { detectArchetypes, hasScalingSources, getDrawSources, getScalingSources } from "./archetype-detector";
-import type { CombatCard } from "@sts2/shared/types/game-state";
+import type { CombatCard } from "../types/game-state";
 
 function card(name: string, keywords: string[] = []): CombatCard {
   return {

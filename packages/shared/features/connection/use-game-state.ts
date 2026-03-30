@@ -1,8 +1,8 @@
 "use client";
 
 import useSWR from "swr";
-import type { GameState } from "@sts2/shared/types/game-state";
-import { STS2MCP_API_URL } from "@sts2/shared/lib/constants";
+import type { GameState } from "../../types/game-state";
+import { STS2MCP_API_URL } from "../../lib/constants";
 import {
   POLLING_INTERVALS,
   DEFAULT_INTERVAL,

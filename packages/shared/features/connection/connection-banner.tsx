@@ -1,7 +1,7 @@
 "use client";
 
 import type { ConnectionStatus } from "./use-game-state";
-import { cn } from "@sts2/shared/lib/cn";
+import { cn } from "../../lib/cn";
 
 const STATUS_CONFIG: Record<
   ConnectionStatus,

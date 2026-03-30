@@ -1,7 +1,7 @@
 "use client";
 
-import { createClient } from "@sts2/shared/supabase/client";
-import type { Keyword } from "@sts2/shared/supabase/helpers";
+import { createClient } from "../supabase/client";
+import type { Keyword } from "../supabase/helpers";
 import { createGameDataHook } from "./create-game-data-hook";
 
 export const useKeywords = createGameDataHook<Keyword>("keywords", async () => {

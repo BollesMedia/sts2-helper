@@ -1,16 +1,16 @@
 "use client";
 
-import { cn } from "@sts2/shared/lib/cn";
-import { TierBadge } from "@sts2/shared/components/tier-badge";
-import { ConfidenceIndicator } from "@sts2/shared/components/confidence-indicator";
-import type { EventState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
-import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
+import { cn } from "../../lib/cn";
+import { TierBadge } from "../../components/tier-badge";
+import { ConfidenceIndicator } from "../../components/confidence-indicator";
+import type { EventState, CombatCard } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { TierLetter } from "../../evaluation/tier-utils";
 import { useEventEvaluation } from "./use-event-evaluation";
-import { CardSkeleton } from "@sts2/shared/components/loading-skeleton";
-import { RefineInput } from "@sts2/shared/components/refine-input";
-import { EvalError } from "@sts2/shared/components/eval-error";
-import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "@sts2/shared/lib/recommendation-styles";
+import { CardSkeleton } from "../../components/loading-skeleton";
+import { RefineInput } from "../../components/refine-input";
+import { EvalError } from "../../components/eval-error";
+import { RECOMMENDATION_BORDER, RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "../../lib/recommendation-styles";
 
 interface EventViewProps {
   state: EventState;

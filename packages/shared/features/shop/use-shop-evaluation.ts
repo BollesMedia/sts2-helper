@@ -1,12 +1,13 @@
 "use client";
+import { apiUrl } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
-import type { ShopState, ShopItem, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "@sts2/shared/features/connection/use-player-tracker";
-import type { EvaluationContext, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
-import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
-import { getUserId } from "@sts2/shared/lib/get-user-id";
-import { getCached, setCache } from "@sts2/shared/lib/local-cache";
+import type { ShopState, ShopItem, CombatCard } from "../../types/game-state";
+import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { getUserId } from "../../lib/get-user-id";
+import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-shop-eval-cache";
 
@@ -99,7 +100,7 @@ export function useShopEvaluation(
     }));
 
     try {
-      const res = await fetch("/api/evaluate", {
+      const res = await fetch(apiUrl("/api/evaluate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
