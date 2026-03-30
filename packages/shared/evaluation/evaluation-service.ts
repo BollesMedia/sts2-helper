@@ -125,8 +125,16 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
 
   const pickSummary = obj.pick_summary
     ?? (() => {
+      // Standard JSON format
       const m = rankingsStr.match(/"pick_summary"\s*:\s*"([^"]*)"/);
-      return m ? m[1] : null;
+      if (m) return m[1];
+      // Claude sometimes emits XML parameter format inside the string
+      const xml = rankingsStr.match(/<parameter name="pick_summary">(.*?)(?:<\/parameter>|"|$)/);
+      if (xml) return xml[1];
+      // Colon-separated format (after comma in the string)
+      const alt = rankingsStr.match(/pick_summary[>":\s]+(Pick[^"}<]+|Skip[^"}<]+)/i);
+      if (alt) return alt[1].trim();
+      return null;
     })();
 
   return {

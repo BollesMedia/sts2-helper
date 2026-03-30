@@ -168,6 +168,7 @@ export function addMilestone(text: string, permanent: boolean) {
  */
 export function updateFromContext(ctx: EvaluationContext) {
   if (!narrative) return;
+  if (isStale()) return;
   if (
     narrative.decisionsSinceSummaryUpdate < SUMMARY_UPDATE_INTERVAL &&
     narrative.strategySummary !== ""
@@ -196,7 +197,7 @@ export function updateFromContext(ctx: EvaluationContext) {
  * Returns null if not enough decisions to be useful.
  */
 export function getPromptContext(): string | null {
-  if (!narrative || narrative.decisions.length < 2) {
+  if (!narrative || isStale() || narrative.decisions.length < 2) {
     return null;
   }
 
@@ -455,6 +456,27 @@ function updateHpTrend(hpPercent: number) {
   } else {
     narrative.hpTrend = "stable";
   }
+}
+
+/**
+ * Check if the narrative is stale (belongs to a different run than
+ * what's currently tracked). Compares against the run ID in localStorage.
+ */
+function isStale(): boolean {
+  if (!narrative) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    const currentRunId = localStorage.getItem("sts2-run-id");
+    if (currentRunId && narrative.runId !== currentRunId) {
+      // Stale — clear it
+      narrative = null;
+      localStorage.removeItem(STORAGE_KEY);
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
 }
 
 function save() {
