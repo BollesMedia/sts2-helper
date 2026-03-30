@@ -7,9 +7,12 @@ import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
+import { SetupWizard } from "./setup-wizard";
+import { useState } from "react";
 
 export function App() {
   const { user, loading } = useAuth();
+  const [setupComplete, setSetupComplete] = useState(false);
 
   if (loading) {
     return (
@@ -21,6 +24,11 @@ export function App() {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  // Show setup wizard if mods haven't been set up yet
+  if (!setupComplete) {
+    return <SetupWizard onComplete={() => setSetupComplete(true)} />;
   }
 
   return <AuthenticatedApp />;
