@@ -69,11 +69,6 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
       .then((s) => {
         setStatus(s);
         setLoading(false);
-
-        // If all required mods are installed and no updates needed, skip wizard
-        if (s.game_found && s.required_mods.every((m) => m.installed && !m.needs_update)) {
-          onComplete();
-        }
       })
       .catch((e) => {
         setError(String(e));

@@ -34,7 +34,14 @@ async fn get_mod_status() -> Result<ModStatus, ModError> {
     match &game_path {
         Some(path) => {
             let mods_dir = steam::get_mods_dir(path);
+            log::info!("Checking mods in: {:?}", mods_dir);
             let required = mods::detect::check_required_mods(&mods_dir);
+            for r in &required {
+                log::info!(
+                    "Required mod '{}': installed={}, version={:?}, needs_update={}",
+                    r.id, r.installed, r.installed_version, r.needs_update
+                );
+            }
             let all_mods = mods::detect::list_installed_mods(&mods_dir);
             let conflicts = mods::detect::check_conflicts(&mods_dir);
 
