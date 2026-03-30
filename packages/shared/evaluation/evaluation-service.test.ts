@@ -93,6 +93,7 @@ describe("parseClaudeCardRewardResponse", () => {
           reasoning: "Always take Offering",
         },
       ],
+      pick_summary: "Pick Offering — best card in game",
       skip_recommended: false,
       skip_reasoning: null,
     };
@@ -102,11 +103,13 @@ describe("parseClaudeCardRewardResponse", () => {
     expect(result.rankings[0].tierValue).toBe(6);
     expect(result.rankings[0].source).toBe("claude");
     expect(result.skipRecommended).toBe(false);
+    expect(result.pickSummary).toBe("Pick Offering — best card in game");
   });
 
   it("includes spending plan when present", () => {
     const raw = {
       rankings: [],
+      pick_summary: null,
       skip_recommended: false,
       skip_reasoning: null,
       spending_plan: "Buy removal",

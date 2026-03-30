@@ -1,5 +1,7 @@
 "use client";
 import { apiFetch } from "../../lib/api-client";
+import { initializeNarrative, clearNarrative, restoreForRun } from "../../evaluation/run-narrative";
+import { clearEvaluationRegistry } from "../../evaluation/last-evaluation-registry";
 
 import { useCallback, useRef, useState } from "react";
 import type { GameState } from "../../types/game-state";
@@ -98,11 +100,17 @@ export interface RunState {
   confirmOutcome: (victory: boolean) => void;
 }
 
-export function useRunTracker(gameState: GameState | null, userId: string | null = null): RunState {
+export function useRunTracker(gameState: GameState | null, userId: string | null = null, wasDisconnected = false): RunState {
   const runId = useRef<string | null>(null);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
   const runStarted = useRef(false);
+  const hadDisconnect = useRef(false);
+
+  // Track if we experienced a disconnect during this run
+  if (wasDisconnected && runStarted.current) {
+    hadDisconnect.current = true;
+  }
   const lastFloor = useRef(0);
   const lastAct = useRef(1);
   const lastWasBoss = useRef(false);
@@ -123,6 +131,12 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
     initialized.current = true;
     runId.current = loadRunId();
     runStarted.current = runId.current !== null;
+
+    // Restore narrative for existing run (app restart mid-run)
+    // If runId doesn't match stored narrative, stale data is discarded
+    if (runId.current) {
+      restoreForRun(runId.current);
+    }
   }
 
   const confirmOutcome = useCallback(
@@ -244,8 +258,13 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
       }),
     }).then(() => {}).catch(console.error);
 
+    // Initialize run narrative for evaluation context
+    initializeNarrative(newRunId, character ?? "unknown", ascension);
+    clearEvaluationRegistry();
+
     if (typeof window !== "undefined") {
       localStorage.removeItem("sts2-deck");
+      localStorage.removeItem("sts2-player");
       localStorage.removeItem("sts2-eval-cache");
       localStorage.removeItem("sts2-shop-eval-cache");
       localStorage.removeItem("sts2-map-eval-cache");
@@ -265,12 +284,19 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
   ) {
     const endedRunId = runId.current;
     if (endedRunId) {
-      const victory = inferOutcome(
-        prevType,
-        lastWasBoss.current,
-        lastPlayerHp.current,
-        lastEnemiesAllDead.current
-      );
+      // If we had a disconnect, this is likely a crash/restart, not a death.
+      // Treat as unknown outcome and let the user confirm.
+      const wasGameCrash = hadDisconnect.current;
+      hadDisconnect.current = false;
+
+      const victory = wasGameCrash
+        ? null // unknown — let user confirm
+        : inferOutcome(
+            prevType,
+            lastWasBoss.current,
+            lastPlayerHp.current,
+            lastEnemiesAllDead.current
+          );
 
       // Determine cause of death
       let causeOfDeath: string | null = null;
@@ -312,6 +338,10 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
         `deck: ${lastDeckNames.current.length} cards`
       );
     }
+
+    // Clear run narrative and evaluation registry
+    clearNarrative();
+    clearEvaluationRegistry();
 
     runId.current = null;
     runStarted.current = false;

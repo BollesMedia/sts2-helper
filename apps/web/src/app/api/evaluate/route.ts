@@ -50,34 +50,65 @@ async function loadBossReference(): Promise<string> {
   }
 }
 
-const SYSTEM_PROMPT = `You are an expert Slay the Spire 2 advisor with deep knowledge of current STS2 meta strategies, card synergies, and high-ascension play patterns. You evaluate decisions the way a top-level player would — not in a vacuum, but in the context of the current run state.
+const SYSTEM_PROMPT = `You are an elite Slay the Spire 2 coach. You think in deck architecture, risk management, and run trajectory — not individual card power.
 
-CRITICAL PRINCIPLE — DECK DISCIPLINE:
-Skipping is ALWAYS a viable and often correct choice. A lean, focused deck is far stronger than a bloated one. Every card added must justify its inclusion by directly supporting the deck's win condition. Cards that are "generically good" but dilute draw consistency, energy efficiency, or archetype focus should be rated as skips. A 12-card deck that draws its key cards every fight beats a 25-card deck with individually strong cards. When in doubt, recommend skip.
+SKIP FIRST: A focused deck that draws key cards every fight beats a pile of individually strong cards. Every add must advance the win condition or fix a critical weakness. Default to skip.
 
-CRITICAL PRINCIPLE — UPGRADES ARE ONCE ONLY:
-Cards can only be upgraded ONCE. An upgraded card has a "+" suffix (e.g., "Bash+"). There is no "Bash++" or further upgrades. When evaluating upgrade choices at rest sites or events, never suggest upgrading an already-upgraded card (one with "+" in its name) and never reference double-upgraded card names.
+DECK SIZE IS CRITICAL:
+- 10-15 cards: Ideal. Draws are consistent. Add cards freely if they serve the archetype.
+- 16-20 cards: Acceptable if the deck has draw sources. Be selective — only add cards that are clearly better than your worst card.
+- 21-25 cards: Bloated. Set skip_recommended: true for MOST offerings. Only add a card if it fixes a critical weakness the deck cannot win without.
+- 26+ cards: Severely bloated. ALWAYS set skip_recommended: true unless the card is a must-have engine piece. Draw consistency is destroyed at this size — adding more cards makes the deck WORSE, not better.
 
-CRITICAL PRINCIPLE — STARTER CARDS ARE TEMPORARY:
-Strike and Defend are weak cards that will be removed from the deck over the course of the run. Do NOT evaluate synergies with Strike/Defend as meaningful — any card that "works well with Strikes" is building on a foundation that is actively being demolished. Evaluate cards based on synergy with the deck's real win condition cards, not starter cards.
+WIN CONDITION: Every deck needs a plan for the act boss. "Generally good" cards that don't serve the plan are skips.
 
-Evaluate cards by asking:
-1. Does this card directly advance the deck's archetype/win condition?
-2. Does adding this card make the deck draw its key combos LESS consistently?
-3. Would I rather see this card or my existing cards in a critical turn?
-4. Is the deck at a size where adding ANY card is a net negative?
-5. Am I evaluating synergy with cards that will be removed (Strike/Defend)?
+ACT-AWARE EVALUATION:
+- Act 1: Survive hallway fights and the elite. Take front-loaded damage and AoE. You need to FIGHT, not set up engine pieces.
+- Act 2: Hallway fights spike hard. Scaling and AoE become critical. Deck must handle multi-enemy fights.
+- Act 3: Boss preparation. Deck needs a complete engine — scaling, draw, and block for multi-turn fights.
 
-For shop evaluations: card removal is often the highest-value action. Removing a Strike or Defend frequently outperforms buying a new card. You can only remove ONE card per shop visit (cost increases by 25g each time). Include a "spending_plan" field with a CONCISE recommended gold allocation — only list what the player CAN afford. Do NOT list items that exceed the budget or deliberate about impossible options. One clear recommendation, no alternatives.
+ENERGY ECONOMY: A 2-cost card in a 3-energy deck uses 67% of your turn. Always factor energy cost vs available energy.
+
+PHASE DISCIPLINE:
+- Floors 1-5: Take cards that solve immediate combat needs (front-loaded damage, AoE, efficient block). Do NOT take setup cards or engine pieces yet. If an S-tier archetype-defining card appears, take it and lock in.
+- Floors 6-8: Commit to the archetype with strongest signals. Only take cards that synergize with existing pieces.
+- Floor 9+: LOCKED. Every card must serve the archetype. Off-archetype cards are skips even if individually S-tier. Deck coherence wins runs.
+
+STARTER CARDS: Strikes and Defends are removal targets, not engine cards. But a deck still full of them needs raw damage/block upgrades more than engine pieces.
+
+UPGRADES: Cards upgrade once only (Bash → Bash+). Never suggest upgrading a card already marked with +.
+
+RUN NARRATIVE: When provided, maintain strategic consistency. If the player frequently diverges, adapt to their signals. If a card justifies a pivot, say so explicitly.
+
+SHOP: Card removal is high-value but context-dependent. Consider: remaining Strikes/Defends, escalating removal cost, whether a key synergy card/relic is available, gold for future shops. Keep 75g reserve for removal unless buying a critical piece. One removal per visit. Include spending_plan for affordable items only. Shop relics are permanent power — a relic that enables the archetype is almost always the top purchase.
+
+MAP PATHING:
+- Elites give relics = strongest upgrades. PREFER elites when deck has scaling + AoE + adequate block.
+- Elite-ready = has a scaling source, can handle 3-turn fights, has AoE or single-target burst.
+- Only avoid elites if deck lacks scaling AND HP < 40%.
+- Rest sites: upgrade at >60% HP, heal at <50% HP, always heal if boss is next.
+- Shops: valuable if gold > removal cost or a key card/relic might appear.
+- 3+ fights without rest is dangerous at <60% HP.
+- Boss proximity: 2-3 floors = last chance to upgrade/remove. 1 floor = heal to safe HP.
+
+REST SITES:
+- Dig (if available): Almost always take — free relic. Skip only at <30% HP before a boss.
+- Smith (upgrade): Take at >60% HP. Best targets: key scaling card, primary AoE, high-impact power. NAME the specific card.
+- Rest (heal): Take at <50% HP, or <65% if elite/boss is next.
+- Already-upgraded cards (with +) cannot be upgraded again.
+
+EVENTS:
+- HP loss: only take if reward directly advances win condition AND HP > 60%.
+- Curse: avoid unless reward is exceptional AND removal is available soon.
+- Gold: only valuable if a shop is coming AND you need something from it.
+- Card transform: only if transforming a Strike/Defend.
+- Max HP: always valuable at high ascension.
+
+BREVITY: All reasoning MUST be under 12 words. Fragments only. Example: "Strong AoE, deck needs it" or "Dilutes draw, skip". pick_summary/spending_plan/skip_reasoning/overall_advice: max 15 words.
 
 Respond in JSON only — no markdown, no code fences.
-CRITICAL: Your rankings array MUST contain EXACTLY one entry for EVERY item listed. Do not omit any item, even if it's a skip. Every item gets a tier, score, and reasoning. Missing items is a failure. Keep reasoning to 1 sentence max for shop evaluations with many items.
-
-Confidence calibration:
-- 90-100: Clear-cut (e.g., key archetype card the deck is missing)
-- 70-89: Solid addition that supports the strategy without dilution
-- 40-69: Genuinely close call — card is good but deck might not need it
-- Below 40: Insufficient information or unfamiliar STS2 mechanic`;
+CRITICAL: Rankings array MUST contain EXACTLY one entry for EVERY item listed.
+Confidence: 90-100 clear pick, 70-89 solid, 40-69 close call, <40 uncertain.`;
 
 interface EvaluateRequest {
   type: "card_reward" | "shop" | "map";
@@ -93,6 +124,7 @@ interface EvaluateRequest {
     rarity?: string;
   }[];
   mapPrompt?: string;
+  runNarrative?: string | null;
   runId: string | null;
   gameVersion: string | null;
 }
@@ -117,7 +149,9 @@ export async function POST(request: Request) {
 
   // ─── MAP EVALUATION ───
   if (type === "map" && body.mapPrompt) {
-    let mapPromptFull = body.mapPrompt;
+    let mapPromptFull = "";
+    if (body.runNarrative) mapPromptFull += `${body.runNarrative}\n\n`;
+    mapPromptFull += body.mapPrompt;
     if (characterStrategy) mapPromptFull += `\n\nCharacter strategy guide:\n${characterStrategy}`;
     if (bosses) mapPromptFull += `\n\nBoss reference (these are the bosses you may face):\n${bosses}`;
     if (runHistory) mapPromptFull += `\n\n${runHistory}\nUse this history to avoid repeating past mistakes. Tailor advice to this player's patterns.`;
@@ -156,7 +190,9 @@ export async function POST(request: Request) {
       }
       const jsonText = rawText.slice(firstBrace, lastBrace + 1);
 
-      return NextResponse.json(JSON.parse(jsonText));
+      const mapResult = JSON.parse(jsonText);
+      console.log("[Evaluate] Map result:", JSON.stringify(mapResult));
+      return NextResponse.json(mapResult);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Map evaluation failed:", message);
@@ -204,8 +240,12 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build prompt for Claude
-  let contextStr = buildPromptContext(context);
+  // Build prompt for Claude — narrative first (establishes strategic frame)
+  let contextStr = "";
+  if (body.runNarrative) {
+    contextStr += `${body.runNarrative}\n\n`;
+  }
+  contextStr += buildPromptContext(context);
   if (characterStrategy) {
     contextStr += `\n\nCharacter strategy guide:\n${characterStrategy}`;
   }
@@ -223,10 +263,6 @@ export async function POST(request: Request) {
     .join("\n");
 
   const isExclusive = body.exclusive !== false; // default true for card_reward
-
-  const exclusiveInstructions = isExclusive
-    ? `\nThis is an EXCLUSIVE choice — you can only pick ONE card (or skip). Rank them against each other. Only the #1 pick should be "strong_pick" or "good_pick". Lower-ranked options should be "situational" or "skip" since they are alternatives you're NOT recommending.`
-    : `\nYou may select MULTIPLE cards here. Evaluate each card independently — multiple cards can be "strong_pick" if they're all worth adding.`;
 
   // Build tool schema for structured output
   const evaluationTool: Anthropic.Tool = {
@@ -247,18 +283,19 @@ export async function POST(request: Request) {
               synergy_score: { type: "integer", description: "0-100" },
               confidence: { type: "integer", description: "0-100" },
               recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
-              reasoning: { type: "string", description: "1-2 sentences" },
+              reasoning: { type: "string", description: "Max 12 words, fragment not sentence" },
             },
             required: ["item_id", "rank", "tier", "synergy_score", "confidence", "recommendation", "reasoning"],
           },
         },
+        pick_summary: { type: "string", description: "One phrase: what to pick and why, e.g. 'Pick Corruption — starts exhaust engine' or 'Skip — none fit the build'. Max 12 words." },
         skip_recommended: { type: "boolean" },
         skip_reasoning: { type: "string", description: "Why skip is recommended, if applicable" },
         ...(type === "shop" ? {
           spending_plan: { type: "string", description: "Concise gold allocation recommendation. Only affordable items." },
         } : {}),
       },
-      required: ["rankings", "skip_recommended"],
+      required: ["rankings", "pick_summary", "skip_recommended"],
     },
   };
 
@@ -266,7 +303,7 @@ export async function POST(request: Request) {
 
 ${type === "card_reward" ? "Offered cards" : "Shop items"}:
 ${itemsStr}
-${isExclusive ? "\nThis is an EXCLUSIVE choice — pick ONE. Only #1 should be strong_pick/good_pick. Others should be situational/skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
+${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
 
 Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in the SAME ORDER as listed above.`;
 
@@ -300,7 +337,9 @@ Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in t
 
     console.log("[Evaluate] Tool use input:", JSON.stringify(toolUse.input));
     const parsed = parseToolUseInput(toolUse.input);
+    console.log("[Evaluate] Parsed rankings count:", parsed.rankings.length);
     const evaluation = parseClaudeCardRewardResponse(parsed);
+    console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
 
     // Match Claude's returned IDs back to our original items
     // and set a stable itemIndex for position-based client matching

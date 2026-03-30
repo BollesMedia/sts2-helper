@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "../../lib/cn";
 import type { CardRewardState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import { useCardEvaluation } from "./use-card-evaluation";
@@ -38,18 +39,21 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
         )}
       </div>
 
+      {/* Pick summary */}
+      {evaluation?.pickSummary && (
+        <p className={cn(
+          "text-sm font-medium",
+          evaluation.skipRecommended ? "text-amber-300" : "text-emerald-300"
+        )}>
+          {evaluation.pickSummary}
+        </p>
+      )}
+
       {/* Skip recommendation */}
-      {evaluation?.skipRecommended && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-          <p className="text-sm font-medium text-amber-300">
-            Consider skipping
-          </p>
-          {evaluation.skipReasoning && (
-            <p className="mt-1 text-sm text-zinc-400">
-              {evaluation.skipReasoning}
-            </p>
-          )}
-        </div>
+      {evaluation?.skipRecommended && !evaluation.pickSummary && (
+        <p className="text-sm font-medium text-amber-300">
+          Skip — {evaluation.skipReasoning ?? "none worth adding"}
+        </p>
       )}
 
       {/* Card ratings */}
@@ -61,22 +65,40 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
             <CardSkeleton />
           </>
         ) : (
-          cards.map((card, cardIndex) => {
-            const cardEval = evaluation?.rankings.find(
-              (r) =>
-                r.itemIndex === cardIndex ||
-                r.itemId.toLowerCase() === card.id.toLowerCase() ||
-                r.itemName.toLowerCase() === card.name.toLowerCase()
+          (() => {
+            // Derive the recommended card from pick_summary when available,
+            // fall back to the strong_pick/good_pick ranking
+            const summaryLower = evaluation?.pickSummary?.toLowerCase() ?? "";
+            const strongPick = evaluation?.rankings.find(
+              (r) => r.recommendation === "strong_pick" || r.recommendation === "good_pick"
             );
-            return (
-              <CardRating
-                key={card.index}
-                card={card}
-                evaluation={cardEval ?? null}
-                rank={cardEval?.rank}
-              />
-            );
-          })
+
+            return cards.map((card, cardIndex) => {
+              const cardEval = evaluation?.rankings.find(
+                (r) =>
+                  r.itemIndex === cardIndex ||
+                  r.itemId.toLowerCase() === card.id.toLowerCase() ||
+                  r.itemName.toLowerCase() === card.name.toLowerCase()
+              );
+
+              // Match from pick_summary text, then strong_pick recommendation, then rank
+              const matchesSummary = summaryLower.includes(card.name.toLowerCase());
+              const isStrongPick = cardEval && cardEval === strongPick;
+              const isTopPick = !evaluation?.skipRecommended && (
+                matchesSummary || (!summaryLower && isStrongPick) || (!summaryLower && !strongPick && cardEval?.rank === 1)
+              );
+
+              return (
+                <CardRating
+                  key={card.index}
+                  card={card}
+                  evaluation={cardEval ?? null}
+                  rank={cardEval?.rank}
+                  isTopPick={isTopPick}
+                />
+              );
+            });
+          })()
         )}
       </div>
 

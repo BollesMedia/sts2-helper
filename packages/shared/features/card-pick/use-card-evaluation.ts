@@ -6,6 +6,8 @@ import type { CardRewardState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
+import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { getUserId } from "../../lib/get-user-id";
 import { getCached, setCache } from "../../lib/local-cache";
 
@@ -73,6 +75,8 @@ export function useCardEvaluation(
       return;
     }
 
+    updateFromContext(ctx);
+
     try {
       const res = await apiFetch("/api/evaluate", {
         method: "POST",
@@ -81,6 +85,7 @@ export function useCardEvaluation(
           exclusive,
           userId: getUserId(),
           context: ctx,
+          runNarrative: getPromptContext(),
           items: cards.map((card) => ({
             id: card.id,
             name: card.name,
@@ -102,6 +107,10 @@ export function useCardEvaluation(
       const data: CardRewardEvaluation = await res.json();
       setEvaluation(data);
       setCache(CACHE_KEY, cardKey, data);
+      registerLastEvaluation("card_reward", {
+        recommendedId: data.rankings?.[0]?.itemId ?? null,
+        reasoning: data.rankings?.[0]?.reasoning ?? "",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

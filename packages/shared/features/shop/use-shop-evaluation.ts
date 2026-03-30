@@ -6,6 +6,8 @@ import type { ShopState, ShopItem, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
+import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { getUserId } from "../../lib/get-user-id";
 import { getCached, setCache } from "../../lib/local-cache";
 
@@ -90,6 +92,8 @@ export function useShopEvaluation(
       return;
     }
 
+    updateFromContext(ctx);
+
     const items = shopItems.map((item) => ({
       id: getItemId(item),
       name: getItemName(item),
@@ -105,6 +109,7 @@ export function useShopEvaluation(
         body: JSON.stringify({
           type: "shop",
           context: ctx,
+          runNarrative: getPromptContext(),
           items,
           runId,
           userId: getUserId(),
@@ -120,6 +125,10 @@ export function useShopEvaluation(
       const data: CardRewardEvaluation = await res.json();
       setEvaluation(data);
       setCache(CACHE_KEY, shopKey, data);
+      registerLastEvaluation("shop", {
+        recommendedId: data.rankings?.[0]?.itemId ?? null,
+        reasoning: data.rankings?.[0]?.reasoning ?? "",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {

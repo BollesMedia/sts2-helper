@@ -9,9 +9,10 @@ interface CardRatingProps {
   card: DetailedCard;
   evaluation: CardEvaluation | null;
   rank?: number;
+  isTopPick?: boolean;
 }
 
-export function CardRating({ card, evaluation, rank }: CardRatingProps) {
+export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProps) {
   const rec = evaluation?.recommendation;
   const border = rec ? RECOMMENDATION_BORDER[rec] ?? RECOMMENDATION_BORDER.situational : "border-zinc-800";
   const chip = rec ? RECOMMENDATION_CHIP[rec] ?? RECOMMENDATION_CHIP.situational : "";
@@ -20,10 +21,17 @@ export function CardRating({ card, evaluation, rank }: CardRatingProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border bg-zinc-900/50 p-4 transition-colors flex flex-col gap-3",
-        border
+        "rounded-lg border bg-zinc-900/50 p-4 transition-colors flex flex-col gap-3 relative",
+        isTopPick ? "border-emerald-500/60 ring-1 ring-emerald-500/20" : border
       )}
     >
+      {/* Recommended banner */}
+      {isTopPick && (
+        <div className="absolute -top-2.5 left-3 rounded bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-950">
+          Pick this
+        </div>
+      )}
+
       {/* Top: tier + rank */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2.5">
