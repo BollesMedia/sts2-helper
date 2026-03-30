@@ -1,10 +1,10 @@
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
+use super::detect::STS2MCP_REQUIRED_VERSION;
 use super::{InstallOutcome, ModError};
 
 const STS2MCP_REPO: &str = "Gennadiyev/STS2MCP";
-const STS2MCP_VERSION: &str = "0.3.2";
 const STS2MCP_ASSETS: &[&str] = &["STS2_MCP.dll", "STS2_MCP.json"];
 
 /// Verify a downloaded file against an expected SHA-256 hash.
@@ -32,21 +32,32 @@ pub async fn install_sts2mcp(
     app: &tauri::AppHandle,
 ) -> Result<InstallOutcome, ModError> {
     // Check if already installed and up to date
-    let manifest_path = mods_dir.join("STS2_MCP.json");
-    if manifest_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                if json.get("version").and_then(|v| v.as_str()) == Some(STS2MCP_VERSION) {
-                    log::info!("STS2MCP {} already installed", STS2MCP_VERSION);
-                    return Ok(InstallOutcome::AlreadyUpToDate);
+    // The manifest can be named STS2_MCP.json (from GitHub release) or mod_manifest.json (manual install)
+    let possible_manifests = [
+        mods_dir.join("STS2_MCP.json"),
+        mods_dir.join("mod_manifest.json"),
+    ];
+
+    let mut was_installed = false;
+    for manifest_path in &possible_manifests {
+        if manifest_path.exists() {
+            was_installed = true;
+            if let Ok(content) = std::fs::read_to_string(manifest_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    // Check if this manifest is for STS2_MCP
+                    let is_sts2mcp = json.get("id").and_then(|v| v.as_str()) == Some("STS2_MCP");
+                    let is_current = json.get("version").and_then(|v| v.as_str()) == Some(STS2MCP_REQUIRED_VERSION);
+
+                    if is_sts2mcp && is_current {
+                        log::info!("STS2MCP {} already installed", STS2MCP_REQUIRED_VERSION);
+                        return Ok(InstallOutcome::AlreadyUpToDate);
+                    }
                 }
             }
         }
     }
 
-    let was_installed = manifest_path.exists();
-
-    log::info!("Installing STS2MCP v{}...", STS2MCP_VERSION);
+    log::info!("Installing STS2MCP v{}...", STS2MCP_REQUIRED_VERSION);
     emit_progress(app, "STS2 MCP", "downloading", 0);
 
     let temp_dir = tempfile::tempdir()?;
@@ -60,7 +71,7 @@ pub async fn install_sts2mcp(
     for (i, asset_name) in STS2MCP_ASSETS.iter().enumerate() {
         let url = format!(
             "https://github.com/{}/releases/download/{}/{}",
-            STS2MCP_REPO, STS2MCP_VERSION, asset_name
+            STS2MCP_REPO, STS2MCP_REQUIRED_VERSION, asset_name
         );
 
         let response = client
@@ -118,7 +129,7 @@ pub async fn install_sts2mcp(
     }
 
     emit_progress(app, "STS2 MCP", "complete", 100);
-    log::info!("STS2MCP v{} installed successfully", STS2MCP_VERSION);
+    log::info!("STS2MCP v{} installed successfully", STS2MCP_REQUIRED_VERSION);
 
     if was_installed {
         Ok(InstallOutcome::Updated)
