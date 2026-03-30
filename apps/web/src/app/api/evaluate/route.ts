@@ -129,7 +129,7 @@ EVENTS:
 
 BREVITY: All reasoning MUST be under 12 words. Fragments only. Example: "Strong AoE, deck needs it" or "Dilutes draw, skip". pick_summary/spending_plan/skip_reasoning/overall_advice: max 15 words.
 
-GROUNDING: ONLY reference cards and relics the player CURRENTLY has (listed in the deck/relic context). NEVER mention cards the player does not have, even if they are in the character build guide. The build guide shows what to LOOK FOR, not what the player owns.
+GROUNDING: In reasoning, reference archetypes and strategies from the build guide (e.g., "enables exhaust archetype", "key scaling piece") but NEVER name specific cards the player does not currently have. Only name cards already in the deck. Say "enables [archetype]" not "synergizes with [card they don't own]".
 
 Respond in JSON only — no markdown, no code fences.
 CRITICAL: Rankings array MUST contain EXACTLY one entry for EVERY item listed.
@@ -308,7 +308,7 @@ export async function POST(request: Request) {
               synergy_score: { type: "integer", description: "0-100" },
               confidence: { type: "integer", description: "0-100" },
               recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
-              reasoning: { type: "string", description: "Max 12 words. NEVER mention Strikes/Defends or cards not in the deck." },
+              reasoning: { type: "string", description: "Max 12 words. Reference archetypes, not cards player lacks." },
             },
             required: ["item_id", "rank", "tier", "synergy_score", "confidence", "recommendation", "reasoning"],
           },
@@ -331,7 +331,7 @@ ${itemsStr}
 ${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
 
 Evaluate ALL ${items.length} items. Return EXACTLY ${items.length} rankings in listed order.
-REMINDER: NEVER reference Strikes/Defends or cards NOT in the current deck. Only reference cards the player actually has.`;
+REMINDER: Reference archetypes and strategies, but only NAME cards already in the deck. Say "enables exhaust" not "synergizes with [card not owned]".`;
 
   try {
     const message = await anthropic.messages.create({
