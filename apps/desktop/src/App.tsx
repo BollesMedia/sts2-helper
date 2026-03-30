@@ -2,69 +2,78 @@ import { useGameState, ConnectionBanner } from "@sts2/shared/features/connection
 import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
 import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
-import { HpBar } from "@sts2/shared/components/hp-bar";
-import { hasRun } from "@sts2/shared/types/game-state";
+import { useChoiceTracker } from "@sts2/shared/evaluation/choice-tracker";
+import { AppHeader } from "@sts2/shared/features/game-views/app-header";
+import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
+import { useAuth } from "./auth-provider";
+import { LoginScreen } from "./login-screen";
 
 export function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center min-h-screen">
+        <p className="text-sm text-zinc-500">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  const { user, signOut } = useAuth();
   const { gameState, connectionStatus } = useGameState();
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
-  // Side-effect only: tracks run start/end in Supabase
-  // TODO: Wire up useChoiceTracker when auth is added
-  useRunTracker(gameState);
+  const runState = useRunTracker(gameState, user?.id ?? null);
+  // Side-effect only: logs choices to Supabase
+  useChoiceTracker(gameState, deckCards, runState.runId);
 
   if (connectionStatus !== "connected" || !gameState) {
     return (
       <ConnectionBanner
         status={connectionStatus}
-        navLinks={[]}
+        userEmail={user?.email}
+        onSignOut={signOut}
       />
     );
   }
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-semibold text-zinc-100 tracking-tight">
-            STS2 Replay
-          </span>
-          <div className="h-4 w-px bg-zinc-800" />
-          <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
-            {gameState.state_type}
-          </span>
-          {hasRun(gameState) && (
-            <span className="text-xs font-mono text-zinc-500">
-              Act {gameState.run.act} · Floor {gameState.run.floor}
-            </span>
-          )}
-        </div>
-        {player && (
-          <div className="flex items-center gap-5">
-            <span className="text-sm text-zinc-400">{player.character}</span>
-            <HpBar current={player.hp} max={player.maxHp} />
-            <span className="text-sm font-mono tabular-nums text-amber-400">
-              {player.gold}g
-            </span>
-          </div>
-        )}
-      </header>
-
-      {/* Main content — placeholder for now */}
+      <AppHeader gameState={gameState} player={player} onSignOut={signOut} />
       <main className="flex-1 p-6">
-        <div className="text-center text-zinc-500">
-          <p className="text-lg">Desktop app connected!</p>
-          <p className="mt-2 text-sm">
-            State: {gameState.state_type}
-            {hasRun(gameState) && ` · Act ${gameState.run.act} Floor ${gameState.run.floor}`}
-          </p>
-          <p className="mt-1 text-xs text-zinc-600">
-            Deck: {deckCards.length} cards
-            {player && ` · ${player.hp}/${player.maxHp} HP · ${player.gold}g`}
-          </p>
-        </div>
+        <GameStateView
+          state={gameState}
+          deckCards={deckCards}
+          player={player}
+          runId={runState.runId}
+          runState={runState}
+        />
       </main>
+      {gameState.state_type !== "menu" && (
+        <footer className="border-t border-zinc-800 px-6 py-2 flex justify-end">
+          <button
+            onClick={() => {
+              localStorage.removeItem("sts2-eval-cache");
+              localStorage.removeItem("sts2-shop-eval-cache");
+              localStorage.removeItem("sts2-map-eval-cache");
+              localStorage.removeItem("sts2-event-eval-cache");
+              localStorage.removeItem("sts2-rest-eval-cache");
+              window.location.reload();
+            }}
+            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Re-evaluate
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

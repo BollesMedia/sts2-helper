@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "STS2 Replay",
+        "label": "main",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -23,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; connect-src 'self' http://localhost:15526 https://*.supabase.co https://sts2-helper.vercel.app https://sts2replay.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://*.supabase.co data:; font-src 'self' data:"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:15526 ws://localhost:1420 https://*.supabase.co wss://*.supabase.co https://sts2-helper.vercel.app https://sts2replay.com; img-src 'self' https://*.supabase.co data: blob:; font-src 'self' data:; worker-src 'self' blob:"
     }
   },
   "bundle": {

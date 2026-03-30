@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
+import { AuthProvider } from "./auth-provider";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
 import { initSupabase } from "@sts2/shared/supabase/client";
 import { setAuthRedirectOrigin } from "@sts2/shared/supabase/auth";
@@ -23,6 +24,8 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );

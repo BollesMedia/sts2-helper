@@ -1,0 +1,16 @@
+export const STATE_LABELS: Record<string, string> = {
+  monster: "Combat",
+  elite: "Elite Combat",
+  boss: "Boss Fight",
+  card_reward: "Card Reward",
+  combat_rewards: "Rewards",
+  card_select: "Card Select",
+  relic_select: "Relic Select",
+  hand_select: "Hand Select",
+  rest_site: "Rest Site",
+  shop: "Shop",
+  map: "Map",
+  event: "Event",
+  treasure: "Treasure",
+  menu: "Menu",
+};
