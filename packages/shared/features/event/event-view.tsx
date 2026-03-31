@@ -48,7 +48,7 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
       {error && <EvalError error={error} onRetry={retry} />}
 
       {options.length === 0 && (
-        <p className="text-xs text-zinc-500">Waiting for selection...</p>
+        <p className="text-xs text-zinc-500">Waiting for game state to update...</p>
       )}
 
       <div className="grid grid-cols-3 gap-3">
