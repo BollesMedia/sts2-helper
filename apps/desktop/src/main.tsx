@@ -20,9 +20,22 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
     apiBaseUrl: API_BASE,
     authRedirectOrigin: API_BASE,
     // Desktop app sends Bearer token for API auth (no cookies cross-origin)
+    // Uses getSession first, refreshes if token is expired
     accessTokenGetter: async () => {
-      const { data } = await createClient().auth.getSession();
-      return data.session?.access_token ?? null;
+      const client = createClient();
+      const { data } = await client.auth.getSession();
+      if (data.session?.access_token) {
+        // Check if token expires within 60 seconds
+        const expiresAt = data.session.expires_at ?? 0;
+        const now = Math.floor(Date.now() / 1000);
+        if (expiresAt > now + 60) {
+          return data.session.access_token;
+        }
+        // Token expiring soon — refresh
+        const { data: refreshed } = await client.auth.refreshSession();
+        return refreshed.session?.access_token ?? data.session.access_token;
+      }
+      return null;
     },
   });
 } else {
