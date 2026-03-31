@@ -160,6 +160,34 @@ export async function POST(request: Request) {
       }
 
       const result = toolUse.input as Record<string, unknown>;
+
+      // Fix Haiku quirk: rankings sometimes returned as JSON string instead of array
+      if (typeof result.rankings === "string") {
+        try {
+          const str = result.rankings as string;
+          // Extract the array portion (may have trailing fields appended)
+          const start = str.indexOf("[");
+          if (start !== -1) {
+            let depth = 0;
+            for (let i = start; i < str.length; i++) {
+              if (str[i] === "[") depth++;
+              else if (str[i] === "]") depth--;
+              if (depth === 0) {
+                result.rankings = JSON.parse(str.slice(start, i + 1));
+                break;
+              }
+            }
+          }
+          // Also extract overall_advice if embedded in the string
+          if (!result.overall_advice) {
+            const adviceMatch = str.match(/"overall_advice"\s*:\s*"([^"]*)"/);
+            if (adviceMatch) result.overall_advice = adviceMatch[1];
+          }
+        } catch {
+          result.rankings = [];
+        }
+      }
+
       console.log("[Evaluate] Map/freeform tool result:", JSON.stringify(result));
       return NextResponse.json(result);
     } catch (error) {
