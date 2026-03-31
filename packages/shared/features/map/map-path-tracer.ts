@@ -43,47 +43,6 @@ export function traceRecommendedPath(
   }
 
   const path: PathCoord[] = [];
-  const visited = new Set<string>();
-
-  function dfs(col: number, row: number): number {
-    const key = `${col},${row}`;
-    if (visited.has(key)) return -Infinity;
-    visited.add(key);
-
-    const node = nodeMap.get(key);
-    if (!node) {
-      // Missing node — could be boss or broken data
-      if (col === bossPos.col && row === bossPos.row) {
-        return 0; // Boss found
-      }
-      console.warn("[PathTracer] Missing node:", key);
-      return -Infinity;
-    }
-
-    const nodeScore = scoreNode(node.type, hpPercent, gold);
-
-    // Terminal: boss or no children
-    if (node.children.length === 0 || (col === bossPos.col && row === bossPos.row)) {
-      return nodeScore;
-    }
-
-    // Evaluate each child's subtree
-    let bestChild: [number, number] | null = null;
-    let bestSubtreeScore = -Infinity;
-
-    for (const [childCol, childRow] of node.children) {
-      const childKey = `${childCol},${childRow}`;
-      if (visited.has(childKey)) continue;
-
-      const subtreeScore = dfsScore(childCol, childRow, nodeMap, bossPos, hpPercent, gold, new Set(visited));
-      if (subtreeScore > bestSubtreeScore) {
-        bestSubtreeScore = subtreeScore;
-        bestChild = [childCol, childRow];
-      }
-    }
-
-    return nodeScore + (bestChild ? bestSubtreeScore : 0);
-  }
 
   // Build the actual path by following best choices
   function buildPath(col: number, row: number) {

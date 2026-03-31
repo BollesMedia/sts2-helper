@@ -265,37 +265,6 @@ export function compactBossReference(fullReference: string | null): string | nul
   return `[Bosses] ${compact.join(", ")}`;
 }
 
-// --- Item Formatting ---
-
-export interface EvalItem {
-  id: string;
-  name: string;
-  description: string;
-  cost?: number;
-  type?: string;
-  rarity?: string;
-}
-
-/**
- * Format items for evaluation. Items go LAST in the prompt (Haiku recency bias).
- */
-export function formatItems(
-  items: EvalItem[],
-  label: string = "Evaluate"
-): string {
-  const itemsStr = items
-    .map((item, i) => {
-      const parts = [item.name];
-      if (item.cost != null) parts.push(`${item.cost}E`);
-      if (item.type) parts.push(item.type);
-      if (item.rarity) parts.push(item.rarity);
-      return `${i + 1}. ${parts.join(", ")} — ${item.description}`;
-    })
-    .join("\n");
-
-  return `${label}:\n${itemsStr}`;
-}
-
 // --- Tool Schemas for freeform eval types ---
 
 /**

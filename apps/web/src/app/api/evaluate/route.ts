@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
-// buildPromptContext is the verbose format — buildCompactContext is used instead
-// import { buildPromptContext } from "@sts2/shared/evaluation/context-builder";
 import {
   buildSystemPrompt,
   buildCompactContext,

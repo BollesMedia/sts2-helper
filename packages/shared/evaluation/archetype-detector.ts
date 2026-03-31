@@ -94,19 +94,19 @@ export function detectArchetypes(
   return results;
 }
 
-// Check if deck has scaling sources (powers, passive damage, etc.)
 // Verified against STS2 card DB
-export function hasScalingSources(deckCards: CombatCard[]): boolean {
-  const scalingKeywords = [
-    "demon form", "noxious fumes", "afterimage", "defragment",
-    "biased cognition", "corruption", "crimson mantle", "inflame",
-    "reaper form", "necro mastery", "void form", "creative ai",
-    "serpent form", "envenom", "infinite blades",
-  ];
+const SCALING_KEYWORDS = [
+  "demon form", "noxious fumes", "afterimage", "defragment",
+  "biased cognition", "corruption", "crimson mantle", "inflame",
+  "reaper form", "necro mastery", "void form", "creative ai",
+  "serpent form", "envenom", "infinite blades",
+];
 
+// Check if deck has scaling sources (powers, passive damage, etc.)
+export function hasScalingSources(deckCards: CombatCard[]): boolean {
   return deckCards.some((card) => {
     const nameLower = card.name.toLowerCase();
-    return scalingKeywords.some((k) => nameLower.includes(k));
+    return SCALING_KEYWORDS.some((k) => nameLower.includes(k));
   });
 }
 
@@ -129,16 +129,10 @@ export function getDrawSources(deckCards: CombatCard[]): string[] {
 
 // Get scaling source card names from deck
 export function getScalingSources(deckCards: CombatCard[]): string[] {
-  const scalingKeywords = [
-    "demon form", "noxious fumes", "afterimage", "defragment",
-    "biased cognition", "corruption", "crimson mantle",
-    "reaper form", "void form", "creative ai", "envenom",
-  ];
-
   return deckCards
     .filter((card) => {
       const nameLower = card.name.toLowerCase();
-      return scalingKeywords.some((k) => nameLower.includes(k));
+      return SCALING_KEYWORDS.some((k) => nameLower.includes(k));
     })
     .map((card) => card.name);
 }

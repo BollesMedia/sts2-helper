@@ -71,7 +71,6 @@ function applyCardRewardWeights(
 ): void {
   for (const ranking of evaluation.rankings) {
     const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
-    const name = ranking.itemName?.toLowerCase() ?? "";
 
     // Unplayable/curse cards being OFFERED: penalize heavily
     if (desc.includes("unplayable") || desc.includes("curse")) {
@@ -233,65 +232,6 @@ function buildRestShortCircuit(
     skipRecommended: false,
     skipReasoning: null,
   };
-}
-
-// --- Map weights ---
-
-export interface MapNodeInfo {
-  type: string;
-  optionIndex: number;
-}
-
-/**
- * Post-eval weight adjustment for map paths.
- * Boosts paths with more relic opportunities and HP preservation.
- */
-export function applyMapWeights(
-  rankings: { optionIndex: number; tier: string; confidence: number; reasoning: string }[],
-  pathNodes: Map<number, string[]>, // optionIndex → node types in that path
-  wctx: WeightContext
-): void {
-  for (const ranking of rankings) {
-    const nodes = pathNodes.get(ranking.optionIndex) ?? [];
-
-    // Count relic sources
-    const relicSources = nodes.filter((n) =>
-      n === "Elite" || n === "Treasure"
-    ).length;
-    const unknownNodes = nodes.filter((n) => n === "Unknown").length;
-    const restNodes = nodes.filter((n) => n === "RestSite").length;
-    const shopNodes = nodes.filter((n) => n === "Shop").length;
-
-    // Relic opportunity bonus
-    let tierBoost = 0;
-    tierBoost += relicSources * 1; // +1 per elite/treasure
-    tierBoost += Math.min(unknownNodes, 2) * 0.5; // slight positive for mystery nodes
-    if (shopNodes > 0 && wctx.gold >= 150) tierBoost += 1; // shop with gold
-
-    // RestSite → Elite pattern (safest relic path)
-    for (let i = 0; i < nodes.length - 1; i++) {
-      if (nodes[i] === "RestSite" && nodes[i + 1] === "Elite") {
-        tierBoost += 2;
-        break;
-      }
-    }
-
-    // HP preservation: paths with rest sites when HP is low
-    if (wctx.hpPercent < 0.70 && restNodes > 0) {
-      tierBoost += 1;
-    }
-
-    // Boss proximity: prioritize rest sites
-    if (wctx.hasBossNear && restNodes > 0) {
-      tierBoost += 1;
-    }
-
-    // Apply boost
-    if (tierBoost >= 1) {
-      const currentTier = ranking.tier as TierLetter;
-      ranking.tier = adjustTier(currentTier, Math.round(tierBoost));
-    }
-  }
 }
 
 // --- Main entry point ---

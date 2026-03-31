@@ -48,11 +48,3 @@ export interface CardRewardEvaluation {
   skipReasoning: string | null;
   spendingPlan?: string | null;
 }
-
-export interface ShopEvaluation {
-  rankings: CardEvaluation[];
-  cardRemovalRank: number | null;
-  cardRemovalReasoning: string | null;
-}
-
-export type Recommendation = "strong_pick" | "good_pick" | "situational" | "skip";

@@ -10,6 +10,7 @@ import { traceRecommendedPath } from "./map-path-tracer";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
+import { RECOMMENDATION_BORDER } from "../../lib/recommendation-styles";
 import type { TierLetter } from "../../evaluation/tier-utils";
 
 interface MapViewProps {
@@ -40,13 +41,6 @@ const NODE_FILL: Record<string, string> = {
   Shop: "#60a5fa",
   Treasure: "#fbbf24",
   Unknown: "#a1a1aa",
-};
-
-const RECOMMENDATION_BORDER: Record<string, string> = {
-  strong_pick: "border-emerald-500/50",
-  good_pick: "border-blue-500/40",
-  situational: "border-amber-500/40",
-  skip: "border-zinc-700/40",
 };
 
 export function MapView({ state, player, deckCards }: MapViewProps) {

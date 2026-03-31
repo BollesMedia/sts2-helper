@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import type { EventState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation, CardEvaluation } from "../../evaluation/types";
+import { tierToValue, type TierLetter } from "../../evaluation/tier-utils";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
 import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
@@ -137,7 +138,7 @@ Use item_id EVENT_1, EVENT_2, EVENT_3 matching the numbered options above.`,
           itemIndex: optIndex,
           rank: r.rank,
           tier: r.tier,
-          tierValue: { S: 6, A: 5, B: 4, C: 3, D: 2, F: 1 }[r.tier] ?? 3,
+          tierValue: tierToValue(r.tier as TierLetter),
           synergyScore: r.synergy_score,
           confidence: r.confidence,
           recommendation: r.recommendation,

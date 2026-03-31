@@ -119,11 +119,6 @@ export function clearNarrative() {
   }
 }
 
-/** Get the current run ID if a narrative is active */
-export function getActiveRunId(): string | null {
-  return narrative?.runId ?? null;
-}
-
 export function appendDecision(decision: RunDecision) {
   if (!narrative) return;
 
