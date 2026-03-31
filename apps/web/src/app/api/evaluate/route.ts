@@ -270,7 +270,7 @@ export async function POST(request: Request) {
           spending_plan: { type: "string", description: "Concise gold allocation recommendation. Only affordable items." },
         } : {}),
       },
-      required: ["thinking", "rankings", "pick_summary", "skip_recommended"],
+      required: ["rankings", "pick_summary", "skip_recommended"],
     },
   };
 
