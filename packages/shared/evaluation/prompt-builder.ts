@@ -34,10 +34,14 @@ CORE RULES (priority order):
 5. BUILD GUIDE. When provided, it is authoritative. "Always pick" / "S-tier" = strong picks. "Always skip" = skips. Once locked, prefer archetype cards or gap-fillers.
 6. DUPLICATES. Second copy of a core engine card (draw, scaling, key damage) is GOOD. Second copy of a mediocre card is bad. Evaluate duplicates by card quality, not by being a duplicate.
 
+GAME FACTS:
+- STS2 has 3 acts. There is no Act 4. Gold is worthless after the Act 3 boss.
+- Unplayable and Curse cards are always the #1 removal priority, above Strikes.
+- Relics are vital for clearing Act 3 — maximize relic acquisition opportunities (elites, treasures, events).
+
 OUTPUT RULES:
 - Only name cards already in the player's deck. Say "enables [archetype]" not "synergizes with [unowned card]."
 - Reasoning: under 15 words. State tier reason only.
-- Cards that ONLY scale with starter cards (Strikes/Defends) are F-tier — starters get removed.
 - Respond in JSON only. Rankings MUST have exactly one entry per item, in listed order.
 - Confidence: 90-100 clear pick, 70-89 solid, 40-69 close call, <40 uncertain.`;
 
@@ -57,23 +61,26 @@ SHOP:
 - Card removal is high priority if Strikes/Defends remain. Keep 75g reserve for removal.
 - Relics are permanent power — an archetype-enabling relic is almost always the top purchase.
 - Each item evaluated independently (not exclusive). Include spending_plan for affordable items only.
-- Gold management: do not recommend spending below 75g unless buying a critical piece.`,
+- Gold management: do not recommend spending below 75g unless buying a critical piece.
+- In Act 3: spend ALL gold. It has zero value after the final boss.`,
 
   map: `
-MAP PATHING:
-- Elites = relics = permanent power multipliers. Early relics benefit 30+ fights. Prioritize elite paths.
-- Act 1: elites at >50% HP with front-loaded damage. Aim for 2 elites.
-- Act 2: elites at >60% HP if deck has AoE. 1-2 elites.
-- Act 3: elites only if deck is strong AND HP >60%. Boss prep > greed.
-- Unknown/Event nodes: safer than Monster with comparable+ rewards. Prefer Unknown over Monster.
-- Shops: high value at 150g+. Below 75g with no starters left = skip.
-- Budget ~20 HP per remaining fight. If HP minus (fights * 20) < 0 before boss, too aggressive.`,
+MAP PATHING — CORE: Maximize relics while keeping HP high. Relics win Act 3. Cards come naturally.
+- Relic sources (elite, treasure, mystery/event) are the highest-value nodes. Prefer paths with MORE relic opportunities.
+- RestSite → Elite is the IDEAL elite path: heal/upgrade then fight for a relic.
+- Treasure nodes = free relic = always high priority.
+- Unknown/Event nodes: safer than Monster, can give relics/transforms/gold. Prefer over Monster.
+- Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets.
+- Rest sites: critical for HP preservation. Paths with rest sites before elite/boss are safer.
+- At high ascension: sometimes you MUST take risky elite paths to accumulate enough relics to clear Act 3. Factor whether the run can win without more relics.
+- Budget ~20 HP per remaining fight for safety.`,
 
   rest_site: `
-REST SITE — UPGRADE IS DEFAULT:
-- Dig (if available): best option. Skip only at <30% HP before boss.
+REST SITE:
+- Dig (if available): best option unless HP critically low before boss.
 - Smith: name the best upgrade target. Priority: win-condition scaler > most-played card > AoE > power.
-- Rest: ONLY when effective HP <40% (or <50% if elite/boss next). You die from weak decks, not chip damage.
+- Rest: when HP is low relative to upcoming threats. Elite within 2 nodes: heal at <75% HP. Boss within 3 nodes: heal at <80% HP. Otherwise heal at <40% HP.
+- SURVIVAL > OPTIMIZATION when elite or boss is near. A dead run gets zero value from upgrades.
 - Already-upgraded cards (with +) cannot be upgraded again.`,
 
   event: `

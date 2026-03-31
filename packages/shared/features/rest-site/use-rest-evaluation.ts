@@ -10,6 +10,7 @@ import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { loadMapContext } from "../map/map-context-cache";
+import { preEvalRestWeights, applyRestWeights } from "../../evaluation/post-eval-weights";
 import { getCached, setCache } from "../../lib/local-cache";
 
 const CACHE_KEY = "sts2-rest-eval-cache";
@@ -59,6 +60,29 @@ export function useRestEvaluation(
     setIsLoading(true);
     setError(null);
 
+    const restPlayer = state.rest_site.player;
+    const hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
+    const missing = restPlayer.max_hp - restPlayer.hp;
+    const mapCtx = loadMapContext();
+    const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
+    const hasBossNear = (mapCtx?.floorsToNextBoss ?? 99) <= 3;
+
+    // Pre-eval short-circuit: skip LLM call when answer is obvious
+    const preResult = preEvalRestWeights(
+      hpPercent,
+      missing,
+      restPlayer.max_hp,
+      hasEliteAhead,
+      hasBossNear,
+      options.map((o) => ({ id: o.id, name: o.name }))
+    );
+    if (preResult.shortCircuit) {
+      setEvaluation(preResult.shortCircuit);
+      setCache(CACHE_KEY, restKey, preResult.shortCircuit);
+      setIsLoading(false);
+      return;
+    }
+
     const ctx: EvaluationContext | null = buildEvaluationContext(
       state,
       deckCards,
@@ -73,8 +97,7 @@ export function useRestEvaluation(
 
     updateFromContext(ctx);
 
-    const restPlayer = state.rest_site.player;
-    ctx.hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
+    ctx.hpPercent = hpPercent;
     ctx.gold = restPlayer.gold;
 
     const contextStr = buildCompactContext(ctx);
@@ -93,13 +116,9 @@ export function useRestEvaluation(
       if (desc.includes("meat on the bone")) passiveHealPerCombat += 6; // average value
     }
 
-    const missing = restPlayer.max_hp - restPlayer.hp;
+    // missing, mapCtx, hasEliteAhead already computed above for pre-eval
     const missingPercent = Math.round((missing / Math.max(1, restPlayer.max_hp)) * 100);
     const floor = state.run.floor;
-
-    // Load cached map context for upcoming threat awareness
-    const mapCtx = loadMapContext();
-    const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
     const hasRestAhead = mapCtx?.hasRestAhead ?? false;
 
     // Boss detection: use map cache (actual game data) with hardcoded fallback
@@ -203,6 +222,9 @@ Respond as JSON:
         skipRecommended: data.skip_recommended ?? false,
         skipReasoning: data.skip_reasoning ?? null,
       };
+
+      // Apply post-eval weights (heal override near elite/boss)
+      applyRestWeights(evaluation, hpPercent, hasEliteAhead, hasBossNear);
 
       setEvaluation(evaluation);
       setCache(CACHE_KEY, restKey, evaluation);

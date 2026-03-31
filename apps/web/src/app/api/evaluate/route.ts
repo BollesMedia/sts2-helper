@@ -18,6 +18,7 @@ import {
   parseToolUseInput,
 } from "@sts2/shared/evaluation/evaluation-service";
 import { tierToValue } from "@sts2/shared/evaluation/tier-utils";
+import { applyPostEvalWeights, buildWeightContext } from "@sts2/shared/evaluation/post-eval-weights";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
@@ -346,6 +347,11 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
     }
 
     console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
+
+    // Apply post-eval weight adjustments
+    const itemDescs = new Map(items.map((item, i) => [i, item.description]));
+    const wctx = buildWeightContext(evalType, context);
+    applyPostEvalWeights(evaluation, wctx, itemDescs);
 
     // Log evaluations async (don't block response)
     Promise.all(
