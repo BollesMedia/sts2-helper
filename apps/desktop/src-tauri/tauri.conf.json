@@ -32,7 +32,7 @@
       "endpoints": [
         "https://github.com/BollesMedia/sts2-helper/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENERDFDODQ0QzQyMUUzRjkKUldUNTR5SEVSTWpSemNIM1R4ajFwTG1TaVhuUmE5QnFkc3VRNkZHeHlHK3MxbFE3Um5tRHVtT0EK"
     }
   },
   "bundle": {
