@@ -94,25 +94,37 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return opt ? `${opt.col},${opt.row}` : null;
   }, [bestOptionIndex, next_options]);
 
-  // Full recommended path: use Claude's path or fallback to local trace
-  const recommendedPathSet = useMemo(() => {
-    // Primary: Claude's recommended path
-    if (evaluation?.recommendedPath && evaluation.recommendedPath.length > 0) {
-      return new Set(evaluation.recommendedPath.map((p) => `${p.col},${p.row}`));
+  // Full recommended path: trace locally from Claude's best-ranked option
+  // Store as an edge set for precise highlighting (avoids false positives from convergent nodes)
+  const recommendedPathEdges = useMemo(() => {
+    if (bestOptionIndex == null) return new Set<string>();
+    const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+    if (!bestOpt) return new Set<string>();
+
+    const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
+    const path = traceRecommendedPath(
+      bestOpt.col, bestOpt.row, nodes, boss, hpPct, state.map.player.gold
+    );
+
+    // Build edge set from consecutive path nodes
+    const edges = new Set<string>();
+    for (let i = 0; i < path.length - 1; i++) {
+      edges.add(`${path[i].col},${path[i].row}->${path[i + 1].col},${path[i + 1].row}`);
     }
-    // Fallback: local path trace from best option
-    if (bestOptionIndex != null) {
-      const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-      if (bestOpt) {
-        const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
-        const path = traceRecommendedPath(
-          bestOpt.col, bestOpt.row, nodes, boss, hpPct, state.map.player.gold
-        );
-        return new Set(path.map((p) => `${p.col},${p.row}`));
-      }
-    }
-    return new Set<string>();
-  }, [evaluation, bestOptionIndex, next_options, nodes, boss, state.map.player]);
+    return edges;
+  }, [bestOptionIndex, next_options, nodes, boss, state.map.player]);
+
+  const recommendedPathNodes = useMemo(() => {
+    if (bestOptionIndex == null) return new Set<string>();
+    const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+    if (!bestOpt) return new Set<string>();
+
+    const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
+    const path = traceRecommendedPath(
+      bestOpt.col, bestOpt.row, nodes, boss, hpPct, state.map.player.gold
+    );
+    return new Set(path.map((p) => `${p.col},${p.row}`));
+  }, [bestOptionIndex, next_options, nodes, boss, state.map.player]);
 
   return (
     <div className="flex gap-4 h-full min-h-0">
@@ -151,10 +163,9 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                   isNextEdge &&
                   bestOptionKey === `${childCol},${childRow}`;
 
-                // Full recommended path: both endpoints in path set
+                // Full recommended path: exact edge match (not just node membership)
                 const isPathEdge = !isBestEdge &&
-                  recommendedPathSet.has(`${node.col},${node.row}`) &&
-                  recommendedPathSet.has(`${childCol},${childRow}`);
+                  recommendedPathEdges.has(`${node.col},${node.row}->${childCol},${childRow}`);
 
                 return (
                   <g key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}>
@@ -210,7 +221,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
               const isVisited = visitedSet.has(key);
               const isNext = nextOptionSet.has(key);
               const isBest = bestOptionKey === key;
-              const isOnPath = recommendedPathSet.has(key) && !isBest && !isCurrent;
+              const isOnPath = recommendedPathNodes.has(key) && !isBest && !isCurrent;
 
               const fill = NODE_FILL[node.type] ?? "#71717a";
               const opacity = isVisited && !isCurrent

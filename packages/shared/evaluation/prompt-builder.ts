@@ -326,20 +326,8 @@ export function buildMapToolSchema(optionCount: number) {
           },
         },
         overall_advice: { type: "string", description: "Max 15 words overall pathing strategy." },
-        recommended_path: {
-          type: "array",
-          description: "Full recommended route from current position to boss. Array of {col, row} node coordinates in order, starting from the recommended next option through to the boss.",
-          items: {
-            type: "object",
-            properties: {
-              col: { type: "integer" },
-              row: { type: "integer" },
-            },
-            required: ["col", "row"],
-          },
-        },
       },
-      required: ["rankings", "overall_advice", "recommended_path"],
+      required: ["rankings", "overall_advice"],
     },
   };
 }
