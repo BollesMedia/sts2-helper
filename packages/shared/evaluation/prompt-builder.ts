@@ -148,11 +148,17 @@ export function buildCompactContext(ctx: EvaluationContext): string {
     }
   }
 
+  const starterCards = new Set(["strike", "defend"]);
   const deckStr = [...cardCounts.entries()]
     .map(([name, info]) => {
       const prefix = info.count > 1 ? `${info.count}x ` : "";
       const tags = info.keywords.length > 0 ? ` [${info.keywords.join(",")}]` : "";
-      return `${prefix}${name}${tags}`;
+      // Include short description for non-starter cards so Claude knows what they do
+      const isStarter = starterCards.has(name.toLowerCase());
+      const desc = !isStarter && info.desc
+        ? ` (${info.desc.slice(0, 30).trim()}${info.desc.length > 30 ? "..." : ""})`
+        : "";
+      return `${prefix}${name}${desc}${tags}`;
     })
     .join(", ");
 
