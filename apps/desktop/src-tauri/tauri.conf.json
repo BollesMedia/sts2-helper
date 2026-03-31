@@ -27,6 +27,14 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:15526 https://*.supabase.co wss://*.supabase.co https://sts2-helper.vercel.app https://sts2replay.com https://api.sts2replay.com; img-src 'self' https://*.supabase.co data: blob:; font-src 'self' data:; worker-src 'self' blob:"
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/BollesMedia/sts2-helper/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
