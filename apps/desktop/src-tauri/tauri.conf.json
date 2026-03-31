@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npx turbo run build --filter=desktop"
+    "beforeBuildCommand": "npx turbo run build --filter=@sts2/desktop"
   },
   "app": {
     "windows": [
