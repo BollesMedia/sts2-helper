@@ -171,17 +171,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No items to evaluate" }, { status: 400 });
   }
 
-  // Check statistical cache for each item
+  // Check statistical cache for each item (ascension-scoped via evaluation_stats_v2)
   const cachedResults = await Promise.all(
     items.map(async (item) => {
-      const stat = await getStatisticalEvaluation(supabase, item.id, context);
+      const stat = await getStatisticalEvaluation(supabase, item.id, context, context.ascension);
       return { itemId: item.id, stat };
     })
   );
 
-  // DISABLED: Statistical cache aggregates across ascensions, serving A15 advice at A0.
-  // Re-enable when cache is ascension-scoped.
-  const allCached = false; // cachedResults.every((r) => r.stat !== null);
+  const allCached = cachedResults.every((r) => r.stat !== null);
 
   if (allCached) {
     const rankings = cachedResults
@@ -348,6 +346,11 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
 
     console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
 
+    // Save original tier values before weight adjustments
+    const originalTiers = new Map(
+      evaluation.rankings.map((r) => [r.itemIndex, r.tierValue])
+    );
+
     // Apply post-eval weight adjustments
     const itemDescs = new Map(items.map((item, i) => [i, item.description]));
     const wctx = buildWeightContext(evalType, context);
@@ -355,9 +358,16 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
 
     // Log evaluations async (don't block response)
     Promise.all(
-      evaluation.rankings.map((ranking) =>
-        logEvaluation(supabase, context, ranking, runId, gameVersion, body.userId)
-      )
+      evaluation.rankings.map((ranking) => {
+        const origTier = originalTiers.get(ranking.itemIndex) ?? ranking.tierValue;
+        const adjustments = origTier !== ranking.tierValue
+          ? [{ from: origTier, to: ranking.tierValue }]
+          : null;
+        return logEvaluation(
+          supabase, context, ranking, runId, gameVersion, body.userId,
+          evalType, origTier, adjustments ?? undefined
+        );
+      })
     ).catch(console.error);
 
     return NextResponse.json(evaluation);

@@ -4,7 +4,7 @@ import { apiFetch } from "../../lib/api-client";
 import { useCallback, useRef, useState } from "react";
 import type { RestSiteState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
-import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
+import type { EvaluationContext, CardRewardEvaluation, CardEvaluation } from "../../evaluation/types";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
 import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
@@ -230,7 +230,15 @@ Respond as JSON:
       setCache(CACHE_KEY, restKey, evaluation);
       registerLastEvaluation("rest_site", {
         recommendedId: rankings?.[0]?.itemId ?? null,
+        recommendedTier: rankings?.[0]?.tier ?? null,
         reasoning: rankings?.[0]?.reasoning ?? "",
+        allRankings: (rankings as CardEvaluation[]).map((r) => ({
+          itemId: r.itemId,
+          itemName: r.itemName,
+          tier: r.tier,
+          recommendation: r.recommendation,
+        })),
+        evalType: "rest_site",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");

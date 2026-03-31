@@ -10,6 +10,10 @@ const choiceSchema = z.object({
   act: z.number().int().min(1).optional(),
   offeredItemIds: z.array(z.string()),
   chosenItemId: z.string().nullable().optional(),
+  recommendedItemId: z.string().nullable().optional(),
+  recommendedTier: z.string().nullable().optional(),
+  wasFollowed: z.boolean().nullable().optional(),
+  rankingsSnapshot: z.unknown().nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -36,6 +40,10 @@ export async function POST(request: Request) {
     offered_item_ids: d.offeredItemIds,
     chosen_item_id: d.chosenItemId ?? null,
     user_id: auth.userId,
+    recommended_item_id: d.recommendedItemId ?? null,
+    recommended_tier: d.recommendedTier ?? null,
+    was_followed: d.wasFollowed ?? null,
+    rankings_snapshot: d.rankingsSnapshot ?? null,
   });
 
   if (error) {

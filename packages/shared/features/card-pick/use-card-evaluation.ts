@@ -109,7 +109,15 @@ export function useCardEvaluation(
       setCache(CACHE_KEY, cardKey, data);
       registerLastEvaluation("card_reward", {
         recommendedId: data.rankings?.[0]?.itemId ?? null,
+        recommendedTier: data.rankings?.[0]?.tier ?? null,
         reasoning: data.rankings?.[0]?.reasoning ?? "",
+        allRankings: (data.rankings ?? []).map((r) => ({
+          itemId: r.itemId,
+          itemName: r.itemName,
+          tier: r.tier,
+          recommendation: r.recommendation,
+        })),
+        evalType: "card_reward",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");

@@ -25,3 +25,4 @@ export type ChoiceInsert = Database["public"]["Tables"]["choices"]["Insert"];
 
 // View types
 export type EvaluationStat = Database["public"]["Views"]["evaluation_stats"]["Row"];
+export type EvaluationStatV2 = Database["public"]["Views"]["evaluation_stats_v2"]["Row"];

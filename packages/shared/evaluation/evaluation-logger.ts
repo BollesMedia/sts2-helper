@@ -13,7 +13,10 @@ export async function logEvaluation(
   evaluation: CardEvaluation,
   runId: string | null,
   gameVersion: string | null,
-  userId: string | null = null
+  userId: string | null = null,
+  evalType?: string,
+  originalTierValue?: number,
+  weightAdjustments?: unknown[]
 ): Promise<void> {
   const row: EvaluationInsert = {
     run_id: runId,
@@ -27,6 +30,7 @@ export async function logEvaluation(
     primary_archetype: ctx.primaryArchetype,
     act: ctx.act,
     floor: ctx.floor,
+    ascension: ctx.ascension,
     deck_size: ctx.deckSize,
     hp_percent: ctx.hpPercent,
     gold: ctx.gold,
@@ -41,6 +45,9 @@ export async function logEvaluation(
     reasoning: evaluation.reasoning,
     source: evaluation.source,
     context_hash: createContextHash(ctx),
+    eval_type: evalType ?? null,
+    original_tier_value: originalTierValue ?? evaluation.tierValue,
+    weight_adjustments: weightAdjustments ?? null,
   };
 
   await supabase.from("evaluations").insert(row);

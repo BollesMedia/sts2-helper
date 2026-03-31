@@ -72,6 +72,9 @@ export function useChoiceTracker(
     );
     const chosenItemId = newCards.length > 0 ? newCards[0].name : null;
 
+    // Append to run narrative
+    const lastEval = getLastEvaluation("card_reward");
+
     logChoice({
       runId,
       choiceType: chosenItemId ? "card_reward" : "skip",
@@ -79,10 +82,11 @@ export function useChoiceTracker(
       act: pending.act,
       offeredItemIds: pending.offeredItemIds,
       chosenItemId,
+      recommendedItemId: lastEval?.recommendedId ?? null,
+      recommendedTier: lastEval?.recommendedTier ?? null,
+      wasFollowed: lastEval ? chosenItemId === lastEval.recommendedId : undefined,
+      rankingsSnapshot: lastEval?.allRankings ?? null,
     });
-
-    // Append to run narrative
-    const lastEval = getLastEvaluation("card_reward");
     appendDecision({
       floor: pending.floor,
       type: "card_reward",
@@ -116,6 +120,7 @@ export function useChoiceTracker(
     prevType === "combat_rewards"
   ) {
     const pending = deferredCardReward.current;
+    const lastEval = getLastEvaluation("card_reward");
     logChoice({
       runId,
       choiceType: "skip",
@@ -123,9 +128,11 @@ export function useChoiceTracker(
       act: pending.act,
       offeredItemIds: pending.offeredItemIds,
       chosenItemId: null,
+      recommendedItemId: lastEval?.recommendedId ?? null,
+      recommendedTier: lastEval?.recommendedTier ?? null,
+      wasFollowed: lastEval ? lastEval.recommendedId === null : undefined,
+      rankingsSnapshot: lastEval?.allRankings ?? null,
     });
-
-    const lastEval = getLastEvaluation("card_reward");
     appendDecision({
       floor: pending.floor,
       type: "card_reward",
@@ -197,6 +204,10 @@ export function useChoiceTracker(
             act: pending.act,
             offeredItemIds: pending.offeredItemIds,
             chosenItemId: card.name,
+            recommendedItemId: lastEval?.recommendedId ?? null,
+            recommendedTier: lastEval?.recommendedTier ?? null,
+            wasFollowed: lastEval ? card.name === lastEval.recommendedId : undefined,
+            rankingsSnapshot: lastEval?.allRankings ?? null,
           });
 
           appendDecision({
@@ -211,6 +222,7 @@ export function useChoiceTracker(
         }
       } else if (currentSize >= previousSize) {
         // Left shop without buying cards or removing
+        const shopLastEval = getLastEvaluation("shop");
         logChoice({
           runId,
           choiceType: "shop_browse",
@@ -218,6 +230,10 @@ export function useChoiceTracker(
           act: pending.act,
           offeredItemIds: pending.offeredItemIds,
           chosenItemId: null,
+          recommendedItemId: shopLastEval?.recommendedId ?? null,
+          recommendedTier: shopLastEval?.recommendedTier ?? null,
+          wasFollowed: shopLastEval ? shopLastEval.recommendedId === null : undefined,
+          rankingsSnapshot: shopLastEval?.allRankings ?? null,
         });
       }
 
@@ -297,6 +313,10 @@ function logChoice(choice: {
   act: number;
   offeredItemIds: string[];
   chosenItemId: string | null;
+  recommendedItemId?: string | null;
+  recommendedTier?: string | null;
+  wasFollowed?: boolean;
+  rankingsSnapshot?: unknown;
 }) {
   console.log("[ChoiceTracker]", choice.choiceType, choice.chosenItemId ?? "skip");
 

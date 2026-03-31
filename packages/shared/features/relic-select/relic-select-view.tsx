@@ -134,7 +134,15 @@ Use RELIC_1, RELIC_2, RELIC_3 matching the numbered options above.`,
       if (topPick) {
         registerLastEvaluation("boss_relic", {
           recommendedId: topPick.itemName,
+          recommendedTier: topPick.tier,
           reasoning: topPick.reasoning,
+          allRankings: rankings.map((r) => ({
+            itemId: r.itemId,
+            itemName: r.itemName,
+            tier: r.tier,
+            recommendation: r.recommendation,
+          })),
+          evalType: "boss_relic",
         });
       }
     } catch (err) {

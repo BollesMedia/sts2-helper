@@ -24,6 +24,7 @@ const endSchema = z.object({
   finalDeckSize: z.number().int().nullable().optional(),
   actReached: z.number().int().nullable().optional(),
   causeOfDeath: z.string().nullable().optional(),
+  narrative: z.unknown().nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
     if (d.finalDeckSize !== undefined) update.final_deck_size = d.finalDeckSize;
     if (d.actReached !== undefined) update.act_reached = d.actReached;
     if (d.causeOfDeath !== undefined) update.cause_of_death = d.causeOfDeath;
+    if (d.narrative !== undefined) update.narrative = d.narrative;
 
     const { error } = await supabase
       .from("runs")

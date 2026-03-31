@@ -1,6 +1,6 @@
 "use client";
 import { apiFetch } from "../../lib/api-client";
-import { initializeNarrative, clearNarrative, restoreForRun } from "../../evaluation/run-narrative";
+import { initializeNarrative, clearNarrative, restoreForRun, getNarrative } from "../../evaluation/run-narrative";
 import { clearEvaluationRegistry } from "../../evaluation/last-evaluation-registry";
 
 import { useCallback, useRef, useState } from "react";
@@ -321,6 +321,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
           finalDeckSize: lastDeckNames.current.length || null,
           actReached: lastAct.current,
           causeOfDeath,
+          narrative: getNarrative(),
         }),
       }).catch(console.error);
 

@@ -214,7 +214,15 @@ Respond as JSON:
       setCache(CACHE_KEY, mapKey, parsed);
       registerLastEvaluation("map", {
         recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
+        recommendedTier: parsed.rankings?.[0]?.tier ?? null,
         reasoning: parsed.rankings?.[0]?.reasoning ?? parsed.overallAdvice ?? "",
+        allRankings: (parsed.rankings ?? []).map((r) => ({
+          itemId: r.nodeType,
+          itemName: r.nodeType,
+          tier: r.tier,
+          recommendation: r.recommendation,
+        })),
+        evalType: "map",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evaluation failed");

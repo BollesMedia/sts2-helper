@@ -8,35 +8,50 @@ export const MIN_AVG_CONFIDENCE = 60;
 export const MAX_TIER_STDDEV = 1.5;
 
 /**
+ * Compute ascension tier bucket for scoped statistical queries.
+ */
+function getAscensionTier(ascension: number): string {
+  if (ascension <= 4) return "low";
+  if (ascension <= 9) return "mid";
+  return "high";
+}
+
+/**
  * Attempt to get a statistical evaluation for an item from the database.
  * Uses tiered lookup: exact -> broad -> broadest.
+ * All tiers are scoped to ascension_tier via evaluation_stats_v2.
  */
 export async function getStatisticalEvaluation(
   supabase: SupabaseClient<Database>,
   itemId: string,
-  ctx: EvaluationContext
+  ctx: EvaluationContext,
+  ascension: number = 0
 ): Promise<CardEvaluation | null> {
-  // Try exact match: character + archetype + act
+  const ascensionTier = getAscensionTier(ascension);
+
+  // Tier 1: item_id + character + primary_archetype + act + ascension_tier
   const { data: exactStats } = await supabase
-    .from("evaluation_stats")
+    .from("evaluation_stats_v2")
     .select("*")
     .eq("item_id", itemId)
     .eq("character", ctx.character)
     .eq("primary_archetype", ctx.primaryArchetype ?? "")
     .eq("act", ctx.act)
+    .eq("ascension_tier", ascensionTier)
     .single();
 
   if (exactStats && meetsThresholds(exactStats)) {
     return statsToEvaluation(itemId, exactStats);
   }
 
-  // Broader: character + act (ignore archetype)
+  // Tier 2: item_id + character + act + ascension_tier (no archetype)
   const { data: broadStats } = await supabase
-    .from("evaluation_stats")
+    .from("evaluation_stats_v2")
     .select("*")
     .eq("item_id", itemId)
     .eq("character", ctx.character)
     .eq("act", ctx.act)
+    .eq("ascension_tier", ascensionTier)
     .is("primary_archetype", null)
     .single();
 
@@ -44,44 +59,50 @@ export async function getStatisticalEvaluation(
     return statsToEvaluation(itemId, broadStats);
   }
 
-  // Broadest: just character (aggregate across all archetypes/acts)
+  // Tier 3: item_id + character + ascension_tier (broadest)
   const { data: broadestRows } = await supabase
     .from("evaluations")
-    .select("item_name, tier_value, synergy_score, confidence, recommendation")
+    .select("item_name, tier_value, synergy_score, confidence, recommendation, ascension")
     .eq("item_id", itemId)
     .eq("character", ctx.character)
     .eq("source", "claude");
 
-  if (broadestRows && broadestRows.length >= MIN_EVALS_FOR_STATISTICAL) {
+  // Filter to matching ascension tier in-memory
+  const filteredRows = (broadestRows ?? []).filter((r) => {
+    const rowTier = getAscensionTier(r.ascension ?? 0);
+    return rowTier === ascensionTier;
+  });
+
+  if (filteredRows.length >= MIN_EVALS_FOR_STATISTICAL) {
     const avgConfidence = Math.round(
-      broadestRows.reduce((sum, r) => sum + r.confidence, 0) / broadestRows.length
+      filteredRows.reduce((sum, r) => sum + r.confidence, 0) / filteredRows.length
     );
-    const totalWeight = broadestRows.reduce((sum, r) => sum + r.confidence, 0);
+    const totalWeight = filteredRows.reduce((sum, r) => sum + r.confidence, 0);
     const weightedTier = totalWeight > 0
-      ? broadestRows.reduce((sum, r) => sum + r.tier_value * r.confidence, 0) / totalWeight
+      ? filteredRows.reduce((sum, r) => sum + r.tier_value * r.confidence, 0) / totalWeight
       : 3;
     const weightedSynergy = totalWeight > 0
-      ? Math.round(broadestRows.reduce((sum, r) => sum + r.synergy_score * r.confidence, 0) / totalWeight)
+      ? Math.round(filteredRows.reduce((sum, r) => sum + r.synergy_score * r.confidence, 0) / totalWeight)
       : 50;
-    const tierValues = broadestRows.map((r) => r.tier_value);
+    const tierValues = filteredRows.map((r) => r.tier_value);
     const mean = tierValues.reduce((a, b) => a + b, 0) / tierValues.length;
     const variance = tierValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) / tierValues.length;
     const stddev = Math.sqrt(variance);
 
     // Find mode of recommendation
     const recCounts: Record<string, number> = {};
-    for (const r of broadestRows) {
+    for (const r of filteredRows) {
       recCounts[r.recommendation] = (recCounts[r.recommendation] ?? 0) + 1;
     }
     const mostCommonRec = Object.entries(recCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "situational";
 
     const aggregated = {
-      item_name: broadestRows[0]?.item_name ?? itemId,
+      item_name: filteredRows[0]?.item_name ?? itemId,
       weighted_tier: weightedTier,
       weighted_synergy: weightedSynergy,
       avg_confidence: avgConfidence,
       most_common_rec: mostCommonRec,
-      eval_count: broadestRows.length,
+      eval_count: filteredRows.length,
       tier_stddev: stddev,
     };
 

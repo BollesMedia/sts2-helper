@@ -198,6 +198,7 @@ export type Database = {
         Row: {
           act: number
           archetypes: string[] | null
+          ascension: number | null
           character: string
           confidence: number
           context_hash: string
@@ -205,6 +206,7 @@ export type Database = {
           curse_count: number | null
           deck_size: number
           energy: number | null
+          eval_type: string | null
           floor: number
           game_version: string | null
           gold: number | null
@@ -214,6 +216,7 @@ export type Database = {
           item_id: string
           item_name: string
           item_type: string
+          original_tier_value: number | null
           primary_archetype: string | null
           reasoning: string
           recommendation: string
@@ -223,10 +226,12 @@ export type Database = {
           synergy_score: number
           tier_value: number
           user_id: string | null
+          weight_adjustments: unknown[] | null
         }
         Insert: {
           act: number
           archetypes?: string[] | null
+          ascension?: number | null
           character: string
           confidence: number
           context_hash: string
@@ -234,6 +239,7 @@ export type Database = {
           curse_count?: number | null
           deck_size: number
           energy?: number | null
+          eval_type?: string | null
           floor: number
           game_version?: string | null
           gold?: number | null
@@ -243,6 +249,7 @@ export type Database = {
           item_id: string
           item_name: string
           item_type: string
+          original_tier_value?: number | null
           primary_archetype?: string | null
           reasoning: string
           recommendation: string
@@ -252,10 +259,12 @@ export type Database = {
           synergy_score: number
           tier_value: number
           user_id?: string | null
+          weight_adjustments?: unknown[] | null
         }
         Update: {
           act?: number
           archetypes?: string[] | null
+          ascension?: number | null
           character?: string
           confidence?: number
           context_hash?: string
@@ -263,6 +272,7 @@ export type Database = {
           curse_count?: number | null
           deck_size?: number
           energy?: number | null
+          eval_type?: string | null
           floor?: number
           game_version?: string | null
           gold?: number | null
@@ -272,6 +282,7 @@ export type Database = {
           item_id?: string
           item_name?: string
           item_type?: string
+          original_tier_value?: number | null
           primary_archetype?: string | null
           reasoning?: string
           recommendation?: string
@@ -281,6 +292,7 @@ export type Database = {
           synergy_score?: number
           tier_value?: number
           user_id?: string | null
+          weight_adjustments?: unknown[] | null
         }
         Relationships: [
           {
@@ -566,6 +578,23 @@ export type Database = {
       evaluation_stats: {
         Row: {
           act: number | null
+          avg_confidence: number | null
+          character: string | null
+          eval_count: number | null
+          item_id: string | null
+          item_name: string | null
+          most_common_rec: string | null
+          primary_archetype: string | null
+          tier_stddev: number | null
+          weighted_synergy: number | null
+          weighted_tier: number | null
+        }
+        Relationships: []
+      }
+      evaluation_stats_v2: {
+        Row: {
+          act: number | null
+          ascension_tier: string | null
           avg_confidence: number | null
           character: string | null
           eval_count: number | null

@@ -5,7 +5,10 @@
 
 interface LastEvaluation {
   recommendedId: string | null;
+  recommendedTier: string | null;
   reasoning: string;
+  allRankings: { itemId: string; itemName: string; tier: string; recommendation: string }[];
+  evalType: string;
 }
 
 const registry = new Map<string, LastEvaluation>();
