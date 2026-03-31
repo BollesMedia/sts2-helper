@@ -25,6 +25,7 @@ export interface MapPathEvaluation {
     reasoning: string;
   }[];
   overallAdvice: string | null;
+  recommendedPath: { col: number; row: number }[];
 }
 
 interface UseMapEvaluationResult {
@@ -203,6 +204,9 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
           reasoning: r.reasoning,
         })),
         overallAdvice: data.overall_advice ?? null,
+        recommendedPath: Array.isArray(data.recommended_path)
+          ? data.recommended_path.map((p: { col: number; row: number }) => ({ col: p.col, row: p.row }))
+          : [],
       };
 
       setEvaluation(parsed);

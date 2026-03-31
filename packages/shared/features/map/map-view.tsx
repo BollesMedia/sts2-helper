@@ -6,6 +6,7 @@ import type { MapState } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { CombatCard } from "../../types/game-state";
 import { NODE_TYPE_ICONS } from "./map-scoring";
+import { traceRecommendedPath } from "./map-path-tracer";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
@@ -93,6 +94,26 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return opt ? `${opt.col},${opt.row}` : null;
   }, [bestOptionIndex, next_options]);
 
+  // Full recommended path: use Claude's path or fallback to local trace
+  const recommendedPathSet = useMemo(() => {
+    // Primary: Claude's recommended path
+    if (evaluation?.recommendedPath && evaluation.recommendedPath.length > 0) {
+      return new Set(evaluation.recommendedPath.map((p) => `${p.col},${p.row}`));
+    }
+    // Fallback: local path trace from best option
+    if (bestOptionIndex != null) {
+      const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+      if (bestOpt) {
+        const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
+        const path = traceRecommendedPath(
+          bestOpt.col, bestOpt.row, nodes, boss, hpPct, state.map.player.gold
+        );
+        return new Set(path.map((p) => `${p.col},${p.row}`));
+      }
+    }
+    return new Set<string>();
+  }, [evaluation, bestOptionIndex, next_options, nodes, boss, state.map.player]);
+
   return (
     <div className="flex gap-4 h-full min-h-0">
       {/* Main area — SVG Map */}
@@ -130,19 +151,25 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                   isNextEdge &&
                   bestOptionKey === `${childCol},${childRow}`;
 
+                // Full recommended path: both endpoints in path set
+                const isPathEdge = !isBestEdge &&
+                  recommendedPathSet.has(`${node.col},${node.row}`) &&
+                  recommendedPathSet.has(`${childCol},${childRow}`);
+
                 return (
                   <g key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}>
-                    {/* Emerald glow for best path */}
-                    {isBestEdge && (
+                    {/* Emerald glow for recommended path */}
+                    {(isBestEdge || isPathEdge) && (
                       <line
                         x1={x1}
                         y1={y1}
                         x2={x2}
                         y2={y2}
                         stroke="#34d399"
-                        strokeWidth={6}
-                        opacity={0.3}
+                        strokeWidth={isBestEdge ? 6 : 4}
+                        opacity={isBestEdge ? 0.3 : 0.15}
                         strokeLinecap="round"
+                        className={isPathEdge ? "animate-[path-pulse_3s_ease-in-out_infinite]" : undefined}
                       />
                     )}
                     <line
@@ -153,15 +180,18 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                       stroke={
                         isBestEdge
                           ? "#34d399"
-                          : isVisitedEdge
-                            ? "#71717a"
-                            : isNextEdge
-                              ? "#a1a1aa"
-                              : "#27272a"
+                          : isPathEdge
+                            ? "#34d399"
+                            : isVisitedEdge
+                              ? "#71717a"
+                              : isNextEdge
+                                ? "#a1a1aa"
+                                : "#27272a"
                       }
-                      strokeWidth={isBestEdge ? 2.5 : isNextEdge ? 2 : 1}
+                      strokeWidth={isBestEdge ? 2.5 : isPathEdge ? 1.5 : isNextEdge ? 2 : 1}
                       strokeDasharray={isNextEdge && !isBestEdge ? "4 4" : undefined}
                       strokeLinecap="round"
+                      opacity={isPathEdge && !isBestEdge ? 0.6 : 1}
                     />
                   </g>
                 );
@@ -180,9 +210,12 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
               const isVisited = visitedSet.has(key);
               const isNext = nextOptionSet.has(key);
               const isBest = bestOptionKey === key;
+              const isOnPath = recommendedPathSet.has(key) && !isBest && !isCurrent;
 
               const fill = NODE_FILL[node.type] ?? "#71717a";
-              const opacity = isVisited && !isCurrent ? 0.3 : 1;
+              const opacity = isVisited && !isCurrent
+                ? (isOnPath ? 0.5 : 0.3)  // visited path nodes are more visible
+                : 1;
 
               return (
                 <g key={key}>
@@ -206,6 +239,18 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                         opacity={0.6}
                       />
                     </>
+                  )}
+                  {/* Subtle ring for recommended path nodes */}
+                  {isOnPath && (
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={NODE_RADIUS + 3}
+                      fill="none"
+                      stroke="#34d399"
+                      strokeWidth={1.5}
+                      opacity={0.4}
+                    />
                   )}
                   {isCurrent && (
                     <circle
