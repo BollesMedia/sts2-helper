@@ -245,20 +245,16 @@ export async function POST(request: Request) {
     input_schema: {
       type: "object" as const,
       properties: {
-        thinking: {
-          type: "string",
-          description: "1-2 sentences: identify archetype, deck phase, what the deck needs. This drives your evaluation.",
-        },
         rankings: {
           type: "array",
-          description: `Exactly ${items.length} entries, one per item in listed order. Position 1 = first item listed.`,
+          description: `Exactly ${items.length} entries in this EXACT order: ${items.map((item, i) => `${i + 1}=${item.name}`).join(", ")}.`,
           items: {
             type: "object",
             properties: {
-              position: { type: "integer", description: "Item position (1-indexed, matching listed order)" },
+              position: { type: "integer", description: "Item position (1-indexed)" },
               tier: { type: "string", enum: ["S", "A", "B", "C", "D", "F"] },
               confidence: { type: "integer", description: "0-100" },
-              reasoning: { type: "string", description: "Under 20 words. Reference archetype fit, not cards player lacks." },
+              reasoning: { type: "string", description: "Under 20 words. Reference archetype fit." },
             },
             required: ["position", "tier", "confidence", "reasoning"],
           },
