@@ -28,13 +28,9 @@ export function useEventEvaluation(
   runId: string | null = null
 ): UseEventEvaluationResult {
   const options = state.event.options.filter((o) => !o.is_proceed && !o.is_locked);
+  const enabled = options.length > 1;
 
-  // Don't evaluate if only one option or no real choices
-  if (options.length <= 1) {
-    return { evaluation: null, isLoading: false, error: null, retry: () => {} };
-  }
-
-  const eventKey = `${state.event.event_id}:${options.map((o) => o.index).join(",")}`;
+  const eventKey = enabled ? `${state.event.event_id}:${options.map((o) => o.index).join(",")}` : "disabled";
 
   const cachedRef = useRef<string | null>(null);
   const initialEval = cachedRef.current !== eventKey ? getCached<CardRewardEvaluation>(CACHE_KEY, eventKey) : null;
@@ -181,8 +177,12 @@ Use item_id EVENT_1, EVENT_2, EVENT_3 matching the numbered options above.`,
     setEvaluation(null);
   };
 
-  if (eventKey !== evaluatedKey.current && !isLoading) {
+  if (enabled && eventKey !== evaluatedKey.current && !isLoading) {
     evaluate();
+  }
+
+  if (!enabled) {
+    return { evaluation: null, isLoading: false, error: null, retry: () => {} };
   }
 
   return { evaluation, isLoading, error, retry };

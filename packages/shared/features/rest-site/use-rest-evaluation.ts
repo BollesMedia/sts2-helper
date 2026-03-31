@@ -30,12 +30,9 @@ export function useRestEvaluation(
   runId: string | null = null
 ): UseRestEvaluationResult {
   const options = state.rest_site.options.filter((o) => o.is_enabled);
+  const enabled = options.length > 1;
 
-  if (options.length <= 1) {
-    return { evaluation: null, isLoading: false, error: null, retry: () => {} };
-  }
-
-  const restKey = `rest:${state.run.floor}:${options.map((o) => o.id).join(",")}`;
+  const restKey = enabled ? `rest:${state.run.floor}:${options.map((o) => o.id).join(",")}` : "disabled";
 
   const cachedRef = useRef<string | null>(null);
   const initialEval = cachedRef.current !== restKey ? getCached<CardRewardEvaluation>(CACHE_KEY, restKey) : null;
@@ -254,8 +251,12 @@ Respond as JSON:
     setEvaluation(null);
   };
 
-  if (restKey !== evaluatedKey.current && !isLoading) {
+  if (enabled && restKey !== evaluatedKey.current && !isLoading) {
     evaluate();
+  }
+
+  if (!enabled) {
+    return { evaluation: null, isLoading: false, error: null, retry: () => {} };
   }
 
   return { evaluation, isLoading, error, retry };

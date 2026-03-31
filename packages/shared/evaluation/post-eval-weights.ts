@@ -102,7 +102,6 @@ function applyShopWeights(
 ): void {
   for (const ranking of evaluation.rankings) {
     const name = ranking.itemName?.toLowerCase() ?? "";
-    const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
 
     // Card removal with unplayable/curse in deck: boost to S tier
     if (name.includes("card removal") || name.includes("remove")) {
