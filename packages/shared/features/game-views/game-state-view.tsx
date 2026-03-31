@@ -91,7 +91,12 @@ export function GameStateView({
         run: state.run,
       };
       return (
-        <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
+        <div className="flex flex-col gap-2">
+          {state.card_select.prompt && (
+            <p className="text-xs text-zinc-400">{state.card_select.prompt}</p>
+          )}
+          <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
+        </div>
       );
     }
     case "combat_rewards":
