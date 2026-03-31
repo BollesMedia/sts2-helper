@@ -51,6 +51,7 @@ export function CardRemovalView({ state, deckCards, player }: CardRemovalViewPro
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "card_removal",
           context: ctx,
           runNarrative: narrative,
           mapPrompt: `${contextStr}

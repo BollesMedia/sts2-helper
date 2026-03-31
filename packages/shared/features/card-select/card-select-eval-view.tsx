@@ -59,6 +59,7 @@ export function CardSelectEvalView({ state, deckCards, player }: CardSelectEvalV
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "card_reward",
           context: ctx,
           runNarrative: narrative,
           mapPrompt: `${contextStr}

@@ -83,6 +83,7 @@ export function useEventEvaluation(
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "event",
           context: ctx,
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}

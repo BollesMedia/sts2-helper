@@ -62,6 +62,7 @@ async function loadBossReference(): Promise<string> {
 
 interface EvaluateRequest {
   type: "card_reward" | "shop" | "map";
+  evalType?: string; // Specific eval type for system prompt (rest_site, event, etc.)
   context: EvaluationContext;
   exclusive?: boolean;
   userId?: string | null;
@@ -98,8 +99,11 @@ export async function POST(request: Request) {
     : null;
 
   // Determine eval type for the prompt builder
-  const evalType: EvalType = type === "map" && body.mapPrompt ? "map" : type as EvalType;
+  // Hooks can specify evalType explicitly (rest_site, event, etc.)
+  // Otherwise fall back to the request type
+  const evalType: EvalType = (body.evalType as EvalType) ?? (type === "map" && body.mapPrompt ? "map" : type as EvalType);
   const systemPrompt = buildSystemPrompt(evalType);
+  console.log("[Evaluate] evalType:", evalType, "system prompt length:", systemPrompt.length);
 
   // ─── MAP EVALUATION (includes event, rest, card_removal, etc. via mapPrompt) ───
   if (type === "map" && body.mapPrompt) {

@@ -130,6 +130,7 @@ export function useRestEvaluation(
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "rest_site",
           context: ctx,
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}

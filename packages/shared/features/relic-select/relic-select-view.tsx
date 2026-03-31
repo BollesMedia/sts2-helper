@@ -71,6 +71,7 @@ export function RelicSelectView({ state, deckCards, player }: RelicSelectViewPro
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "relic_select",
           context: ctx,
           runNarrative: narrative,
           mapPrompt: `${contextStr}

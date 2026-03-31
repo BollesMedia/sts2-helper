@@ -53,6 +53,7 @@ export function CardUpgradeView({ state, deckCards, player }: CardUpgradeViewPro
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "card_upgrade",
           context: ctx,
           runNarrative: narrative,
           mapPrompt: `${contextStr}
