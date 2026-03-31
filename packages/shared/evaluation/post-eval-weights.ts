@@ -16,7 +16,7 @@ import { tierToValue } from "./tier-utils";
 
 const TIER_ORDER: TierLetter[] = ["S", "A", "B", "C", "D", "F"];
 
-function adjustTier(tier: TierLetter, delta: number): TierLetter {
+export function adjustTier(tier: TierLetter, delta: number): TierLetter {
   const idx = TIER_ORDER.indexOf(tier);
   const newIdx = Math.max(0, Math.min(TIER_ORDER.length - 1, idx - delta)); // -delta because lower index = higher tier
   return TIER_ORDER[newIdx];

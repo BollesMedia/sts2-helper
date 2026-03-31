@@ -17,8 +17,8 @@ import {
   parseClaudeCardRewardResponse,
   parseToolUseInput,
 } from "@sts2/shared/evaluation/evaluation-service";
-import { tierToValue } from "@sts2/shared/evaluation/tier-utils";
-import { applyPostEvalWeights, buildWeightContext } from "@sts2/shared/evaluation/post-eval-weights";
+import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
+import { applyPostEvalWeights, buildWeightContext, adjustTier as adjustTierByDelta } from "@sts2/shared/evaluation/post-eval-weights";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
@@ -351,10 +351,55 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
       evaluation.rankings.map((r) => [r.itemIndex, r.tierValue])
     );
 
-    // Apply post-eval weight adjustments
+    // Apply heuristic weight adjustments
     const itemDescs = new Map(items.map((item, i) => [i, item.description]));
     const wctx = buildWeightContext(evalType, context);
     applyPostEvalWeights(evaluation, wctx, itemDescs);
+
+    // Apply data-driven weights from card_win_rates materialized view
+    if (evalType === "card_reward" || evalType === "shop") {
+      const ascTier = context.ascension <= 4 ? "low" : context.ascension <= 9 ? "mid" : "high";
+      type WinRateRow = { item_id: string; pick_win_rate: number | null; skip_win_rate: number | null; times_picked: number; times_skipped: number };
+      let winRates: WinRateRow[] | null = null;
+      try {
+        // Materialized views aren't in generated types — use untyped query
+        const { data } = await supabase
+          .from("card_win_rates" as "evaluations") // type bypass for materialized view
+          .select("item_id, pick_win_rate, skip_win_rate, times_picked, times_skipped")
+          .in("item_id", items.map((i) => i.id))
+          .eq("character" as "item_id", context.character)
+          .eq("act" as "item_id", context.act as unknown as string)
+          .eq("ascension_tier" as "item_id", ascTier);
+        winRates = data as unknown as WinRateRow[] | null;
+      } catch {
+        // View may not exist yet or be empty
+      }
+
+      if (winRates && winRates.length > 0) {
+        const winRateMap = new Map(winRates.map((w) => [w.item_id, w]));
+        for (const ranking of evaluation.rankings) {
+          const wr = winRateMap.get(ranking.itemId);
+          if (!wr || (wr.times_picked ?? 0) < 10) continue; // need min sample
+
+          const pickWr = wr.pick_win_rate ?? 0.5;
+          const skipWr = wr.skip_win_rate ?? 0.5;
+
+          // If picking this card has significantly higher win rate than skipping
+          if (pickWr > skipWr + 0.15 && (wr.times_picked ?? 0) >= 20) {
+            ranking.tier = adjustTierByDelta(ranking.tier as TierLetter, 1);
+            ranking.tierValue = tierToValue(ranking.tier as TierLetter);
+            ranking.reasoning = (ranking.reasoning ?? "") + ` [+data: ${Math.round(pickWr * 100)}% pick WR]`;
+          }
+
+          // If skipping has significantly higher win rate than picking
+          if (skipWr > pickWr + 0.15 && (wr.times_skipped ?? 0) >= 20) {
+            ranking.tier = adjustTierByDelta(ranking.tier as TierLetter, -1);
+            ranking.tierValue = tierToValue(ranking.tier as TierLetter);
+            ranking.reasoning = (ranking.reasoning ?? "") + ` [-data: ${Math.round(skipWr * 100)}% skip WR]`;
+          }
+        }
+      }
+    }
 
     // Log evaluations async (don't block response)
     Promise.all(
