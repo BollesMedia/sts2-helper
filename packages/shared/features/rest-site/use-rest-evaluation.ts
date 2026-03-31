@@ -94,17 +94,20 @@ export function useRestEvaluation(
     }
 
     const missing = restPlayer.max_hp - restPlayer.hp;
+    const missingPercent = Math.round((missing / Math.max(1, restPlayer.max_hp)) * 100);
     const floor = state.run.floor;
-
-    // Detect if boss is imminent — boss floors are typically 17, 34, 51
-    const bossFloors = [17, 34, 51];
-    const isBossNext = bossFloors.some((bf) => floor >= bf - 1 && floor < bf);
-    const floorsToNextBoss = Math.min(...bossFloors.filter((bf) => bf > floor).map((bf) => bf - floor));
 
     // Load cached map context for upcoming threat awareness
     const mapCtx = loadMapContext();
     const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
     const hasRestAhead = mapCtx?.hasRestAhead ?? false;
+
+    // Boss detection: use map cache (actual game data) with hardcoded fallback
+    const floorsToNextBoss = mapCtx?.floorsToNextBoss ?? Math.min(
+      ...[17, 34, 51].filter((bf) => bf > floor).map((bf) => bf - floor)
+    );
+    const isBossNext = floorsToNextBoss <= 1;
+    const isBossSoon = floorsToNextBoss <= 3;
     const isEliteOrBossNext = isBossNext || hasEliteAhead;
 
     // If boss is next, passive healing is irrelevant (no combat before the boss)
@@ -141,7 +144,7 @@ ${upgradeNote}
 REST SITE — choose ONE:
 ${optionsStr}
 
-${missing <= 10 || effectiveHpPercent >= 90 ? `Missing only ${missing} HP — this is negligible. ALWAYS upgrade, never heal for this little HP regardless of what comes next.` : isBossNext ? `BOSS NEXT: Heal if missing >15% HP. Only upgrade if HP >85%.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
+${missing <= 10 || effectiveHpPercent >= 90 ? `Missing only ${missing} HP — this is negligible. ALWAYS upgrade.` : isBossNext && missingPercent > 15 ? `BOSS IS NEXT. Missing ${missingPercent}% HP (${missing} HP). You enter the boss at current HP. HEAL — entering a boss at ${100 - missingPercent}% HP is too risky. Only upgrade if missing <10% HP.` : isBossSoon && missingPercent > 25 ? `Boss in ${floorsToNextBoss} floors, missing ${missingPercent}% HP. Strongly consider healing.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
 
 Respond as JSON:
 {
