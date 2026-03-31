@@ -177,36 +177,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No items to evaluate" }, { status: 400 });
   }
 
-  // Check statistical cache for each item (ascension-scoped via evaluation_stats_v2)
+  // Fetch statistical data for each item to augment Claude's evaluation
   const cachedResults = await Promise.all(
     items.map(async (item) => {
       const stat = await getStatisticalEvaluation(supabase, item.id, context, context.ascension);
-      return { itemId: item.id, stat };
+      return { itemId: item.id, itemName: item.name, stat };
     })
   );
 
-  const allCached = cachedResults.every((r) => r.stat !== null);
-
-  if (allCached) {
-    const rankings = cachedResults
-      .map((r, i) => ({
-        ...r.stat!,
-        itemName: items[i].name,
-        rank: i + 1,
-      }))
-      .sort((a, b) => b.tierValue - a.tierValue || b.synergyScore - a.synergyScore);
-
-    // Re-rank after sorting
-    rankings.forEach((r, i) => {
-      r.rank = i + 1;
+  // Build historical context string to inject into Claude's prompt
+  const statsWithData = cachedResults.filter((r) => r.stat !== null);
+  let historicalContext = "";
+  if (statsWithData.length > 0) {
+    const lines = statsWithData.map((r) => {
+      const s = r.stat!;
+      const tierLetter = ["", "F", "D", "C", "B", "A", "S"][s.tierValue] ?? "?";
+      return `${r.itemName}: historically ${tierLetter}-tier (${s.confidence}% confidence, ${s.recommendation})`;
     });
+    historicalContext = `\n[Historical data from ${statsWithData.length > 1 ? "prior runs" : "prior run"}]\n${lines.join("\n")}\nUse this as context but evaluate based on the CURRENT deck state.`;
+  }
 
-    return NextResponse.json({
-      rankings,
-      skipRecommended: false,
-      skipReasoning: null,
-      source: "statistical",
-    });
+  // Also query win rates if available
+  type WinRateRow = { item_id: string; pick_win_rate: number | null; skip_win_rate: number | null; times_picked: number; times_skipped: number };
+  let winRateContext = "";
+  try {
+    const ascTier = context.ascension <= 4 ? "low" : context.ascension <= 9 ? "mid" : "high";
+    const { data: winRates } = await supabase
+      .from("card_win_rates" as "evaluations")
+      .select("item_id, pick_win_rate, skip_win_rate, times_picked, times_skipped")
+      .in("item_id", items.map((i) => i.id))
+      .eq("character" as "item_id", context.character)
+      .eq("act" as "item_id", context.act as unknown as string)
+      .eq("ascension_tier" as "item_id", ascTier);
+    const wr = winRates as unknown as WinRateRow[] | null;
+    if (wr && wr.length > 0) {
+      const wrLines = wr
+        .filter((w) => (w.times_picked ?? 0) >= 5)
+        .map((w) => {
+          const item = items.find((i) => i.id === w.item_id);
+          const pickWr = w.pick_win_rate != null ? `${Math.round(w.pick_win_rate * 100)}%` : "?";
+          const skipWr = w.skip_win_rate != null ? `${Math.round(w.skip_win_rate * 100)}%` : "?";
+          return `${item?.name ?? w.item_id}: pick WR ${pickWr} (n=${w.times_picked}), skip WR ${skipWr} (n=${w.times_skipped})`;
+        });
+      if (wrLines.length > 0) {
+        winRateContext = `\n[Win rate data]\n${wrLines.join("\n")}`;
+      }
+    }
+  } catch {
+    // View may not exist yet
   }
 
   // Build compact prompt — history + narrative + strategy + compact context + items LAST (Haiku recency bias)
@@ -227,6 +245,10 @@ export async function POST(request: Request) {
   if (bossCompact) {
     contextStr += `\n${bossCompact}`;
   }
+
+  // Inject historical data before items (gives Claude context without overriding)
+  if (historicalContext) contextStr += historicalContext;
+  if (winRateContext) contextStr += winRateContext;
 
   // Items go LAST for Haiku's recency bias
   // Flag duplicates and energy cost inline so Claude can't miss them
