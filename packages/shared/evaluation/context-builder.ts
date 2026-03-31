@@ -38,6 +38,7 @@ export function buildEvaluationContext(
         gold: 0,
         maxEnergy: 3,
         relics: [],
+        potions: [],
       };
 
   if (isLikelyStale) {
@@ -72,7 +73,7 @@ export function buildEvaluationContext(
     scalingSources: getScalingSources(safeDeckCards),
     curseNames: curseCards.map((c) => c.name),
     relics: player.relics.map((r) => ({ name: r.name, description: r.description })),
-    potionNames: [],
+    potionNames: player.potions.map((p) => p.name),
   };
 }
 

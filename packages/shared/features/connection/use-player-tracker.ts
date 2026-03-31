@@ -13,6 +13,7 @@ export interface TrackedPlayer {
   gold: number;
   maxEnergy: number;
   relics: { id: string; name: string; description: string }[];
+  potions: { name: string; description: string }[];
   cardRemovalCost: number | null;
 }
 
@@ -65,6 +66,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: p.max_energy,
       relics: p.relics,
+      potions: p.potions.map((pot) => ({ name: pot.name, description: pot.description })),
       cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
@@ -78,6 +80,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      potions: player.current?.potions ?? [],
       cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
@@ -91,6 +94,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      potions: player.current?.potions ?? [],
       cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
@@ -107,6 +111,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      potions: player.current?.potions ?? [],
       cardRemovalCost: removalItem?.cost ?? player.current?.cardRemovalCost ?? null,
     });
   }
@@ -120,6 +125,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      potions: player.current?.potions ?? [],
       cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
@@ -133,6 +139,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       gold: p.gold,
       maxEnergy: player.current?.maxEnergy ?? 3,
       relics: player.current?.relics ?? [],
+      potions: player.current?.potions ?? [],
       cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }

@@ -175,6 +175,7 @@ export function buildCompactContext(ctx: EvaluationContext): string {
     `[Deck ${ctx.deckSize}] ${deckStr}`,
     `[Draw] ${ctx.drawSources.length > 0 ? ctx.drawSources.join(", ") : "none"} | [Scaling] ${ctx.scalingSources.length > 0 ? ctx.scalingSources.join(", ") : "none"} | [Curses] ${ctx.curseCount}`,
     `[Relics] ${relicStr}`,
+    ...(ctx.potionNames.length > 0 ? [`[Potions] ${ctx.potionNames.join(", ")}`] : []),
     `[Archetype] ${archStr}`,
   ];
 
@@ -201,15 +202,16 @@ export function buildCompactContext(ctx: EvaluationContext): string {
 export function compactStrategy(fullStrategy: string | null): string | null {
   if (!fullStrategy) return null;
 
-  // Extract S-tier line and key principle
   const lines = fullStrategy.split("\n");
-  const sTier = lines.find((l) => l.toLowerCase().includes("s-tier") || l.toLowerCase().includes("always"));
+  const sTier = lines.find((l) => l.toLowerCase().includes("s-tier") || l.toLowerCase().includes("always strong") || l.toLowerCase().includes("always good"));
+  const skipList = lines.find((l) => l.toLowerCase().includes("always skip"));
   const principle = lines.find((l) => l.toLowerCase().includes("key principle"));
 
-  if (!sTier && !principle) return null;
+  if (!sTier && !skipList && !principle) return null;
 
   const parts: string[] = [];
   if (sTier) parts.push(sTier.trim());
+  if (skipList) parts.push(skipList.trim());
   if (principle) parts.push(principle.trim());
   return parts.join("\n");
 }

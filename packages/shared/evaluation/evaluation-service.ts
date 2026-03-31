@@ -102,8 +102,9 @@ export function parseToolUseInput(input: unknown): ClaudeCardRewardResponse {
         : tier === "B" ? "good_pick"
           : tier === "C" ? "situational"
             : "skip";
-    // Use position (1-indexed) if available, fall back to item_id or array index
-    const position = entry.position ? Number(entry.position) - 1 : idx;
+    // Use position (1-indexed) if available, fall back to array index
+    // Note: entry.position != null (not truthy) because position 0 is falsy in JS
+    const position = entry.position != null ? Number(entry.position) - 1 : idx;
 
     return {
       item_id: entry.item_id ? String(entry.item_id) : String(position),
