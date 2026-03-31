@@ -58,23 +58,14 @@ export function CardUpgradeView({ state, deckCards, player }: CardUpgradeViewPro
           runNarrative: narrative,
           mapPrompt: `${contextStr}
 
-CARD UPGRADE: Choose ONE card to upgrade. Cards with + are ALREADY upgraded and CANNOT be chosen.
-Only these cards can be upgraded:
+CARD UPGRADE: Choose ONE card to upgrade from this list ONLY:
 ${cardList}
 
-Pick from the list above ONLY. Prioritize:
-1. Key archetype/engine card with biggest upgrade delta
-2. Most-played card in the deck
-3. Scaling card where upgrade increases rate
-Do NOT recommend any card with + in its name — it is already upgraded.
+Prioritize: key engine card > most-played card > scaling card.
+Cards with + cannot be upgraded again.
 
-Respond as JSON:
-{
-  "card_name": "exact card name (without +)",
-  "reasoning": "max 10 words",
-  "overall_advice": null,
-  "rankings": []
-}`,
+Respond with ONLY this JSON, nothing else:
+{"card_name": "exact name", "reasoning": "max 10 words", "overall_advice": null, "rankings": []}`,
           runId: null,
           gameVersion: null,
         }),

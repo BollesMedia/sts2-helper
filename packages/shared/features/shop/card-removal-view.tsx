@@ -56,19 +56,13 @@ export function CardRemovalView({ state, deckCards, player }: CardRemovalViewPro
           runNarrative: narrative,
           mapPrompt: `${contextStr}
 
-CARD REMOVAL: Recommend exactly ONE card to remove.
-Removable cards:
+CARD REMOVAL: Recommend ONE card to remove from this list:
 ${cardList}
 
-Priority: Strikes first (worst damage per card), then Defends, then off-archetype cards. If equal Strikes/Defends, remove Strike. Cards marked ETERNAL cannot be removed — do not recommend them.
+Priority: Strikes > Defends > off-archetype. ETERNAL cards cannot be removed.
 
-Respond as JSON (one card_name, not an array):
-{
-  "card_name": "exact card name",
-  "reasoning": "max 8 words",
-  "overall_advice": null,
-  "rankings": []
-}`,
+Respond with ONLY this JSON, nothing else:
+{"card_name": "exact name", "reasoning": "max 10 words", "overall_advice": null, "rankings": []}`,
           runId: null,
           gameVersion: null,
         }),
