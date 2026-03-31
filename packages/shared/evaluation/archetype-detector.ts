@@ -7,7 +7,7 @@ const ARCHETYPE_SIGNALS: Record<string, string[]> = {
   // Ironclad
   strength: ["demon form", "inflame", "rupture", "crimson mantle", "brand", "howl from beyond", "primal force"],
   exhaust: ["feel no pain", "dark embrace", "corruption", "burning pact", "stoke", "second wind", "fiend fire", "pyre"],
-  block_ironclad: ["barricade", "body slam", "impervious", "unmovable", "colossus", "shrug it off", "stone armor", "blood wall", "flame barrier"],
+  block: ["barricade", "body slam", "impervious", "unmovable", "colossus", "shrug it off", "stone armor", "blood wall", "flame barrier"],
   vulnerable: ["cruelty", "molten fist", "taunt", "tremble", "dismantle", "stomp"],
 
   // Silent
@@ -16,10 +16,10 @@ const ARCHETYPE_SIGNALS: Record<string, string[]> = {
   discard: ["calculated gamble", "prepared", "acrobatics", "reflex", "expertise", "tools of the trade"],
 
   // Defect
-  orb_frost: ["glacier", "coolheaded", "chill", "hailstorm", "cold snap", "refract"],
-  orb_lightning: ["ball lightning", "storm", "thunder", "voltaic", "sweeping beam", "lightning rod"],
+  frost: ["glacier", "coolheaded", "chill", "hailstorm", "cold snap", "refract"],
+  lightning: ["ball lightning", "storm", "thunder", "voltaic", "sweeping beam", "lightning rod"],
   focus: ["defragment", "biased cognition", "capacitor", "signal boost", "creative ai"],
-  zero_cost: ["claw", "all for one", "scrape", "ftl", "compile driver"],
+  claw: ["claw", "all for one", "scrape", "ftl", "compile driver"],
 
   // Necrobinder
   reaper: ["reaper form", "deathbringer", "death's door", "death march", "reap", "drain power"],

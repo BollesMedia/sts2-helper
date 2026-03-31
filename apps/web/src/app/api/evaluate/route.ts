@@ -240,6 +240,10 @@ export async function POST(request: Request) {
     input_schema: {
       type: "object" as const,
       properties: {
+        thinking: {
+          type: "string",
+          description: "1-2 sentences: identify archetype, deck phase, what the deck needs. This drives your evaluation.",
+        },
         rankings: {
           type: "array",
           description: `Exactly ${items.length} entries, one per item in listed order. Position 1 = first item listed.`,
@@ -261,7 +265,7 @@ export async function POST(request: Request) {
           spending_plan: { type: "string", description: "Concise gold allocation recommendation. Only affordable items." },
         } : {}),
       },
-      required: ["rankings", "pick_summary", "skip_recommended"],
+      required: ["thinking", "rankings", "pick_summary", "skip_recommended"],
     },
   };
 

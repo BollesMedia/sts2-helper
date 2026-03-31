@@ -145,7 +145,7 @@ ${upgradeNote}
 REST SITE — choose ONE:
 ${optionsStr}
 
-${missing <= 10 || effectiveHpPercent >= 90 ? `Missing only ${missing} HP — this is negligible. ALWAYS upgrade.` : isBossNext && missingPercent > 15 ? `BOSS IS NEXT. Missing ${missingPercent}% HP (${missing} HP). You enter the boss at current HP. HEAL — entering a boss at ${100 - missingPercent}% HP is too risky. Only upgrade if missing <10% HP.` : isBossSoon && missingPercent > 25 ? `Boss in ${floorsToNextBoss} floors, missing ${missingPercent}% HP. Strongly consider healing.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
+RECOMMENDATION: ${missing <= 10 || effectiveHpPercent >= 90 ? 'Upgrade (HP loss negligible).' : isBossNext && missingPercent > 15 ? `Heal (boss next, missing ${missingPercent}% HP).` : isBossSoon && missingPercent > 25 ? `Lean heal (boss in ${floorsToNextBoss} floors, missing ${missingPercent}%).` : isEliteOrBossNext && effectiveHpPercent < 50 ? 'Heal (elite/boss ahead, HP low).' : 'Upgrade (HP adequate).'}
 
 Respond as JSON:
 {
