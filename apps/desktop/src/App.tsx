@@ -2,7 +2,7 @@ import { useGameState, ConnectionBanner } from "@sts2/shared/features/connection
 import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
 import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
-import { useChoiceTracker } from "@sts2/shared/evaluation/choice-tracker";
+import { useChoiceTracker } from "@sts2/shared/features/connection/use-choice-tracker";
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";

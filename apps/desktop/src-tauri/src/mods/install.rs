@@ -90,6 +90,20 @@ pub async fn install_sts2mcp(
             .await
             .map_err(|e| ModError::Download(format!("{}: {}", asset_name, e)))?;
 
+        // Basic sanity check: verify DLL has valid PE header (Windows) or Mach-O header (macOS)
+        if asset_name.ends_with(".dll") {
+            let header = &bytes[..4.min(bytes.len())];
+            let is_valid = header.starts_with(b"MZ")
+                || header.starts_with(&[0xCF, 0xFA, 0xED, 0xFE])
+                || header.starts_with(&[0xCE, 0xFA, 0xED, 0xFE]);
+            if !is_valid {
+                return Err(ModError::Download(format!(
+                    "{}: downloaded file is not a valid binary",
+                    asset_name
+                )));
+            }
+        }
+
         let temp_path = temp_dir.path().join(asset_name);
         let mut file = tokio::fs::File::create(&temp_path).await?;
         file.write_all(&bytes).await?;
