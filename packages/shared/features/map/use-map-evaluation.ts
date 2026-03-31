@@ -181,12 +181,7 @@ Map: ${mapOverview} | Boss in ${state.map.boss.row - currentRow} floors
 Paths (each line = node in order, ├─ = branch point):
 ${optionsStr}
 
-Return EXACTLY ${options.length} rankings — ONE per path option, NOT per node.
-Respond as JSON:
-{
-  "rankings": [${options.map((_, i) => `{"option_index": ${i + 1}, "node_type": "first node type", "tier": "S-F", "confidence": 0-100, "recommendation": "strong_pick|good_pick|situational|skip", "reasoning": "max 15 words about the WHOLE path"}`).join(", ")}],
-  "overall_advice": "max 15 words"
-}`,
+Return EXACTLY ${options.length} rankings — ONE per path option (${options.map((o, i) => `${i + 1}=${o.type}`).join(", ")}). Evaluate the WHOLE path, not individual nodes.`,
           runId: null,
           gameVersion: null,
         }),

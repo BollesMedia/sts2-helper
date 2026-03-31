@@ -9,6 +9,9 @@ import {
   buildCompactContext,
   compactStrategy,
   compactBossReference,
+  buildMapToolSchema,
+  buildGenericToolSchema,
+  buildSimpleToolSchema,
   type EvalType,
 } from "@sts2/shared/evaluation/prompt-builder";
 import {
@@ -107,7 +110,7 @@ export async function POST(request: Request) {
   const systemPrompt = buildSystemPrompt(evalType);
   console.log("[Evaluate] evalType:", evalType, "system prompt length:", systemPrompt.length);
 
-  // ─── MAP EVALUATION (includes event, rest, card_removal, etc. via mapPrompt) ───
+  // ─── MAP/EVENT/REST/ETC EVALUATION (via mapPrompt) ───
   if (type === "map" && body.mapPrompt) {
     let mapPromptFull = "";
     if (runHistory) mapPromptFull += `${runHistory}\n\n`;
@@ -119,43 +122,46 @@ export async function POST(request: Request) {
       if (bossCompact) mapPromptFull += `\n\n${bossCompact}`;
     }
 
+    // Select tool schema based on eval type
+    const isMapEval = evalType === "map";
+    const isSimpleEval = evalType === "card_removal" || evalType === "card_upgrade";
+    const toolSchema = isMapEval
+      ? buildMapToolSchema(body.mapPrompt.match(/Option \d+/g)?.length ?? 3)
+      : isSimpleEval
+        ? buildSimpleToolSchema()
+        : buildGenericToolSchema(`Submit ${evalType} evaluation`);
+
     try {
       const message = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2048,
         system: systemPrompt,
         messages: [{ role: "user", content: mapPromptFull }],
+        tools: [toolSchema as Anthropic.Tool],
+        tool_choice: { type: "tool", name: toolSchema.name },
       });
 
       // Log usage
       logUsage(supabase, {
         userId: body.userId ?? null,
-        evalType: "map",
+        evalType: evalType,
         model: "claude-haiku-4-5-20251001",
         inputTokens: message.usage.input_tokens,
         outputTokens: message.usage.output_tokens,
       }).catch(console.error);
 
-      const textBlock = message.content.find((b) => b.type === "text");
-      if (!textBlock || textBlock.type !== "text") {
-        return NextResponse.json({ error: "No response" }, { status: 502 });
-      }
-
-      // Extract JSON object from response — find first { to last }
-      const rawText = textBlock.text;
-      const firstBrace = rawText.indexOf("{");
-      const lastBrace = rawText.lastIndexOf("}");
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      // Extract tool_use result — structured, no JSON parsing needed
+      const toolUse = message.content.find((b) => b.type === "tool_use");
+      if (!toolUse || toolUse.type !== "tool_use") {
         return NextResponse.json(
-          { error: "No JSON found in response", detail: rawText.slice(0, 200) },
+          { error: "No tool use response from Claude" },
           { status: 502 }
         );
       }
-      const jsonText = rawText.slice(firstBrace, lastBrace + 1);
 
-      const mapResult = JSON.parse(jsonText);
-      console.log("[Evaluate] Map result:", JSON.stringify(mapResult));
-      return NextResponse.json(mapResult);
+      const result = toolUse.input as Record<string, unknown>;
+      console.log("[Evaluate] Map/freeform tool result:", JSON.stringify(result));
+      return NextResponse.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Map evaluation failed:", message);

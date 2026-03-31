@@ -62,10 +62,7 @@ CARD UPGRADE: Choose ONE card to upgrade from this list ONLY:
 ${cardList}
 
 Prioritize: key engine card > most-played card > scaling card.
-Cards with + cannot be upgraded again.
-
-Respond with ONLY this JSON, nothing else:
-{"card_name": "exact name", "reasoning": "max 10 words", "overall_advice": null, "rankings": []}`,
+Cards with + cannot be upgraded again.`,
           runId: null,
           gameVersion: null,
         }),

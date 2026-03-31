@@ -295,3 +295,87 @@ export function formatItems(
 
   return `${label}:\n${itemsStr}`;
 }
+
+// --- Tool Schemas for freeform eval types ---
+
+/**
+ * Build a tool schema for map/event/rest/etc evaluations.
+ * Replaces fragile freeform JSON parsing with structured tool_use output.
+ */
+export function buildMapToolSchema(optionCount: number) {
+  return {
+    name: "submit_map_evaluation",
+    description: `Evaluate ${optionCount} path options. Return exactly ${optionCount} rankings.`,
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        rankings: {
+          type: "array",
+          description: `Exactly ${optionCount} entries, one per path option in order.`,
+          items: {
+            type: "object",
+            properties: {
+              option_index: { type: "integer", description: "Path option number (1-indexed)" },
+              node_type: { type: "string", description: "First node type on this path" },
+              tier: { type: "string", enum: ["S", "A", "B", "C", "D", "F"] },
+              confidence: { type: "integer", description: "0-100" },
+              recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
+              reasoning: { type: "string", description: "Max 15 words about the WHOLE path." },
+            },
+            required: ["option_index", "tier", "confidence", "reasoning"],
+          },
+        },
+        overall_advice: { type: "string", description: "Max 15 words overall pathing strategy." },
+      },
+      required: ["rankings", "overall_advice"],
+    },
+  };
+}
+
+export function buildGenericToolSchema(description: string) {
+  return {
+    name: "submit_evaluation",
+    description,
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        rankings: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              item_id: { type: "string" },
+              rank: { type: "integer" },
+              tier: { type: "string", enum: ["S", "A", "B", "C", "D", "F"] },
+              synergy_score: { type: "integer" },
+              confidence: { type: "integer" },
+              recommendation: { type: "string", enum: ["strong_pick", "good_pick", "situational", "skip"] },
+              reasoning: { type: "string", description: "Max 15 words." },
+            },
+            required: ["item_id", "tier", "confidence", "reasoning"],
+          },
+        },
+        pick_summary: { type: "string", description: "Max 15 words." },
+        skip_recommended: { type: "boolean" },
+        skip_reasoning: { type: "string" },
+        overall_advice: { type: "string" },
+      },
+      required: ["rankings"],
+    },
+  };
+}
+
+export function buildSimpleToolSchema() {
+  return {
+    name: "submit_recommendation",
+    description: "Submit a single card recommendation",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        card_name: { type: "string", description: "Exact card name to recommend" },
+        reasoning: { type: "string", description: "Max 15 words." },
+      },
+      required: ["card_name", "reasoning"],
+    },
+  };
+}
