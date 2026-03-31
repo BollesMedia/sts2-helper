@@ -33,10 +33,6 @@ export function useGameState() {
       revalidateOnFocus: false,
       refreshWhenHidden: true,
       dedupingInterval: 200,
-      compare: (a, b) => {
-        if (!a || !b) return false;
-        return a.state_type === b.state_type && JSON.stringify(a) === JSON.stringify(b);
-      },
       shouldRetryOnError: true,
       errorRetryCount: Infinity,
     }
