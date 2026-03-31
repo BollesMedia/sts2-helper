@@ -1,14 +1,14 @@
 "use client";
-import { apiFetch } from "../lib/api-client";
-import { waitForRunCreated } from "../features/connection/use-run-tracker";
-import { appendDecision, addMilestone } from "./run-narrative";
-import { getLastEvaluation } from "./last-evaluation-registry";
-import type { DecisionType } from "./run-narrative";
+import { apiFetch } from "../../lib/api-client";
+import { waitForRunCreated } from "./use-run-tracker";
+import { appendDecision, addMilestone } from "../../evaluation/run-narrative";
+import { getLastEvaluation } from "../../evaluation/last-evaluation-registry";
+import type { DecisionType } from "../../evaluation/run-narrative";
 
 import { useRef } from "react";
-import type { GameState, CombatCard } from "../types/game-state";
-import { hasRun } from "../types/game-state";
-import { getUserId } from "../lib/get-user-id";
+import type { GameState, CombatCard } from "../../types/game-state";
+import { hasRun } from "../../types/game-state";
+import { getUserId } from "../../lib/get-user-id";
 
 interface PendingChoice {
   choiceType: string;
@@ -43,7 +43,7 @@ export function useChoiceTracker(
 
   const run = hasRun(gameState) ? gameState.run : null;
 
-  // ─── Entering card_reward: record what's offered ───
+  // --- Entering card_reward: record what's offered ---
   if (currentType === "card_reward" && prevType !== "card_reward") {
     pendingChoice.current = {
       choiceType: "card_reward",
@@ -54,7 +54,7 @@ export function useChoiceTracker(
     };
   }
 
-  // ─── Leaving card_reward: defer detection until deck updates ───
+  // --- Leaving card_reward: defer detection until deck updates ---
   // The deck tracker only updates on next combat round 1, so we can't
   // diff immediately. Store the pending choice and resolve it later.
   if (prevType === "card_reward" && currentType !== "card_reward") {
@@ -64,7 +64,7 @@ export function useChoiceTracker(
     }
   }
 
-  // ─── Resolve deferred card_reward when deck changes ───
+  // --- Resolve deferred card_reward when deck changes ---
   if (deferredCardReward.current && deckCards.length !== prevDeckSize.current) {
     const pending = deferredCardReward.current;
     const newCards = deckCards.filter(
@@ -108,7 +108,7 @@ export function useChoiceTracker(
     deferredCardReward.current = null;
   }
 
-  // ─── If we leave combat_rewards without deck changing, it was a skip ───
+  // --- If we leave combat_rewards without deck changing, it was a skip ---
   if (
     deferredCardReward.current &&
     currentType !== "card_reward" &&
@@ -141,7 +141,7 @@ export function useChoiceTracker(
 
   prevDeckSize.current = deckCards.length;
 
-  // ─── Entering shop: record what's available ───
+  // --- Entering shop: record what's available ---
   if (currentType === "shop" && prevType !== "shop") {
     const shopItems = gameState.shop.items
       .filter((i) => i.is_stocked)
@@ -161,7 +161,7 @@ export function useChoiceTracker(
     };
   }
 
-  // ─── Leaving shop: detect purchases ───
+  // --- Leaving shop: detect purchases ---
   if (prevType === "shop" && currentType !== "shop") {
     const pending = pendingChoice.current;
     if (pending) {
@@ -225,7 +225,7 @@ export function useChoiceTracker(
     }
   }
 
-  // ─── Leaving rest_site: detect rest vs upgrade ───
+  // --- Leaving rest_site: detect rest vs upgrade ---
   if (prevType === "rest_site" && currentType !== "rest_site") {
     const floor = run?.floor ?? 0;
 
@@ -262,7 +262,7 @@ export function useChoiceTracker(
     }
   }
 
-  // ─── Entering rest_site: snapshot deck for upgrade detection ───
+  // --- Entering rest_site: snapshot deck for upgrade detection ---
   if (currentType === "rest_site" && prevType !== "rest_site") {
     pendingChoice.current = {
       choiceType: "rest_site",
@@ -273,7 +273,7 @@ export function useChoiceTracker(
     };
   }
 
-  // ─── Leaving event: detect chosen option ───
+  // --- Leaving event: detect chosen option ---
   if (prevType === "event" && currentType !== "event") {
     const floor = run?.floor ?? 0;
     const lastEval = getLastEvaluation("event");

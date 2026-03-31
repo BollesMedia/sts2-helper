@@ -108,6 +108,7 @@ async fn install_required_mods(app: tauri::AppHandle) -> Result<InstallResult, M
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             detect_game,
             get_mod_status,

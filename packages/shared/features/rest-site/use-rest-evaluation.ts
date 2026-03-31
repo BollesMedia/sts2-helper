@@ -5,7 +5,8 @@ import { useCallback, useRef, useState } from "react";
 import type { RestSiteState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { loadMapContext } from "../map/map-context-cache";
@@ -76,7 +77,7 @@ export function useRestEvaluation(
     ctx.hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
     ctx.gold = restPlayer.gold;
 
-    const contextStr = buildPromptContext(ctx);
+    const contextStr = buildCompactContext(ctx);
     const optionsStr = options
       .map((o, i) => `${i + 1}. ${o.name} (${o.id}): ${o.description}`)
       .join("\n");
@@ -93,17 +94,20 @@ export function useRestEvaluation(
     }
 
     const missing = restPlayer.max_hp - restPlayer.hp;
+    const missingPercent = Math.round((missing / Math.max(1, restPlayer.max_hp)) * 100);
     const floor = state.run.floor;
-
-    // Detect if boss is imminent — boss floors are typically 17, 34, 51
-    const bossFloors = [17, 34, 51];
-    const isBossNext = bossFloors.some((bf) => floor >= bf - 1 && floor < bf);
-    const floorsToNextBoss = Math.min(...bossFloors.filter((bf) => bf > floor).map((bf) => bf - floor));
 
     // Load cached map context for upcoming threat awareness
     const mapCtx = loadMapContext();
     const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
     const hasRestAhead = mapCtx?.hasRestAhead ?? false;
+
+    // Boss detection: use map cache (actual game data) with hardcoded fallback
+    const floorsToNextBoss = mapCtx?.floorsToNextBoss ?? Math.min(
+      ...[17, 34, 51].filter((bf) => bf > floor).map((bf) => bf - floor)
+    );
+    const isBossNext = floorsToNextBoss <= 1;
+    const isBossSoon = floorsToNextBoss <= 3;
     const isEliteOrBossNext = isBossNext || hasEliteAhead;
 
     // If boss is next, passive healing is irrelevant (no combat before the boss)
@@ -126,11 +130,12 @@ export function useRestEvaluation(
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "rest_site",
           context: ctx,
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
-HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing} HP
+HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing} HP | Rest heals: ${Math.min(missing, Math.floor(restPlayer.max_hp * 0.3))} HP (capped at missing)
 ${isBossNext ? `⚠ BOSS IS NEXT FLOOR. Passive healing will NOT apply. Current HP is your boss HP.` : `Passive healing per combat: ${passiveHealPerCombat} HP | Effective missing: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%`}
 ${hasEliteAhead && !isBossNext ? `⚠ ELITE FIGHT AHEAD on the current path. Factor elite damage (~20-30 HP) into heal decision.` : ""}
 ${!isBossNext && floorsToNextBoss <= 3 ? `Boss in ${floorsToNextBoss} floors.` : ""}
@@ -140,7 +145,7 @@ ${upgradeNote}
 REST SITE — choose ONE:
 ${optionsStr}
 
-${isBossNext ? `BOSS NEXT: Heal if missing >15% HP. Only upgrade if HP >85%.` : isEliteOrBossNext ? `ELITE/BOSS AHEAD: Heal if HP <50%. The player needs HP to survive the upcoming fight. Only upgrade if HP >65%.` : `UPGRADE IS DEFAULT at >50% HP. Heal if HP <40%.`} If recommending Smith, NAME the specific card. Already-upgraded cards (with +) cannot be upgraded.
+RECOMMENDATION: ${missing <= 10 || effectiveHpPercent >= 90 ? 'Upgrade (HP loss negligible).' : isBossNext && missingPercent > 15 ? `Heal (boss next, missing ${missingPercent}% HP).` : isBossSoon && missingPercent > 25 ? `Lean heal (boss in ${floorsToNextBoss} floors, missing ${missingPercent}%).` : isEliteOrBossNext && effectiveHpPercent < 50 ? 'Heal (elite/boss ahead, HP low).' : 'Upgrade (HP adequate).'}
 
 Respond as JSON:
 {

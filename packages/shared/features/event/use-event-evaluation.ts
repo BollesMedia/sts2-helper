@@ -5,7 +5,8 @@ import { useCallback, useRef, useState } from "react";
 import type { EventState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { getCached, setCache } from "../../lib/local-cache";
@@ -72,7 +73,7 @@ export function useEventEvaluation(
 
     updateFromContext(ctx);
 
-    const contextStr = buildPromptContext(ctx);
+    const contextStr = buildCompactContext(ctx);
     const optionsStr = options
       .map((o, i) => `${i + 1}. ${o.title}: ${o.relic_description ?? o.description}`)
       .join("\n");
@@ -82,6 +83,7 @@ export function useEventEvaluation(
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "event",
           context: ctx,
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}

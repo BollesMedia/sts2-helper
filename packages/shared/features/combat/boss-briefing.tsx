@@ -98,6 +98,7 @@ export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProp
       method: "POST",
       body: JSON.stringify({
         type: "map",
+        evalType: "boss_briefing",
         context: null,
         mapPrompt: `You are fighting this boss in Slay the Spire 2. Based ONLY on the move data below and the player's deck, provide a concise 2-3 sentence strategy. Do NOT invent moves or mechanics not listed.
 

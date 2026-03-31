@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:15526 ws://localhost:1420 https://*.supabase.co wss://*.supabase.co https://sts2-helper.vercel.app https://sts2replay.com; img-src 'self' https://*.supabase.co data: blob:; font-src 'self' data:; worker-src 'self' blob:"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:15526 https://*.supabase.co wss://*.supabase.co https://sts2-helper.vercel.app https://sts2replay.com https://api.sts2replay.com; img-src 'self' https://*.supabase.co data: blob:; font-src 'self' data:; worker-src 'self' blob:"
     }
   },
   "bundle": {
@@ -36,6 +36,16 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "signingIdentity": null,
+      "providerShortName": null
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
   }
 }

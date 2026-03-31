@@ -11,24 +11,30 @@ import { getPromptContext, updateFromContext } from "../../evaluation/run-narrat
 import { apiFetch } from "../../lib/api-client";
 import type { GameState } from "../../types/game-state";
 
-interface CardRemovalViewProps {
+interface CardSelectEvalViewProps {
   state: GameState & { state_type: "card_select" };
   deckCards: CombatCard[];
   player: TrackedPlayer | null;
 }
 
-interface RemovalRecommendation {
+interface SelectRecommendation {
   cardName: string;
   reasoning: string;
 }
 
-export function CardRemovalView({ state, deckCards, player }: CardRemovalViewProps) {
-  const [recommendation, setRecommendation] = useState<RemovalRecommendation | null>(null);
+/**
+ * Generic card select evaluation for any card_select screen that isn't
+ * a reward, removal, or upgrade. Passes the game's prompt text through
+ * to Claude so it understands the context (enchant, transform, etc.).
+ */
+export function CardSelectEvalView({ state, deckCards, player }: CardSelectEvalViewProps) {
+  const [recommendation, setRecommendation] = useState<SelectRecommendation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const evaluatedKey = useRef("");
 
+  const prompt = state.card_select.prompt;
   const cards = state.card_select.cards;
-  const cardKey = cards.map((c) => c.name).sort().join(",");
+  const cardKey = `${prompt}:${cards.map((c) => c.name).sort().join(",")}`;
 
   const evaluate = useCallback(async () => {
     if (cardKey === evaluatedKey.current) return;
@@ -44,28 +50,32 @@ export function CardRemovalView({ state, deckCards, player }: CardRemovalViewPro
     updateFromContext(ctx);
     const contextStr = buildCompactContext(ctx);
     const narrative = getPromptContext();
-    const cardList = cards.map((c) => `- ${c.name}: ${c.description}`).join("\n");
+    const cardList = cards
+      .map((c) => `- ${c.name}: ${c.description}`)
+      .join("\n");
 
     try {
       const res = await apiFetch("/api/evaluate", {
         method: "POST",
         body: JSON.stringify({
           type: "map",
-          evalType: "card_removal",
+          evalType: "card_reward",
           context: ctx,
           runNarrative: narrative,
           mapPrompt: `${contextStr}
 
-CARD REMOVAL: Recommend exactly ONE card to remove.
-Removable cards:
+CARD SELECT: "${prompt}"
+You must choose ONE card from your deck for this effect.
+Cards available:
 ${cardList}
 
-Priority: Strikes first (worst damage per card), then Defends, then off-archetype cards. If equal Strikes/Defends, remove Strike. Cards marked ETERNAL cannot be removed — do not recommend them.
+Choose the card that benefits MOST from this effect given the current archetype and win condition.
+Prioritize: key engine cards > most-played cards > highest-impact cards.
 
-Respond as JSON (one card_name, not an array):
+Respond as JSON:
 {
   "card_name": "exact card name",
-  "reasoning": "max 8 words",
+  "reasoning": "under 20 words",
   "overall_advice": null,
   "rankings": []
 }`,
@@ -84,35 +94,37 @@ Respond as JSON (one card_name, not an array):
         });
       }
     } catch {
-      // Silent fail — removal still works without recommendation
+      // Silent fail
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player, cards, cardKey]);
+  }, [state, deckCards, player, cards, cardKey, prompt]);
 
   if (cardKey !== evaluatedKey.current && !isLoading) {
     evaluate();
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Header with inline recommendation */}
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-zinc-100 shrink-0">Remove a Card</h2>
-        {recommendation && !isLoading && (
-          <p className="text-xs font-medium text-emerald-400 truncate flex-1 text-right">
-            Remove {recommendation.cardName}
-            {recommendation.reasoning && (
-              <span className="text-zinc-500 font-normal"> — {recommendation.reasoning}</span>
-            )}
-          </p>
-        )}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-zinc-100">Choose a Card</h2>
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">Evaluating...</span>
         )}
       </div>
 
-      <div className="grid grid-cols-5 gap-1">
+      <p className="text-xs text-zinc-400">{prompt}</p>
+
+      {recommendation && (
+        <p className="text-sm text-emerald-300 font-medium">
+          {recommendation.cardName}
+          {recommendation.reasoning && (
+            <span className="text-zinc-400 font-normal"> — {recommendation.reasoning}</span>
+          )}
+        </p>
+      )}
+
+      <div className="grid grid-cols-4 gap-1.5">
         {(() => {
           let highlightedOne = false;
           return cards.map((card) => {
@@ -124,19 +136,15 @@ Respond as JSON (one card_name, not an array):
               <div
                 key={card.index}
                 className={cn(
-                  "rounded border px-2 py-1 text-[10px]",
+                  "rounded border px-2.5 py-1.5 text-xs",
                   isRecommended
-                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
+                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
                     : "border-zinc-800 bg-zinc-900/50 text-zinc-400"
                 )}
-                title={card.description}
               >
-                <span className={cn("font-medium truncate block", isRecommended ? "text-emerald-200" : "text-zinc-200")}>
+                <span className={cn("font-medium", isRecommended ? "text-emerald-200" : "text-zinc-200")}>
                   {card.name}
                 </span>
-                {isRecommended && (
-                  <span className="text-[8px] text-emerald-400 uppercase font-bold">remove</span>
-                )}
               </div>
             );
           });

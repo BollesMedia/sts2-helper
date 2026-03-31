@@ -5,7 +5,8 @@ import { cn } from "../../lib/cn";
 import type { RelicSelectState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
-import { buildEvaluationContext, buildPromptContext } from "../../evaluation/context-builder";
+import { buildEvaluationContext } from "../../evaluation/context-builder";
+import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext, addMilestone } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { apiFetch } from "../../lib/api-client";
@@ -58,7 +59,7 @@ export function RelicSelectView({ state, deckCards, player }: RelicSelectViewPro
     }
 
     updateFromContext(ctx);
-    const contextStr = buildPromptContext(ctx);
+    const contextStr = buildCompactContext(ctx);
     const narrative = getPromptContext();
 
     const relicList = relics
@@ -70,6 +71,7 @@ export function RelicSelectView({ state, deckCards, player }: RelicSelectViewPro
         method: "POST",
         body: JSON.stringify({
           type: "map",
+          evalType: "relic_select",
           context: ctx,
           runNarrative: narrative,
           mapPrompt: `${contextStr}

@@ -12,27 +12,44 @@ import {
 /**
  * Build an EvaluationContext from the current game state + tracked player/deck.
  */
+// Starter deck sizes per character (approximate)
+const STARTER_DECK_SIZE = 10;
+
 export function buildEvaluationContext(
   state: GameState,
   deckCards: CombatCard[],
   trackedPlayer: TrackedPlayer | null
 ): EvaluationContext | null {
   const run = hasRun(state) ? state.run : null;
+  const floor = run?.floor ?? 1;
 
-  const player = trackedPlayer ?? {
-    character: "Unknown",
-    hp: 0,
-    maxHp: 1,
-    gold: 0,
-    maxEnergy: 3,
-    relics: [],
-  };
+  // Detect stale localStorage data: if we're on floor 1-2 but deck is
+  // much larger than a starter deck, the data is from a previous run.
+  // Use empty deck and default player to avoid polluting the evaluation.
+  const isLikelyStale = floor <= 2 && deckCards.length > STARTER_DECK_SIZE + 2;
+  const safeDeckCards = isLikelyStale ? [] : deckCards;
 
-  const archetypes = detectArchetypes(deckCards, player.relics);
+  const player = trackedPlayer && !isLikelyStale
+    ? trackedPlayer
+    : {
+        character: trackedPlayer?.character ?? "Unknown",
+        hp: 0,
+        maxHp: 1,
+        gold: 0,
+        maxEnergy: 3,
+        relics: [],
+        potions: [],
+      };
+
+  if (isLikelyStale) {
+    console.warn("[EvalContext] Stale deck/player data detected at floor", floor, "- using defaults");
+  }
+
+  const archetypes = detectArchetypes(safeDeckCards, player.relics);
   const primaryArchetype =
     archetypes.length > 0 ? archetypes[0].archetype : null;
 
-  const curseCards = deckCards.filter((c) =>
+  const curseCards = safeDeckCards.filter((c) =>
     c.name.toLowerCase().includes("curse")
   );
 
@@ -41,22 +58,22 @@ export function buildEvaluationContext(
     archetypes,
     primaryArchetype,
     act: run?.act ?? 1,
-    floor: run?.floor ?? 1,
+    floor,
     ascension: run?.ascension ?? 0,
-    deckSize: deckCards.length,
+    deckSize: safeDeckCards.length,
     hpPercent:
       player.maxHp > 0 ? player.hp / player.maxHp : 1,
     gold: player.gold,
     energy: player.maxEnergy,
     relicIds: player.relics.map((r) => r.id),
-    hasScaling: hasScalingSources(deckCards),
+    hasScaling: hasScalingSources(safeDeckCards),
     curseCount: curseCards.length,
-    deckCards: deckCards.map((c) => ({ name: c.name, description: c.description, keywords: c.keywords })),
-    drawSources: getDrawSources(deckCards),
-    scalingSources: getScalingSources(deckCards),
+    deckCards: safeDeckCards.map((c) => ({ name: c.name, description: c.description, keywords: c.keywords })),
+    drawSources: getDrawSources(safeDeckCards),
+    scalingSources: getScalingSources(safeDeckCards),
     curseNames: curseCards.map((c) => c.name),
     relics: player.relics.map((r) => ({ name: r.name, description: r.description })),
-    potionNames: [],
+    potionNames: player.potions.map((p) => p.name),
   };
 }
 
