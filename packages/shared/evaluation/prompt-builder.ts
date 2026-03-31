@@ -24,22 +24,20 @@ export type EvalType =
 
 // --- Base System Prompt (~450 tokens, 6 rules) ---
 
-const BASE_PROMPT = `You are an STS2 deck-building coach. Evaluate decisions against the player's win condition, not individual card power.
+const BASE_PROMPT = `You are an STS2 deck-building coach. Evaluate decisions against the player's current deck needs, not individual card power.
 
 CORE RULES (priority order):
-1. SKIP IS DEFAULT. A focused 12-15 card deck that draws key cards every fight beats a pile of good cards. Every add must advance the win condition or fix a critical gap.
-2. ARCHETYPE FIRST. When locked, evaluate everything against the archetype. Off-archetype = skip even if individually strong. No lock yet = evaluate for front-loaded combat value.
-3. DECK SIZE. At A0-A4: 16-22 cards is healthy, skip only genuinely bad/off-archetype cards. At A5+: over 15 cards be selective, over 20 skip most.
+1. DECK SIZE BY ASCENSION. At A0-A4: take good cards freely — 18-25 cards is healthy, skip only genuinely bad or off-archetype cards. At A5-A9: 15-20 cards, be more selective. At A10+: 14-18 cards, skip aggressively. A thin deck with no tools loses to encounters it can't answer.
+2. ARCHETYPE FIRST. When locked, evaluate against the archetype. Off-archetype = skip unless it fills a critical gap (AoE, block, draw). No lock yet = evaluate for front-loaded combat value.
+3. ACT TIMING. Act 1: damage + AoE to survive fights — take most decent cards. Act 2: scaling for multi-enemy encounters. Act 3: complete engine for boss — be selective.
 4. ENERGY COST. 2-cost in 3-energy deck = 67% of your turn. Always weigh cost vs available energy.
-5. ACT TIMING. Act 1: damage + AoE to survive fights. Act 2: scaling for multi-enemy. Act 3: complete engine for boss.
-6. BUILD GUIDE. When provided, it is authoritative. "Always pick" = strong picks. "Always skip" = skips. Once locked, only archetype cards or gap-fillers.
+5. BUILD GUIDE. When provided, it is authoritative. "Always pick" / "S-tier" = strong picks. "Always skip" = skips. Once locked, prefer archetype cards or gap-fillers.
+6. DUPLICATES. Second copy of a core engine card (draw, scaling, key damage) is GOOD. Second copy of a mediocre card is bad. Evaluate duplicates by card quality, not by being a duplicate.
 
 OUTPUT RULES:
 - Only name cards already in the player's deck. Say "enables [archetype]" not "synergizes with [unowned card]."
-- Thinking: 1-2 sentences analyzing deck's archetype, phase, and needs before evaluating.
 - Reasoning: under 15 words. State tier reason only.
-- Cards scaling with starter cards (Strikes/Defends) are F-tier — starters get removed.
-- Second copy of a card = significant downside unless core engine piece.
+- Cards that ONLY scale with starter cards (Strikes/Defends) are F-tier — starters get removed.
 - Respond in JSON only. Rankings MUST have exactly one entry per item, in listed order.
 - Confidence: 90-100 clear pick, 70-89 solid, 40-69 close call, <40 uncertain.`;
 
@@ -49,8 +47,9 @@ const TYPE_ADDENDA: Record<string, string> = {
   card_reward: `
 CARD REWARD:
 - Exclusive choice: pick ONE or skip ALL.
-- If none advance the win condition, skip. Skipping is correct more often than picking.
 - Evaluate against current deck and archetype, not card power in vacuum.
+- At A0-A4 early acts: lean toward picking — most decent cards make the deck better. Skip only genuinely bad or off-archetype cards.
+- At A5+ or late game: skip if none advance the win condition.
 - Include a pick_summary: "Pick [name] — [reason]" or "Skip — [reason]". Max 15 words.`,
 
   shop: `
@@ -197,24 +196,39 @@ export function buildCompactContext(ctx: EvaluationContext): string {
 // --- Compact Character Strategy ---
 
 /**
- * Extract just the pick/skip lists from the full character strategy.
- * For card/shop evals where the full strategy is too verbose.
+ * Extract archetype names + pick/skip lists from the full character strategy.
+ * Keeps archetype headers (numbered lines) so Claude knows what builds exist,
+ * plus S-tier, always-skip, and key principle lines.
  */
 export function compactStrategy(fullStrategy: string | null): string | null {
   if (!fullStrategy) return null;
 
   const lines = fullStrategy.split("\n");
-  const sTier = lines.find((l) => l.toLowerCase().includes("s-tier") || l.toLowerCase().includes("always strong") || l.toLowerCase().includes("always good"));
-  const skipList = lines.find((l) => l.toLowerCase().includes("always skip"));
-  const principle = lines.find((l) => l.toLowerCase().includes("key principle"));
-
-  if (!sTier && !skipList && !principle) return null;
-
   const parts: string[] = [];
-  if (sTier) parts.push(sTier.trim());
-  if (skipList) parts.push(skipList.trim());
-  if (principle) parts.push(principle.trim());
-  return parts.join("\n");
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
+
+    // Keep archetype header lines (e.g., "1. EXHAUST ENGINE (strongest): ...")
+    // These start with a digit followed by a period
+    if (/^\d+\.\s+/.test(trimmed)) {
+      parts.push(trimmed);
+      continue;
+    }
+
+    // Keep S-tier, always-skip, and key principle lines
+    if (
+      lower.includes("s-tier") ||
+      lower.includes("always strong") ||
+      lower.includes("always skip") ||
+      lower.includes("key principle")
+    ) {
+      parts.push(trimmed);
+    }
+  }
+
+  return parts.length > 0 ? parts.join("\n") : null;
 }
 
 // --- Compact Boss Reference ---

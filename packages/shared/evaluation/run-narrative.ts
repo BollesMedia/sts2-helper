@@ -210,12 +210,18 @@ export function getPromptContext(): string | null {
 
   // Archetype commitment directive
   if (narrative.lockedArchetype) {
-    lines.push(
-      `LOCKED ARCHETYPE: ${narrative.lockedArchetype}. ALL picks must directly support this archetype. Off-archetype cards are SKIPS regardless of individual power level. Do not recommend cards from other archetypes.`
-    );
+    if (narrative.ascension <= 4) {
+      lines.push(
+        `LOCKED ARCHETYPE: ${narrative.lockedArchetype}. Strongly prefer archetype cards. Off-archetype cards that fill critical gaps (AoE, block, draw) are still acceptable. Skip only truly bad or competing-archetype cards.`
+      );
+    } else {
+      lines.push(
+        `LOCKED ARCHETYPE: ${narrative.lockedArchetype}. ALL picks must directly support this archetype. Off-archetype cards are SKIPS unless they fill a critical deck weakness (no AoE, no block, no draw).`
+      );
+    }
   } else if (narrative.buildPhase === "committing") {
     lines.push(
-      `Archetype emerging — strongly prefer cards that synergize with this direction. Avoid cards from competing archetypes.`
+      `Archetype emerging — prefer cards that synergize with this direction. Avoid cards from competing archetypes, but take universally good cards (draw, AoE, efficient block).`
     );
   } else {
     lines.push(

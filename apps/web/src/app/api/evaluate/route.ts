@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
-import { buildPromptContext } from "@sts2/shared/evaluation/context-builder";
+// buildPromptContext is the verbose format — buildCompactContext is used instead
+// import { buildPromptContext } from "@sts2/shared/evaluation/context-builder";
 import {
   buildSystemPrompt,
   buildCompactContext,
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
   // ─── MAP EVALUATION (includes event, rest, card_removal, etc. via mapPrompt) ───
   if (type === "map" && body.mapPrompt) {
     let mapPromptFull = "";
+    if (runHistory) mapPromptFull += `${runHistory}\n\n`;
     if (body.runNarrative) mapPromptFull += `${body.runNarrative}\n\n`;
     if (characterStrategy) mapPromptFull += `=== BUILD GUIDE ===\n${compactStrategy(characterStrategy) ?? characterStrategy}\n\n`;
     mapPromptFull += body.mapPrompt;
@@ -202,8 +204,11 @@ export async function POST(request: Request) {
     });
   }
 
-  // Build compact prompt — narrative + strategy + compact context + items LAST (Haiku recency bias)
+  // Build compact prompt — history + narrative + strategy + compact context + items LAST (Haiku recency bias)
   let contextStr = "";
+  if (runHistory) {
+    contextStr += `${runHistory}\n\n`;
+  }
   if (body.runNarrative) {
     contextStr += `${body.runNarrative}\n\n`;
   }
@@ -225,7 +230,7 @@ export async function POST(request: Request) {
     .map(
       (item, i) => {
         const isDuplicate = deckCardNames.has(item.name.toLowerCase());
-        const dupWarning = isDuplicate ? " ⚠ ALREADY IN DECK (2nd copy = draw dilution)" : "";
+        const dupWarning = isDuplicate ? " [2nd copy — good if core engine piece, bad if mediocre]" : "";
         return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}E` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""} — ${item.description}${dupWarning}`;
       }
     )

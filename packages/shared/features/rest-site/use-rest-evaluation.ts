@@ -145,7 +145,7 @@ ${upgradeNote}
 REST SITE — choose ONE:
 ${optionsStr}
 
-RECOMMENDATION: ${missing <= 10 || effectiveHpPercent >= 90 ? 'Upgrade (HP loss negligible).' : isBossNext && missingPercent > 15 ? `Heal (boss next, missing ${missingPercent}% HP).` : isBossSoon && missingPercent > 25 ? `Lean heal (boss in ${floorsToNextBoss} floors, missing ${missingPercent}%).` : isEliteOrBossNext && effectiveHpPercent < 50 ? 'Heal (elite/boss ahead, HP low).' : 'Upgrade (HP adequate).'}
+CONTEXT: Missing ${missingPercent}% HP. Effective HP after passive healing: ${effectiveHpPercent}%. Consider whether upgrading a key card provides more long-term value than healing chip damage.
 
 Respond as JSON:
 {
