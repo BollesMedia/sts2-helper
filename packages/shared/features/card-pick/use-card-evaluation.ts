@@ -1,7 +1,7 @@
 "use client";
 import { apiFetch } from "../../lib/api-client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import type { CardRewardState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
@@ -9,16 +9,9 @@ import { buildEvaluationContext } from "../../evaluation/context-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { getUserId } from "../../lib/get-user-id";
-import { getCached, setCache } from "../../lib/local-cache";
+import { useEvaluation, type UseEvaluationResult } from "../../evaluation/use-evaluation";
 
 const CACHE_KEY = "sts2-eval-cache";
-
-interface UseCardEvaluationResult {
-  evaluation: CardRewardEvaluation | null;
-  isLoading: boolean;
-  error: string | null;
-  retry: () => void;
-}
 
 /**
  * Triggers a holistic card evaluation when a card_reward state is detected.
@@ -30,39 +23,11 @@ export function useCardEvaluation(
   player: TrackedPlayer | null,
   runId: string | null = null,
   exclusive: boolean = true
-): UseCardEvaluationResult {
+): UseEvaluationResult<CardRewardEvaluation> {
   const cards = state.card_reward.cards;
   const cardKey = cards.map((c) => c.id).sort().join(",");
 
-  // Check cache before initializing state
-  const cachedRef = useRef<string | null>(null);
-  const initialEval = cachedRef.current !== cardKey
-    ? getCached<CardRewardEvaluation>(CACHE_KEY, cardKey)
-    : null;
-
-  const [evaluation, setEvaluation] = useState<CardRewardEvaluation | null>(initialEval);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const evaluatedKey = useRef<string>(initialEval ? cardKey : "");
-
-  // Track the current cardKey for cache init
-  cachedRef.current = cardKey;
-
-  const evaluate = useCallback(async () => {
-    if (cardKey === evaluatedKey.current) return;
-
-    // Check localStorage cache first
-    const cached = getCached<CardRewardEvaluation>(CACHE_KEY, cardKey);
-    if (cached) {
-      evaluatedKey.current = cardKey;
-      setEvaluation(cached);
-      return;
-    }
-
-    evaluatedKey.current = cardKey;
-    setIsLoading(true);
-    setError(null);
-
+  const fetcher = useCallback(async (): Promise<CardRewardEvaluation> => {
     const ctx: EvaluationContext | null = buildEvaluationContext(
       state,
       deckCards,
@@ -70,72 +35,58 @@ export function useCardEvaluation(
     );
 
     if (!ctx) {
-      setError("Could not build evaluation context");
-      setIsLoading(false);
-      return;
+      throw new Error("Could not build evaluation context");
     }
 
     updateFromContext(ctx);
 
-    try {
-      const res = await apiFetch("/api/evaluate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "card_reward",
-          exclusive,
-          userId: getUserId(),
-          context: ctx,
-          runNarrative: getPromptContext(),
-          items: cards.map((card) => ({
-            id: card.id,
-            name: card.name,
-            description: card.description,
-            cost: card.cost,
-            type: card.type,
-            rarity: card.rarity,
-          })),
-          runId,
-          gameVersion: null,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
-      }
-
-      const data: CardRewardEvaluation = await res.json();
-      setEvaluation(data);
-      setCache(CACHE_KEY, cardKey, data);
-      registerLastEvaluation("card_reward", {
-        recommendedId: data.rankings?.[0]?.itemId ?? null,
-        recommendedTier: data.rankings?.[0]?.tier ?? null,
-        reasoning: data.rankings?.[0]?.reasoning ?? "",
-        allRankings: (data.rankings ?? []).map((r) => ({
-          itemId: r.itemId,
-          itemName: r.itemName,
-          tier: r.tier,
-          recommendation: r.recommendation,
+    const res = await apiFetch("/api/evaluate", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "card_reward",
+        exclusive,
+        userId: getUserId(),
+        context: ctx,
+        runNarrative: getPromptContext(),
+        items: cards.map((card) => ({
+          id: card.id,
+          name: card.name,
+          description: card.description,
+          cost: card.cost,
+          type: card.type,
+          rarity: card.rarity,
         })),
-        evalType: "card_reward",
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Evaluation failed");
-    } finally {
-      setIsLoading(false);
+        runId,
+        gameVersion: null,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
     }
-  }, [state, deckCards, player, cards, cardKey, runId, exclusive]);
 
-  const retry = () => {
-    evaluatedKey.current = "";
-    setError(null);
-    setEvaluation(null);
-  };
+    const data: CardRewardEvaluation = await res.json();
+    registerLastEvaluation("card_reward", {
+      recommendedId: data.rankings?.[0]?.itemId ?? null,
+      recommendedTier: data.rankings?.[0]?.tier ?? null,
+      reasoning: data.rankings?.[0]?.reasoning ?? "",
+      allRankings: (data.rankings ?? []).map((r) => ({
+        itemId: r.itemId,
+        itemName: r.itemName,
+        tier: r.tier,
+        recommendation: r.recommendation,
+      })),
+      evalType: "card_reward",
+    });
 
-  // Trigger evaluation (not in useEffect — runs during render check)
-  if (cardKey !== evaluatedKey.current && !isLoading) {
-    evaluate();
-  }
+    return data;
+  }, [state, deckCards, player, cards, exclusive, runId]);
 
-  return { evaluation, isLoading, error, retry };
+  return useEvaluation<CardRewardEvaluation>({
+    cacheKey: CACHE_KEY,
+    evalKey: cardKey,
+    enabled: true,
+    fetcher,
+  });
 }

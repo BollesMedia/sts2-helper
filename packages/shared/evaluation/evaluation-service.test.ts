@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseToolUseInput, parseClaudeCardRewardResponse } from "./evaluation-service";
+import { parseToolUseInput, parseClaudeCardRewardResponse } from "./parse-tool-response";
 
 describe("parseToolUseInput", () => {
   it("parses a valid tool use response", () => {
