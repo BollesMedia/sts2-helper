@@ -7,9 +7,19 @@ const ALLOWED_ORIGINS = [
   "https://tauri.localhost", // Tauri production (Windows)
 ];
 
+function isAllowedOrigin(origin: string): boolean {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  // Allow any tauri:// scheme (custom app identifiers)
+  if (origin.startsWith("tauri://")) return true;
+  // Allow Tauri Windows production (https://*.localhost)
+  if (origin.endsWith(".localhost") && origin.startsWith("https://")) return true;
+  return false;
+}
+
 export function middleware(request: NextRequest) {
   const origin = request.headers.get("origin") ?? "";
-  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+  const isAllowed = isAllowedOrigin(origin);
 
   // Handle preflight OPTIONS
   if (request.method === "OPTIONS") {
