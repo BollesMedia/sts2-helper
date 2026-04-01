@@ -72,7 +72,7 @@ MAP PATHING — CORE: Balance relic acquisition against deck development and HP 
 - Rest sites: you get ONE action per visit — heal OR upgrade, never both. Card upgrades compound over the entire run (~3-5 HP saved per fight). Prioritize upgrades when healthy.
 - ELITE COST: fighting an elite means the next rest site is spent healing instead of upgrading. One elite = one lost upgrade. An upgrade compounds value every remaining fight — a random relic may not.
 - ELITE PHILOSOPHY by act:
-  - Act 1: STRONGLY AVOID. The starter deck loses ~40 HP to elites, forcing you to heal instead of upgrade. One lost upgrade > one random relic. Only consider if unavoidable AND HP is near full.
+  - Act 1: Be cautious. Consider 1-2 elites when HP > 60% and a rest site follows. The relic compounds power across all remaining fights, but the HP cost forces healing instead of upgrading — weigh the tradeoff.
   - Act 2: Peak window. Deck should handle elites efficiently with less HP loss, making the relic worth the cost.
   - Act 3: Selective only. Boss preparation matters more than another relic. Avoid unless very healthy.
 - Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).`,
