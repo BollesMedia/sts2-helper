@@ -62,10 +62,9 @@ function scoreElite(ctx: PathContext): number {
 }
 
 function scoreRestSite(ctx: PathContext): number {
-  // You do one or the other — take the best option
-  const healValue = ctx.hpPercent < 0.50 ? 12
-    : ctx.hpPercent < 0.70 ? 8
-    : ctx.hpPercent < 0.85 ? 4
+  // You do one or the other — upgrade almost always wins
+  const healValue = ctx.hpPercent < 0.40 ? 12
+    : ctx.hpPercent < 0.60 ? 6
     : 2;
 
   const upgradeValue = ctx.deckMaturity < 0.3 ? 9

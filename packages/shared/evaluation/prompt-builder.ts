@@ -79,10 +79,11 @@ MAP PATHING — CORE: Balance relic acquisition against deck development and HP 
 
   rest_site: `
 REST SITE:
-- Dig (if available): best option unless HP critically low before boss.
+- Upgrade is almost always correct. An upgraded key card compounds value every remaining fight (~3-5 HP prevented per fight). Healing is a one-time HP gain.
+- HP is a resource, not a score. HP above 1 is spendable.
 - Smith: name the best upgrade target. Priority: win-condition scaler > most-played card > AoE > power.
-- Rest: when HP is low relative to upcoming threats. Elite within 2 nodes: heal at <75% HP. Boss within 3 nodes: heal at <80% HP. Otherwise heal at <40% HP.
-- SURVIVAL > OPTIMIZATION when elite or boss is near. A dead run gets zero value from upgrades.
+- Dig (if available): best option unless HP critically low before boss.
+- Rest (heal) ONLY when: elite within 2 nodes AND HP < 60%, OR boss within 3 nodes AND HP < 70%, OR no upcoming threats AND HP < 40%.
 - Already-upgraded cards (with +) cannot be upgraded again.`,
 
   event: `

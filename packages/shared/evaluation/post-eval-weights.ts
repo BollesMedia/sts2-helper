@@ -184,27 +184,21 @@ export function applyRestWeights(
 
   if (!healRanking || !smithRanking) return;
 
-  // Elite within 2 nodes
-  if (hasEliteAhead) {
-    // High maturity + healthy = safe to upgrade (deck can handle the elite)
-    if (deckMaturity >= 0.6 && hpPercent >= 0.75) {
-      smithRanking.reasoning = "Deck is strong enough for the elite — upgrade compounds value";
-      // Don't override Claude's recommendation, just surface context
-    } else if (hpPercent < 0.75) {
-      healRanking.tier = "S";
-      healRanking.tierValue = 6;
-      healRanking.confidence = 90;
-      healRanking.recommendation = "strong_pick";
-      healRanking.reasoning = `Heal before elite — ${hpPercent < 0.6 ? "critically low HP" : "not healthy enough to risk it"}`;
-      smithRanking.tier = adjustTier(smithRanking.tier, -1);
-      smithRanking.tierValue = tierToValue(smithRanking.tier);
-      smithRanking.recommendation = "situational";
-      smithRanking.reasoning = "Upgrade is valuable but survival comes first with elite ahead";
-    }
+  // Elite within 2 nodes: heal only below 60% HP
+  if (hasEliteAhead && hpPercent < 0.60) {
+    healRanking.tier = "S";
+    healRanking.tierValue = 6;
+    healRanking.confidence = 90;
+    healRanking.recommendation = "strong_pick";
+    healRanking.reasoning = "Heal before elite — HP too low to risk it";
+    smithRanking.tier = adjustTier(smithRanking.tier, -1);
+    smithRanking.tierValue = tierToValue(smithRanking.tier);
+    smithRanking.recommendation = "situational";
+    smithRanking.reasoning = "Upgrade compounds value but survival comes first at this HP";
   }
 
-  // Boss within 3 nodes: heal if HP < 80%
-  if (hasBossNear && hpPercent < 0.80) {
+  // Boss within 3 nodes: heal if HP < 70%
+  if (hasBossNear && hpPercent < 0.70) {
     healRanking.tier = "S";
     healRanking.tierValue = 6;
     healRanking.confidence = 95;
