@@ -71,7 +71,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
     });
   }
 
-  if (gameState.state_type === "combat_rewards") {
+  if (gameState.state_type === "combat_rewards" && gameState.rewards?.player) {
     const p = gameState.rewards.player;
     setPlayer(player, {
       character: p.character,
@@ -85,7 +85,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
     });
   }
 
-  if (gameState.state_type === "map") {
+  if (gameState.state_type === "map" && gameState.map?.player) {
     const p = gameState.map.player;
     setPlayer(player, {
       character: p.character,
@@ -99,9 +99,9 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
     });
   }
 
-  if (gameState.state_type === "shop") {
+  if (gameState.state_type === "shop" && gameState.shop?.player) {
     const p = gameState.shop.player;
-    const removalItem = gameState.shop.items.find(
+    const removalItem = gameState.shop.items?.find(
       (i) => i.category === "card_removal"
     );
     setPlayer(player, {
@@ -116,7 +116,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
     });
   }
 
-  if (gameState.state_type === "event" && "event" in gameState) {
+  if (gameState.state_type === "event" && gameState.event?.player) {
     const p = gameState.event.player;
     setPlayer(player, {
       character: p.character,
@@ -130,7 +130,7 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
     });
   }
 
-  if (gameState.state_type === "rest_site" && "rest_site" in gameState) {
+  if (gameState.state_type === "rest_site" && gameState.rest_site?.player) {
     const p = gameState.rest_site.player;
     setPlayer(player, {
       character: p.character,

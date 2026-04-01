@@ -37,25 +37,33 @@ export function GameStateView({
   menuFooter,
 }: GameStateViewProps) {
   if (isCombatState(state)) {
+    if (!state.battle) return <PlaceholderView title="Combat" state={state} />;
     return <CombatView state={state} deckCards={deckCards} />;
   }
 
   switch (state.state_type) {
     case "card_reward":
+      if (!state.card_reward) return <PlaceholderView title="Card Reward" state={state} />;
       return <CardPickView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "shop":
+      if (!state.shop) return <PlaceholderView title="Shop" state={state} />;
       return <ShopView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "map":
+      if (!state.map) return <PlaceholderView title="Map" state={state} />;
       return <MapView state={state} player={player} deckCards={deckCards} />;
     case "event":
+      if (!state.event) return <PlaceholderView title="Event" state={state} />;
       return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "rest_site":
+      if (!state.rest_site) return <PlaceholderView title="Rest Site" state={state} />;
       return <RestSiteView state={state} deckCards={deckCards} player={player} runId={runId} />;
     case "relic_select":
+      if (!state.relic_select) return <PlaceholderView title="Relic Select" state={state} />;
       return <RelicSelectView state={state} deckCards={deckCards} player={player} />;
     case "card_select": {
+      if (!state.card_select) return <PlaceholderView title="Card Select" state={state} />;
       const screenType = state.card_select.screen_type;
-      const promptLower = state.card_select.prompt.toLowerCase();
+      const promptLower = state.card_select.prompt?.toLowerCase() ?? "";
       const isRemoval = promptLower.includes("remove") || promptLower.includes("purge");
       const isUpgrade = promptLower.includes("upgrade") || promptLower.includes("smith") || promptLower.includes("enhance");
 
@@ -100,6 +108,7 @@ export function GameStateView({
       );
     }
     case "combat_rewards":
+      if (!state.rewards) return <PlaceholderView title="Rewards" state={state} />;
       return <CombatRewardsView state={state} />;
     case "menu":
       return <MenuView runState={runState} footer={menuFooter} />;
