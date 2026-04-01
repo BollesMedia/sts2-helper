@@ -42,15 +42,23 @@ export async function apiFetch(
     "Content-Type": "application/json",
   };
 
+  console.log("[apiFetch] state:", {
+    hasTokenGetter: !!getAccessToken,
+    usingTauriFetch: fetchImpl !== globalThis.fetch,
+  });
+
   if (getAccessToken) {
     try {
       const token = await getAccessToken();
+      console.log("[apiFetch] token:", token ? `present (${token.length} chars)` : "null");
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
     } catch (err) {
       console.error("[apiFetch] token getter threw:", err);
     }
+  } else {
+    console.warn("[apiFetch] no token getter configured");
   }
 
   const url = apiUrl(path);
