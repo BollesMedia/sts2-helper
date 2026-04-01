@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { cn } from "../../lib/cn";
 import type { MapState } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { CombatCard } from "../../types/game-state";
-import { NODE_TYPE_ICONS } from "./map-scoring";
+import { NODE_TYPE_ICONS, NODE_SVG_LABELS } from "./map-scoring";
 import { traceRecommendedPath } from "./map-path-tracer";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "../../components/tier-badge";
@@ -41,7 +41,7 @@ const NODE_FILL: Record<string, string> = {
   Boss: "#dc2626",
   RestSite: "#34d399",
   Shop: "#60a5fa",
-  Treasure: "#fbbf24",
+  Treasure: "#a855f7",
   Unknown: "#a1a1aa",
 };
 
@@ -114,15 +114,20 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return { hpPct, gold: state.map.player.gold, act, deckMaturity, relicCount, floor };
   }, [state, player, deckCards]);
 
-  // Full recommended path: trace locally from Claude's best-ranked option
+  // Full recommended path: trace locally from Claude's best-ranked option.
+  // Preserve previous path during loading so the highlight doesn't flicker.
+  const prevPathRef = useRef<{ col: number; row: number }[]>([]);
+
   const recommendedPath = useMemo(() => {
-    if (bestOptionIndex == null) return [];
+    if (bestOptionIndex == null) return prevPathRef.current;
     const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-    if (!bestOpt) return [];
-    return traceRecommendedPath(
+    if (!bestOpt) return prevPathRef.current;
+    const path = traceRecommendedPath(
       bestOpt.col, bestOpt.row, nodes, boss,
       pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
     );
+    prevPathRef.current = path;
+    return path;
   }, [bestOptionIndex, next_options, nodes, boss, pathCtx]);
 
   const recommendedPathEdges = useMemo(() => {
@@ -299,10 +304,12 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                     y={y + 1}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fontSize={10}
+                    fontSize={11}
+                    fontWeight={700}
+                    fontFamily="system-ui, sans-serif"
                     fill={opacity < 0.5 ? "#71717a" : "#fff"}
                   >
-                    {NODE_TYPE_ICONS[node.type]?.[0] ?? "•"}
+                    {NODE_SVG_LABELS[node.type] ?? "•"}
                   </text>
                 </g>
               );
@@ -325,10 +332,10 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
       </div>
 
       {/* Sidebar — Compact Evaluation */}
-      <div className="w-44 shrink-0 flex flex-col gap-1.5">
+      <div className="w-56 shrink-0 flex flex-col gap-1.5">
         {/* Overall advice — truncated */}
         {evaluation?.overallAdvice && (
-          <p className="text-[10px] text-zinc-400 leading-snug line-clamp-2" title={evaluation.overallAdvice}>
+          <p className="text-[10px] text-zinc-400 leading-snug line-clamp-3" title={evaluation.overallAdvice}>
             {evaluation.overallAdvice}
           </p>
         )}
@@ -387,7 +394,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
               {/* Reasoning — truncated to 1 line, full in tooltip */}
               {evalData && (
-                <p className="mt-1 text-[10px] text-zinc-400 leading-snug line-clamp-1">
+                <p className="mt-1 text-[10px] text-zinc-400 leading-snug line-clamp-3">
                   {evalData.reasoning}
                 </p>
               )}

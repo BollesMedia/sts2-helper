@@ -50,6 +50,7 @@ export function useMapEvaluation(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const evaluatedKey = useRef<string>(initialEval ? mapKey : "");
+  const lastEvalContext = useRef<{ hpPercent: number; deckSize: number; recommendedNodes: Set<string> } | null>(null);
 
   cachedRef.current = mapKey;
 
@@ -67,6 +68,23 @@ export function useMapEvaluation(
       evaluatedKey.current = mapKey;
       setEvaluation(cached);
       return;
+    }
+
+    // Skip re-eval if user is following the recommended path and context hasn't changed significantly
+    const currentPos = state.map.current_position;
+    const prev = lastEvalContext.current;
+    if (prev && currentPos) {
+      const onRecommendedPath = prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`);
+      const mapPlayer = state.map.player;
+      const hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+      const hpSimilar = Math.abs(hpPercent - prev.hpPercent) < 0.15;
+      const deckSimilar = Math.abs(deckCards.length - prev.deckSize) <= 1;
+
+      if (onRecommendedPath && hpSimilar && deckSimilar) {
+        evaluatedKey.current = mapKey;
+        // Keep current evaluation — no re-eval needed
+        return;
+      }
     }
 
     evaluatedKey.current = mapKey;
@@ -211,6 +229,28 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
 
       setEvaluation(parsed);
       setCache(CACHE_KEY, mapKey, parsed);
+
+      // Track context for skip-re-eval logic
+      const mp = state.map.player;
+      const recommendedNodes = new Set<string>();
+      // Include all next options (the user could pick any recommended one)
+      for (const opt of options) {
+        recommendedNodes.add(`${opt.col},${opt.row}`);
+        // Include nodes reachable from each option
+        for (const lead of opt.leads_to) {
+          recommendedNodes.add(`${lead.col},${lead.row}`);
+        }
+      }
+      // Include explicit recommended path from evaluation
+      for (const p of parsed.recommendedPath) {
+        recommendedNodes.add(`${p.col},${p.row}`);
+      }
+      lastEvalContext.current = {
+        hpPercent: mp.max_hp > 0 ? mp.hp / mp.max_hp : 1,
+        deckSize: deckCards.length,
+        recommendedNodes,
+      };
+
       registerLastEvaluation("map", {
         recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
         recommendedTier: parsed.rankings?.[0]?.tier ?? null,
