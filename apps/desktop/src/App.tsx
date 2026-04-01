@@ -6,11 +6,25 @@ import { useChoiceTracker } from "@sts2/shared/features/connection/use-choice-tr
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
-import { reportFeedback } from "@sts2/shared/lib/error-reporter";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { reportFeedback, reportInfo } from "@sts2/shared/lib/error-reporter";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
 import { useState, useRef } from "react";
+
+// Check for updates on app launch
+check().then(async (update) => {
+  if (update) {
+    console.log("[Updater] Update available:", update.version);
+    reportInfo("updater", `Update available: ${update.version}`);
+    await update.downloadAndInstall();
+    await relaunch();
+  }
+}).catch((err) => {
+  console.warn("[Updater] Check failed:", err);
+});
 
 type ModCheckState = "checking" | "ready" | "needs-setup";
 

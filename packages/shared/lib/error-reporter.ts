@@ -1,6 +1,6 @@
 import { apiFetch } from "./api-client";
 
-const APP_VERSION = "0.1.3";
+const APP_VERSION = "0.1.4";
 let reportCount = 0;
 let isReporting = false;
 const MAX_REPORTS_PER_SESSION = 50;
