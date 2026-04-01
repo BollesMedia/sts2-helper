@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import * as Sentry from "@sentry/react";
 import "./index.css";
 import { App } from "./App";
 import { AuthProvider } from "./auth-provider";
@@ -8,6 +9,14 @@ import { initSharedConfig } from "@sts2/shared/lib/init";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
 import { reportError } from "@sts2/shared/lib/error-reporter";
 import { createClient } from "@sts2/shared/supabase/client";
+
+// Initialize Sentry for crash reporting
+Sentry.init({
+  dsn: "https://12f87c41bf7be1e26757c68d4089ac8b@o4511051123064832.ingest.us.sentry.io/4511142195953664",
+  sendDefaultPii: true,
+  environment: import.meta.env.DEV ? "development" : "production",
+  release: `sts2-replay@0.1.0`,
+});
 
 // Configure shared package for desktop environment
 // TODO: Read from environment or Tauri config
