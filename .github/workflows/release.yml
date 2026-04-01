@@ -52,10 +52,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_API_BASE_URL: https://sts2-helper.vercel.app
-          VITE_SUPABASE_URL: https://ptitcfnivcofrxjnckdd.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_cexAfiwLz0lIw_8jWGp5og_cJ991wCV
-          VITE_SENTRY_DSN: https://12f87c41bf7be1e26757c68d4089ac8b@o4511051123064832.ingest.us.sentry.io/4511142195953664
+          # VITE_* env vars are in apps/desktop/.env.production (committed, publishable values)
+          # Do NOT duplicate them here — .env.production is the single source of truth
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
