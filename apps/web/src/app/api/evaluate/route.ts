@@ -236,13 +236,13 @@ export async function POST(request: Request) {
   let winRates: WinRateRow[] | null = null;
   try {
     const { data } = await supabase
-      .from("card_win_rates" as "evaluations")
+      .from("card_win_rates")
       .select("item_id, pick_win_rate, skip_win_rate, times_picked, times_skipped")
       .in("item_id", items.map((i) => i.id))
-      .eq("character" as "item_id", context.character)
-      .eq("act" as "item_id", context.act as unknown as string)
-      .eq("ascension_tier" as "item_id", ascTier);
-    winRates = data as unknown as WinRateRow[] | null;
+      .eq("character", context.character)
+      .eq("act", context.act)
+      .eq("ascension_tier", ascTier);
+    winRates = data as WinRateRow[] | null;
   } catch {
     // View may not exist yet
   }

@@ -23,8 +23,7 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // error_logs table not in generated types yet — bypass
-  await (supabase as unknown as { from: (t: string) => { insert: (r: Record<string, unknown>) => Promise<unknown> } }).from("error_logs").insert({
+  await supabase.from("error_logs").insert({
     user_id: auth.userId,
     source: String(source).slice(0, 50),
     level: String(level ?? "error").slice(0, 10),

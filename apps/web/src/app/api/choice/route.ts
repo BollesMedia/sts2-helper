@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     recommended_item_id: d.recommendedItemId ?? null,
     recommended_tier: d.recommendedTier ?? null,
     was_followed: d.wasFollowed ?? null,
-    rankings_snapshot: d.rankingsSnapshot ?? null,
+    rankings_snapshot: (d.rankingsSnapshot ?? null) as import("@sts2/shared/types/database.types").Json,
   });
 
   if (error) {

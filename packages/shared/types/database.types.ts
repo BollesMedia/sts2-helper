@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       cards: {
@@ -157,8 +182,12 @@ export type Database = {
           floor: number
           id: string
           offered_item_ids: string[]
+          rankings_snapshot: Json | null
+          recommended_item_id: string | null
+          recommended_tier: string | null
           run_id: string | null
           user_id: string | null
+          was_followed: boolean | null
         }
         Insert: {
           act: number
@@ -169,8 +198,12 @@ export type Database = {
           floor: number
           id?: string
           offered_item_ids: string[]
+          rankings_snapshot?: Json | null
+          recommended_item_id?: string | null
+          recommended_tier?: string | null
           run_id?: string | null
           user_id?: string | null
+          was_followed?: boolean | null
         }
         Update: {
           act?: number
@@ -181,8 +214,12 @@ export type Database = {
           floor?: number
           id?: string
           offered_item_ids?: string[]
+          rankings_snapshot?: Json | null
+          recommended_item_id?: string | null
+          recommended_tier?: string | null
           run_id?: string | null
           user_id?: string | null
+          was_followed?: boolean | null
         }
         Relationships: [
           {
@@ -193,6 +230,42 @@ export type Database = {
             referencedColumns: ["run_id"]
           },
         ]
+      }
+      error_logs: {
+        Row: {
+          app_version: string | null
+          context: Json | null
+          created_at: string | null
+          id: string
+          level: string | null
+          message: string
+          platform: string | null
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          context?: Json | null
+          created_at?: string | null
+          id?: string
+          level?: string | null
+          message: string
+          platform?: string | null
+          source: string
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          context?: Json | null
+          created_at?: string | null
+          id?: string
+          level?: string | null
+          message?: string
+          platform?: string | null
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       evaluations: {
         Row: {
@@ -226,7 +299,7 @@ export type Database = {
           synergy_score: number
           tier_value: number
           user_id: string | null
-          weight_adjustments: unknown[] | null
+          weight_adjustments: Json | null
         }
         Insert: {
           act: number
@@ -259,7 +332,7 @@ export type Database = {
           synergy_score: number
           tier_value: number
           user_id?: string | null
-          weight_adjustments?: unknown[] | null
+          weight_adjustments?: Json | null
         }
         Update: {
           act?: number
@@ -292,7 +365,7 @@ export type Database = {
           synergy_score?: number
           tier_value?: number
           user_id?: string | null
-          weight_adjustments?: unknown[] | null
+          weight_adjustments?: Json | null
         }
         Relationships: [
           {
@@ -492,6 +565,7 @@ export type Database = {
           game_mode: string
           game_version: string | null
           id: string
+          narrative: Json | null
           notes: string | null
           run_id: string
           started_at: string | null
@@ -512,6 +586,7 @@ export type Database = {
           game_mode?: string
           game_version?: string | null
           id?: string
+          narrative?: Json | null
           notes?: string | null
           run_id: string
           started_at?: string | null
@@ -532,6 +607,7 @@ export type Database = {
           game_mode?: string
           game_version?: string | null
           id?: string
+          narrative?: Json | null
           notes?: string | null
           run_id?: string
           started_at?: string | null
@@ -573,8 +649,76 @@ export type Database = {
         }
         Relationships: []
       }
+      weight_rules: {
+        Row: {
+          action: Json
+          condition: Json
+          created_at: string | null
+          enabled: boolean | null
+          eval_type: string
+          id: string
+          priority: number | null
+          sample_size: number | null
+          source: string | null
+          win_rate_delta: number | null
+        }
+        Insert: {
+          action: Json
+          condition: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          eval_type: string
+          id: string
+          priority?: number | null
+          sample_size?: number | null
+          source?: string | null
+          win_rate_delta?: number | null
+        }
+        Update: {
+          action?: Json
+          condition?: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          eval_type?: string
+          id?: string
+          priority?: number | null
+          sample_size?: number | null
+          source?: string | null
+          win_rate_delta?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
+      card_win_rates: {
+        Row: {
+          act: number | null
+          ascension_tier: string | null
+          character: string | null
+          item_id: string | null
+          item_name: string | null
+          pick_win_rate: number | null
+          primary_archetype: string | null
+          skip_win_rate: number | null
+          times_offered: number | null
+          times_picked: number | null
+          times_skipped: number | null
+        }
+        Relationships: []
+      }
+      eval_accuracy: {
+        Row: {
+          avg_confidence: number | null
+          eval_type: string | null
+          n: number | null
+          player_action: string | null
+          predicted_rec: string | null
+          predicted_tier: number | null
+          source: string | null
+          victory: boolean | null
+        }
+        Relationships: []
+      }
       evaluation_stats: {
         Row: {
           act: number | null
@@ -605,6 +749,20 @@ export type Database = {
           tier_stddev: number | null
           weighted_synergy: number | null
           weighted_tier: number | null
+        }
+        Relationships: []
+      }
+      recommendation_follow_rates: {
+        Row: {
+          ascension_tier: string | null
+          character: string | null
+          choice_type: string | null
+          diverged: number | null
+          diverged_win_rate: number | null
+          follow_rate: number | null
+          followed: number | null
+          followed_win_rate: number | null
+          total_choices: number | null
         }
         Relationships: []
       }
@@ -739,6 +897,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

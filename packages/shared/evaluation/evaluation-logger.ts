@@ -47,7 +47,7 @@ export async function logEvaluation(
     context_hash: createContextHash(ctx),
     eval_type: evalType ?? null,
     original_tier_value: originalTierValue ?? evaluation.tierValue,
-    weight_adjustments: weightAdjustments ?? null,
+    weight_adjustments: (weightAdjustments ?? null) as import("../types/database.types").Json,
   };
 
   await supabase.from("evaluations").insert(row);
