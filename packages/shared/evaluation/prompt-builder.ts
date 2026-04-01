@@ -72,10 +72,10 @@ MAP PATHING — CORE: Balance relic acquisition against deck development and HP 
 - Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets.
 - Rest sites: critical — both healing AND upgrading are valuable. Card upgrades compound over the entire run.
 - ELITE PHILOSOPHY by act:
-  - Act 1: Be selective. Upgrades and HP preservation build the foundation. Only take elites when HP is high (>70%) and the deck can handle the fight.
+  - Act 1: STRONGLY AVOID elites. The starter deck cannot handle them efficiently — you lose ~40 HP and sacrifice 1-2 rest site upgrades for one random relic. Two upgrades > one random relic. Only consider if the elite is unavoidable on the best path AND HP is near full.
   - Act 2: Peak window for elites. Deck should be functional — relics here accelerate the endgame.
   - Act 3: Selective only. Boss preparation matters more than another relic. Avoid elites unless very healthy.
-- Sacrificing an upgrade to heal after an elite is a REAL cost — an upgrade compounds value every remaining fight.
+- The hidden cost of elites: healing after an elite sacrifices an upgrade. Each upgrade compounds value every remaining fight (~3-5 HP saved per fight). Two lost upgrades = 90-150 HP lost over an act.
 - Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).`,
 
   rest_site: `

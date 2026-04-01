@@ -20,7 +20,7 @@ interface PathContext {
 
 const BASE_ELITE = 10;
 
-const ACT_MODIFIER: Record<number, number> = { 1: 0.5, 2: 1.0, 3: 0.55 };
+const ACT_MODIFIER: Record<number, number> = { 1: 0.2, 2: 1.0, 3: 0.55 };
 
 function hpModifier(hp: number): number {
   if (hp < 0.30) return 0;
