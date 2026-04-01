@@ -2,6 +2,7 @@ import { apiFetch } from "./api-client";
 
 const APP_VERSION = "0.1.0";
 let reportCount = 0;
+let isReporting = false;
 const MAX_REPORTS_PER_SESSION = 50;
 
 // Sentry integration — lazy loaded to avoid hard dependency in shared package
@@ -38,7 +39,8 @@ export function reportError(
   message: string,
   context?: Record<string, unknown>
 ) {
-  if (reportCount >= MAX_REPORTS_PER_SESSION) return;
+  if (isReporting || reportCount >= MAX_REPORTS_PER_SESSION) return;
+  isReporting = true;
   reportCount++;
 
   // Send to Sentry with metadata
@@ -64,7 +66,7 @@ export function reportError(
       app_version: APP_VERSION,
       platform: getPlatform(),
     }),
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => { isReporting = false; });
 }
 
 /**

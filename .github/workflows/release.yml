@@ -55,6 +55,7 @@ jobs:
           VITE_API_BASE_URL: https://sts2-helper.vercel.app
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}

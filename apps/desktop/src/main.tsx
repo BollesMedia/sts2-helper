@@ -12,8 +12,8 @@ import { createClient } from "@sts2/shared/supabase/client";
 
 // Initialize Sentry for crash reporting
 Sentry.init({
-  dsn: "https://12f87c41bf7be1e26757c68d4089ac8b@o4511051123064832.ingest.us.sentry.io/4511142195953664",
-  sendDefaultPii: true,
+  dsn: import.meta.env.VITE_SENTRY_DSN ?? "https://12f87c41bf7be1e26757c68d4089ac8b@o4511051123064832.ingest.us.sentry.io/4511142195953664",
+  sendDefaultPii: false,
   environment: import.meta.env.DEV ? "development" : "production",
   release: `sts2-replay@0.1.0`,
 });
