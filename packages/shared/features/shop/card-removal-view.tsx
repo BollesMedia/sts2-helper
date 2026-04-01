@@ -59,7 +59,7 @@ export function CardRemovalView({ state, deckCards, player }: CardRemovalViewPro
 CARD REMOVAL: Recommend ONE card to remove from this list:
 ${cardList}
 
-Priority: Strikes > Defends > off-archetype. ETERNAL cards cannot be removed.`,
+Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards cannot be removed. If archetype uses block-scaling, keep Defends longer.`,
           runId: null,
           gameVersion: null,
         }),

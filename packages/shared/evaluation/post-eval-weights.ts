@@ -100,8 +100,11 @@ function applyShopWeights(
   wctx: WeightContext,
   itemDescriptions: Map<number, string>
 ): void {
+  const hasMembershipCard = wctx.relicNames.some((r) => r.includes("membership card"));
+
   for (const ranking of evaluation.rankings) {
     const name = ranking.itemName?.toLowerCase() ?? "";
+    const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
 
     // Card removal with unplayable/curse in deck: boost to S tier
     if (name.includes("card removal") || name.includes("remove")) {
@@ -113,11 +116,40 @@ function applyShopWeights(
         ranking.tierValue = 6;
         ranking.confidence = 98;
         ranking.reasoning = "Remove unplayable/curse card — top priority";
+      } else if (hasMembershipCard) {
+        // Membership Card makes removal half price — almost always worth it
+        ranking.tier = adjustTier(ranking.tier, 1);
+        ranking.tierValue = tierToValue(ranking.tier);
+        ranking.reasoning += " (Membership Card halves cost)";
       }
     }
 
-    // Act 3: note that gold is worthless after final boss
-    // (This is handled in the spending_plan by the prompt, but reinforce)
+    // Membership Card: auto-buy — best long-term shop investment
+    if (name.includes("membership card")) {
+      ranking.tier = "S";
+      ranking.tierValue = 6;
+      ranking.confidence = 98;
+      ranking.recommendation = "strong_pick";
+      ranking.reasoning = "Best shop relic — 50% off all future purchases";
+    }
+
+    // Orange Pellets: auto-buy — removes all debuffs
+    if (name.includes("orange pellets")) {
+      ranking.tier = "S";
+      ranking.tierValue = 6;
+      ranking.confidence = 95;
+      ranking.recommendation = "strong_pick";
+      ranking.reasoning = "Removes all debuffs when playing all 3 card types";
+    }
+
+    // Potions: demote if no open potion slots (inferred from current potion count)
+    const isPotion = name.includes("potion") || name.includes("elixir") || name.includes("flask") || name.includes("brew");
+    if (isPotion && wctx.potionNames.length >= 3) {
+      ranking.tier = "F";
+      ranking.tierValue = 0;
+      ranking.confidence = 99;
+      ranking.reasoning = "No open potion slots";
+    }
   }
 }
 

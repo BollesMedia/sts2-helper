@@ -57,11 +57,17 @@ CARD REWARD:
 
   shop: `
 SHOP:
-- Card removal is high priority if Strikes/Defends remain. Keep 75g reserve for removal.
-- Relics are permanent power — an archetype-enabling relic is almost always the top purchase.
-- Each item evaluated independently (not exclusive). Include spending_plan for affordable items only.
-- Gold management: do not recommend spending below 75g unless buying a critical piece.
-- In Act 3: spend ALL gold. It has zero value after the final boss.`,
+- Default priority: card removal > relic > card > potion.
+- Removal is high priority if Strikes/Defends/curses remain. Evaluate against the actual removal cost shown.
+- Early removals (75-100g) are almost always correct. Later removals (125g+) compete with relics for value.
+- Exception: Membership Card and Orange Pellets are auto-buys — spend to 0 for these.
+- Relics are permanent power — but only beat removal when deck has <=2 basic cards remaining.
+- Discounted cards (50% off) have a much lower purchase bar. Colorless cards are shop-exclusive — evaluate favorably if they fit the archetype.
+- Potions: buy only with open slots, when potion answers an upcoming elite/boss, and gold covers removal + potion cost.
+- Act 1: removal focus. Save remaining gold for Act 2 shops (best card options appear there).
+- Act 2: peak shop value — removal + relics + build-defining rares all high priority.
+- Act 3: spend ALL gold. Buy potions for the boss fight if slots open. Gold is worthless after the final boss.
+- Each item evaluated independently. Include spending_plan for affordable items only.`,
 
   map: `
 MAP PATHING — CORE: Balance relic acquisition against deck development and HP preservation.
