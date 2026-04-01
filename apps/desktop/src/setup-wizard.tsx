@@ -49,6 +49,23 @@ function hasFailure(result: InstallResult): boolean {
   return typeof result.sts2mcp === "object" || typeof result.unified_save_path === "object";
 }
 
+function summarizeOutcome(result: InstallResult): string {
+  const parts: string[] = [];
+  const outcomes = [
+    { name: "STS2 MCP", outcome: result.sts2mcp },
+    { name: "Unified Save Path", outcome: result.unified_save_path },
+  ];
+  const installed = outcomes.filter((o) => o.outcome === "Installed");
+  const updated = outcomes.filter((o) => o.outcome === "Updated");
+
+  if (installed.length > 0) parts.push(`${installed.map((o) => o.name).join(" and ")} installed`);
+  if (updated.length > 0) parts.push(`${updated.map((o) => o.name).join(" and ")} updated`);
+
+  return parts.length > 0
+    ? `${parts.join(", and ")}. You're ready to play.`
+    : "All mods are up to date. You're ready to play.";
+}
+
 interface ProgressEvent {
   modName: string;
   stage: string;
@@ -98,10 +115,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
       const newStatus = await invoke<ModStatus>("get_mod_status");
       setStatus(newStatus);
 
-      // If all mods now installed, allow continuing
-      if (newStatus.required_mods.every((m) => m.installed)) {
-        setTimeout(() => onComplete(), 1500);
-      }
+      // Success screen will render via installResult state
     } catch (e) {
       setError(String(e));
     } finally {
@@ -119,6 +133,47 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
           <div className="h-1 w-48 mx-auto rounded-full bg-zinc-800 overflow-hidden">
             <div className="h-full w-1/3 rounded-full bg-zinc-600 animate-pulse" />
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Success screen after installation
+  if (installResult && !hasFailure(installResult)) {
+    return (
+      <div className="flex flex-1 items-center justify-center min-h-screen">
+        <div className="w-full max-w-lg space-y-6 text-center animate-fade-in-up">
+          <div className="flex justify-center">
+            <div className="rounded-full bg-emerald-500/10 p-3">
+              <svg
+                className="h-12 w-12 text-emerald-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+              You're all set!
+            </h1>
+            <p className="text-sm text-zinc-500">
+              {summarizeOutcome(installResult)}
+            </p>
+          </div>
+          <button
+            onClick={onComplete}
+            className="rounded-lg bg-zinc-100 px-6 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors"
+          >
+            Launch App →
+          </button>
         </div>
       </div>
     );
@@ -244,24 +299,10 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
           </div>
         )}
 
-        {/* Install result */}
-        {installResult && (
-          <div
-            className={`rounded-lg border p-4 space-y-1 ${
-              hasFailure(installResult)
-                ? "border-red-500/30 bg-red-500/5"
-                : "border-emerald-500/30 bg-emerald-500/5"
-            }`}
-          >
-            <p
-              className={`text-sm ${
-                hasFailure(installResult) ? "text-red-400" : "text-emerald-400"
-              }`}
-            >
-              {hasFailure(installResult)
-                ? "Installation completed with errors"
-                : "Installation complete"}
-            </p>
+        {/* Install failure */}
+        {installResult && hasFailure(installResult) && (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-1">
+            <p className="text-sm text-red-400">Installation completed with errors</p>
             <p className="text-xs text-zinc-500">
               STS2 MCP: {formatOutcome(installResult.sts2mcp)} · Save Path: {formatOutcome(installResult.unified_save_path)}
             </p>
