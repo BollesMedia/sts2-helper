@@ -371,13 +371,13 @@ function getCharacter(state: GameState): string | null {
     return state.battle.player.character;
   }
   if (state.state_type === "map") {
-    return state.map.player.character;
+    return state.map?.player?.character ?? null;
   }
   if (state.state_type === "combat_rewards") {
-    return state.rewards.player.character;
+    return state.rewards?.player?.character ?? null;
   }
   if (state.state_type === "event") {
-    return state.event.player.character;
+    return state.event?.player?.character ?? null;
   }
   return null;
 }

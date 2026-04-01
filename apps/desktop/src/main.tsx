@@ -33,25 +33,29 @@ const AUTH_REDIRECT_ORIGIN = "sts2replay://";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
-// Cache access token from auth state changes — getSession() reads from cookie
-// storage which doesn't work reliably with tauri:// origin in production WebViews.
-let cachedAccessToken: string | null = null;
-
 if (SUPABASE_URL && SUPABASE_ANON_KEY) {
   initSharedConfig({
     supabaseUrl: SUPABASE_URL,
     supabaseAnonKey: SUPABASE_ANON_KEY,
     apiBaseUrl: API_BASE,
     authRedirectOrigin: AUTH_REDIRECT_ORIGIN,
+    storageMode: "localStorage",
     fetchImplementation: tauriFetch as typeof globalThis.fetch,
-    accessTokenGetter: async () => cachedAccessToken,
-  });
-
-  // Listen for auth state changes and cache the token in memory.
-  // This fires on login, token refresh, and session restore.
-  const client = createClient();
-  client.auth.onAuthStateChange((_event, session) => {
-    cachedAccessToken = session?.access_token ?? null;
+    accessTokenGetter: async () => {
+      const client = createClient();
+      const { data } = await client.auth.getSession();
+      if (data.session?.access_token) {
+        const expiresAt = data.session.expires_at ?? 0;
+        const now = Math.floor(Date.now() / 1000);
+        if (expiresAt > now + 60) {
+          return data.session.access_token;
+        }
+        // Token expiring soon — refresh
+        const { data: refreshed } = await client.auth.refreshSession();
+        return refreshed.session?.access_token ?? data.session.access_token;
+      }
+      return null;
+    },
   });
 } else {
   setApiBaseUrl(API_BASE);

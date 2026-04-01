@@ -1,5 +1,5 @@
 import { setApiBaseUrl, setAccessTokenGetter, setFetchImplementation } from "./api-client";
-import { initSupabase } from "../supabase/client";
+import { initSupabase, type StorageMode } from "../supabase/client";
 import { setAuthRedirectOrigin } from "../supabase/auth";
 
 interface SharedConfig {
@@ -9,10 +9,12 @@ interface SharedConfig {
   authRedirectOrigin?: string;
   accessTokenGetter?: () => Promise<string | null>;
   fetchImplementation?: typeof globalThis.fetch;
+  /** Desktop uses "localStorage" (cookies broken on tauri://), web defaults to "cookies" */
+  storageMode?: StorageMode;
 }
 
 export function initSharedConfig(config: SharedConfig) {
-  initSupabase(config.supabaseUrl, config.supabaseAnonKey);
+  initSupabase(config.supabaseUrl, config.supabaseAnonKey, config.storageMode);
   setApiBaseUrl(config.apiBaseUrl);
   if (config.authRedirectOrigin) {
     setAuthRedirectOrigin(config.authRedirectOrigin);
