@@ -16,7 +16,7 @@ Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN ?? "https://12f87c41bf7be1e26757c68d4089ac8b@o4511051123064832.ingest.us.sentry.io/4511142195953664",
   sendDefaultPii: false,
   environment: import.meta.env.DEV ? "development" : "production",
-  release: `sts2-replay@0.3.3`,
+  release: `sts2-replay@0.3.4`,
 });
 
 // Wire Sentry into the shared error reporter so all reportError() calls go to both Sentry + Supabase
