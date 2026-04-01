@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { GameState } from "../../types/game-state";
-import { isCombatState } from "../../types/game-state";
+import { isCombatState, getLocalCombatPlayer } from "../../types/game-state";
 
 const STORAGE_KEY = "sts2-player";
 
@@ -57,18 +57,20 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
 
   if (!gameState) return player.current;
 
-  if (isCombatState(gameState) && gameState.battle?.player) {
-    const p = gameState.battle.player;
-    setPlayer(player, {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: p.max_energy,
-      relics: p.relics,
-      potions: p.potions.map((pot) => ({ name: pot.name, description: pot.description })),
-      cardRemovalCost: player.current?.cardRemovalCost ?? null,
-    });
+  if (isCombatState(gameState)) {
+    const p = getLocalCombatPlayer(gameState);
+    if (p) {
+      setPlayer(player, {
+        character: p.character,
+        hp: p.hp,
+        maxHp: p.max_hp,
+        gold: p.gold,
+        maxEnergy: p.max_energy,
+        relics: p.relics,
+        potions: p.potions.map((pot) => ({ name: pot.name, description: pot.description })),
+        cardRemovalCost: player.current?.cardRemovalCost ?? null,
+      });
+    }
   }
 
   if (gameState.state_type === "combat_rewards" && gameState.rewards?.player) {

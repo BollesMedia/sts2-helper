@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard } from "../../types/game-state";
-import { isCombatState, hasRun } from "../../types/game-state";
+import type { GameState, CombatCard, CombatState } from "../../types/game-state";
+import { isCombatState, hasRun, getLocalCombatPlayer } from "../../types/game-state";
 import { createClient } from "../../supabase/client";
 import { initStarterDecks, getStarterDeck } from "../../supabase/starter-decks";
 
@@ -134,8 +134,9 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
 
   // ─── COMBAT: Ground truth sync (round 1 only) ───
   // Round 1 is the cleanest snapshot — no exhaust, no enemy-added cards yet
-  if (isCombatState(gameState) && gameState.battle?.player && gameState.battle.round <= 1) {
-    const p = gameState.battle.player;
+  const combatPlayer = isCombatState(gameState) ? getLocalCombatPlayer(gameState) : null;
+  if (isCombatState(gameState) && combatPlayer && gameState.battle?.round <= 1) {
+    const p = combatPlayer;
     const allPiles = [
       ...(p.hand ?? []),
       ...(p.draw_pile ?? []),
@@ -200,8 +201,9 @@ function extractCharacter(state: GameState): string | null {
   if ("relic_select" in state && state.relic_select?.player) {
     return state.relic_select.player.character;
   }
-  if ("battle" in state && state.battle?.player) {
-    return state.battle.player.character;
+  if ("battle" in state && state.battle) {
+    const p = getLocalCombatPlayer(state as CombatState);
+    if (p) return p.character;
   }
   if ("map" in state && state.map?.player) {
     return state.map.player.character;

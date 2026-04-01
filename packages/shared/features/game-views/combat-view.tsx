@@ -4,10 +4,12 @@ import { HpBar } from "../../components/hp-bar";
 import { BossBriefing } from "../combat/boss-briefing";
 import { cn } from "../../lib/cn";
 import type { CombatState, CombatCard } from "../../types/game-state";
+import { getLocalCombatPlayer } from "../../types/game-state";
 import { STATE_LABELS } from "./state-labels";
 
 export function CombatView({ state, deckCards }: { state: CombatState; deckCards: CombatCard[] }) {
-  if (!state.battle?.player) {
+  const player = getLocalCombatPlayer(state);
+  if (!player) {
     return (
       <div className="flex flex-col gap-6">
         <h2 className="text-xl font-semibold text-zinc-100">Combat</h2>
@@ -15,7 +17,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
       </div>
     );
   }
-  const { player, enemies } = state.battle;
+  const { enemies } = state.battle;
 
   return (
     <div className="flex flex-col gap-6">

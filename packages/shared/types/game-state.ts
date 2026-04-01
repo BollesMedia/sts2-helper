@@ -146,9 +146,15 @@ export interface CombatState {
     turn: string;
     is_play_phase: boolean;
     player: BattlePlayer;
+    /** Multiplayer: array of all players. Local player has is_local: true. */
+    players?: (BattlePlayer & { is_local?: boolean })[];
     enemies: Enemy[];
   };
   run: RunInfo;
+  /** Present in multiplayer responses */
+  game_mode?: "singleplayer" | "multiplayer";
+  player_count?: number;
+  local_player_slot?: number;
 }
 
 export interface CardRewardState {
@@ -292,9 +298,13 @@ export interface HandSelectState {
     turn: string;
     is_play_phase: boolean;
     player: BattlePlayer;
+    players?: (BattlePlayer & { is_local?: boolean })[];
     enemies: Enemy[];
   };
   run: RunInfo;
+  game_mode?: "singleplayer" | "multiplayer";
+  player_count?: number;
+  local_player_slot?: number;
 }
 
 export interface RelicSelectState {
@@ -353,4 +363,29 @@ export function hasRun(
   state: GameState
 ): state is GameState & { run: RunInfo } {
   return "run" in state;
+}
+
+/**
+ * Get the local player's BattlePlayer data from a combat or hand_select state.
+ * In singleplayer: returns battle.player.
+ * In multiplayer: finds the local player in battle.players[].
+ */
+export function getLocalCombatPlayer(
+  state: CombatState | HandSelectState
+): BattlePlayer | undefined {
+  const battle = state.battle;
+  if (!battle) return undefined;
+
+  // Multiplayer: find local player in array
+  if (battle.players?.length) {
+    const localSlot = (state as { local_player_slot?: number }).local_player_slot;
+    if (localSlot != null && battle.players[localSlot]) {
+      return battle.players[localSlot];
+    }
+    // Fallback: find by is_local flag
+    return battle.players.find((p) => p.is_local) ?? battle.players[0];
+  }
+
+  // Singleplayer: direct player field
+  return battle.player;
 }

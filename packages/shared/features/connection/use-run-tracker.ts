@@ -5,7 +5,7 @@ import { clearEvaluationRegistry } from "../../evaluation/last-evaluation-regist
 
 import { useCallback, useRef, useState } from "react";
 import type { GameState } from "../../types/game-state";
-import { hasRun, isCombatState } from "../../types/game-state";
+import { hasRun, isCombatState, getLocalCombatPlayer } from "../../types/game-state";
 
 const STORAGE_KEY = "sts2-run-id";
 
@@ -170,8 +170,9 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
   }
 
   // Track player HP and enemy state for outcome detection
-  if (isCombatState(gameState) && gameState.battle?.player) {
-    lastPlayerHp.current = gameState.battle.player.hp;
+  const localCombatPlayer = isCombatState(gameState) ? getLocalCombatPlayer(gameState) : null;
+  if (isCombatState(gameState) && localCombatPlayer) {
+    lastPlayerHp.current = localCombatPlayer.hp;
     lastEnemiesAllDead.current = gameState.battle.enemies.every(
       (e) => e.hp <= 0
     );
@@ -186,8 +187,8 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
   }
 
   // Track deck and relics from any state that has them
-  if (isCombatState(gameState) && gameState.battle?.player) {
-    const p = gameState.battle.player;
+  if (isCombatState(gameState) && localCombatPlayer) {
+    const p = localCombatPlayer;
     const deck = [
       ...(p.hand ?? []),
       ...(p.draw_pile ?? []),
@@ -367,8 +368,9 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
 }
 
 function getCharacter(state: GameState): string | null {
-  if (isCombatState(state) && state.battle?.player) {
-    return state.battle.player.character;
+  if (isCombatState(state)) {
+    const p = getLocalCombatPlayer(state);
+    if (p) return p.character;
   }
   if (state.state_type === "map") {
     return state.map?.player?.character ?? null;
