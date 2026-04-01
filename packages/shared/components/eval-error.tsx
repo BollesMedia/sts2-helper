@@ -32,7 +32,12 @@ export function EvalError({ error, onRetry, className }: EvalErrorProps) {
         className
       )}
     >
-      <p className="text-sm text-zinc-400">{friendlyMessage(error)}</p>
+      <div>
+        <p className="text-sm text-zinc-400">{friendlyMessage(error)}</p>
+        {error !== friendlyMessage(error) && (
+          <p className="text-xs text-zinc-600 mt-1">{error}</p>
+        )}
+      </div>
       {onRetry && (
         <button
           onClick={onRetry}
