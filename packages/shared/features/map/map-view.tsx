@@ -119,16 +119,26 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
   const prevPathRef = useRef<{ col: number; row: number }[]>([]);
 
   const recommendedPath = useMemo(() => {
-    if (bestOptionIndex == null) return prevPathRef.current;
-    const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-    if (!bestOpt) return prevPathRef.current;
-    const path = traceRecommendedPath(
-      bestOpt.col, bestOpt.row, nodes, boss,
-      pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
-    );
-    prevPathRef.current = path;
-    return path;
-  }, [bestOptionIndex, next_options, nodes, boss, pathCtx]);
+    // Best case: we have rankings — trace the recommended path
+    if (bestOptionIndex != null) {
+      const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+      if (bestOpt) {
+        const path = traceRecommendedPath(
+          bestOpt.col, bestOpt.row, nodes, boss,
+          pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
+        );
+        prevPathRef.current = path;
+        return path;
+      }
+    }
+    // No rankings but evaluation has a cached path (smart re-eval skipped)
+    if (evaluation?.recommendedPath?.length) {
+      prevPathRef.current = evaluation.recommendedPath;
+      return evaluation.recommendedPath;
+    }
+    // Last resort: previous path from this render cycle
+    return prevPathRef.current;
+  }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation]);
 
   const recommendedPathEdges = useMemo(() => {
     const edges = new Set<string>();

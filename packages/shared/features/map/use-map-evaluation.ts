@@ -82,7 +82,10 @@ export function useMapEvaluation(
 
       if (onRecommendedPath && hpSimilar && deckSimilar) {
         evaluatedKey.current = mapKey;
-        // Keep current evaluation — no re-eval needed
+        // Cache path (not rankings — their optionIndex values are stale for the new options)
+        if (evaluation) {
+          setCache(CACHE_KEY, mapKey, { ...evaluation, rankings: [] });
+        }
         return;
       }
     }
