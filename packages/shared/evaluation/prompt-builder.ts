@@ -51,7 +51,7 @@ const TYPE_ADDENDA: Record<string, string> = {
   card_reward: `
 CARD REWARD:
 - Exclusive choice: pick ONE or skip ALL.
-- ACT 1 PHILOSOPHY: Prioritize STANDALONE VALUE over archetype speculation. The biggest Act 1 risk is not having quality cards. Take cards that are strong on their own — good damage, good block, good draw. Do NOT take speculative archetype pieces that need other cards to function (e.g., a scaling power with no way to survive long enough to use it). Only commit to an archetype when a keystone card appears AND you already have supporting pieces.
+- ACT 1 PHILOSOPHY: Prioritize STANDALONE VALUE over archetype speculation. The biggest Act 1 risk is not having quality cards. Take cards that are strong on their own — good damage, good block, good draw. Do NOT take speculative archetype pieces that need other cards to function (e.g., a scaling power with no way to survive long enough to use it). Only commit to an archetype when a keystone card appears — UNTIL THEN do not select supporting pieces that don't provide immediate value.
 - Act 2+: Evaluate against current deck and archetype. Skip if none advance the win condition.
 - Include a pick_summary: "Pick [name] — [reason]" or "Skip — [reason]". Max 15 words.`,
 
