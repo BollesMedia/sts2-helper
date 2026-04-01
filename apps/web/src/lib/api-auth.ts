@@ -25,13 +25,13 @@ export async function requireAuth(): Promise<
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
+    const { data, error: authError } = await supabase.auth.getUser(token);
 
-    if (user) {
-      return { userId: user.id };
+    if (data?.user) {
+      return { userId: data.user.id };
     }
+
+    console.error("[Auth] Bearer token rejected:", authError?.message ?? "no user returned", "token prefix:", token.slice(0, 20) + "...");
 
     return {
       error: NextResponse.json(
