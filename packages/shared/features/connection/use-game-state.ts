@@ -38,7 +38,7 @@ function isValidGameState(data: unknown): data is GameState {
   };
 
   const key = containerKey[state.state_type];
-  if (!key) return false;
+  if (!key) return true; // Unknown state_type — mod is responding, just no UI for this state
 
   const container = state[key];
   if (!container || typeof container !== "object") return false;
