@@ -8,6 +8,7 @@ import {
   getDrawSources,
   getScalingSources,
 } from "./archetype-detector";
+import { computeDeckMaturity } from "./deck-maturity";
 
 /**
  * Build an EvaluationContext from the current game state + tracked player/deck.
@@ -53,7 +54,10 @@ export function buildEvaluationContext(
     c.name.toLowerCase().includes("curse")
   );
 
-  return {
+  const upgradeCount = safeDeckCards.filter((c) => c.name.includes("+")).length;
+  const relicCount = player.relics.length;
+
+  const partialCtx = {
     character: player.character.toLowerCase(),
     archetypes,
     primaryArchetype,
@@ -74,5 +78,12 @@ export function buildEvaluationContext(
     curseNames: curseCards.map((c) => c.name),
     relics: player.relics.map((r) => ({ name: r.name, description: r.description })),
     potionNames: player.potions.map((p) => p.name),
+    upgradeCount,
+    relicCount,
+    deckMaturity: 0,
   };
+
+  partialCtx.deckMaturity = computeDeckMaturity(partialCtx);
+
+  return partialCtx;
 }

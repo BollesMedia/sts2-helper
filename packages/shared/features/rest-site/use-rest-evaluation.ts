@@ -222,7 +222,7 @@ Respond as JSON:
       };
 
       // Apply post-eval weights (heal override near elite/boss)
-      applyRestWeights(evaluation, hpPercent, hasEliteAhead, hasBossNear);
+      applyRestWeights(evaluation, hpPercent, hasEliteAhead, hasBossNear, ctx?.deckMaturity);
 
       setEvaluation(evaluation);
       setCache(CACHE_KEY, restKey, evaluation);

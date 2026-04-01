@@ -22,6 +22,9 @@ const baseContext: EvaluationContext = {
   curseNames: [],
   relics: [],
   potionNames: [],
+  upgradeCount: 3,
+  deckMaturity: 0.5,
+  relicCount: 1,
 };
 
 describe("createContextHash", () => {

@@ -12,6 +12,8 @@ import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
 import { RECOMMENDATION_BORDER } from "../../lib/recommendation-styles";
 import type { TierLetter } from "../../evaluation/tier-utils";
+import { computeDeckMaturity, type DeckMaturityInput } from "../../evaluation/deck-maturity";
+import { detectArchetypes, hasScalingSources, getScalingSources } from "../../evaluation/archetype-detector";
 
 interface MapViewProps {
   state: MapState;
@@ -88,37 +90,53 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return opt ? `${opt.col},${opt.row}` : null;
   }, [bestOptionIndex, next_options]);
 
-  // Full recommended path: trace locally from Claude's best-ranked option
-  // Store as an edge set for precise highlighting (avoids false positives from convergent nodes)
-  const recommendedPathEdges = useMemo(() => {
-    if (bestOptionIndex == null) return new Set<string>();
-    const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-    if (!bestOpt) return new Set<string>();
-
+  // Context for path tracer scoring
+  const pathCtx = useMemo(() => {
+    const act = state.run?.act ?? 1;
+    const floor = state.run?.floor ?? 1;
+    const relicCount = player?.relics.length ?? 0;
     const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
-    const path = traceRecommendedPath(
-      bestOpt.col, bestOpt.row, nodes, boss, hpPct, state.map.player.gold
-    );
+    const upgradeCount = deckCards.filter((c) => c.name.includes("+")).length;
 
-    // Build edge set from consecutive path nodes
+    // Compute maturity from available data
+    const relics = player?.relics ?? [];
+    const archetypes = detectArchetypes(deckCards, relics);
+    const maturityCtx: DeckMaturityInput = {
+      archetypes,
+      deckSize: deckCards.length,
+      deckCards: deckCards.map((c) => ({ name: c.name })),
+      hasScaling: hasScalingSources(deckCards),
+      scalingSources: getScalingSources(deckCards),
+      upgradeCount,
+    };
+    const deckMaturity = computeDeckMaturity(maturityCtx);
+
+    return { hpPct, gold: state.map.player.gold, act, deckMaturity, relicCount, floor };
+  }, [state, player, deckCards]);
+
+  // Full recommended path: trace locally from Claude's best-ranked option
+  const recommendedPath = useMemo(() => {
+    if (bestOptionIndex == null) return [];
+    const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+    if (!bestOpt) return [];
+    return traceRecommendedPath(
+      bestOpt.col, bestOpt.row, nodes, boss,
+      pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
+    );
+  }, [bestOptionIndex, next_options, nodes, boss, pathCtx]);
+
+  const recommendedPathEdges = useMemo(() => {
     const edges = new Set<string>();
-    for (let i = 0; i < path.length - 1; i++) {
-      edges.add(`${path[i].col},${path[i].row}->${path[i + 1].col},${path[i + 1].row}`);
+    for (let i = 0; i < recommendedPath.length - 1; i++) {
+      edges.add(`${recommendedPath[i].col},${recommendedPath[i].row}->${recommendedPath[i + 1].col},${recommendedPath[i + 1].row}`);
     }
     return edges;
-  }, [bestOptionIndex, next_options, nodes, boss, state.map.player]);
+  }, [recommendedPath]);
 
-  const recommendedPathNodes = useMemo(() => {
-    if (bestOptionIndex == null) return new Set<string>();
-    const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-    if (!bestOpt) return new Set<string>();
-
-    const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
-    const path = traceRecommendedPath(
-      bestOpt.col, bestOpt.row, nodes, boss, hpPct, state.map.player.gold
-    );
-    return new Set(path.map((p) => `${p.col},${p.row}`));
-  }, [bestOptionIndex, next_options, nodes, boss, state.map.player]);
+  const recommendedPathNodes = useMemo(
+    () => new Set(recommendedPath.map((p) => `${p.col},${p.row}`)),
+    [recommendedPath]
+  );
 
   return (
     <div className="flex gap-4 h-full min-h-0">

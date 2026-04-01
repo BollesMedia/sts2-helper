@@ -166,12 +166,14 @@ export function preEvalRestWeights(
 
 /**
  * Post-eval adjustment for rest sites.
+ * Factors HP, upcoming threats, and deck maturity into heal-vs-upgrade decision.
  */
 export function applyRestWeights(
   evaluation: CardRewardEvaluation,
   hpPercent: number,
   hasEliteAhead: boolean,
-  hasBossNear: boolean
+  hasBossNear: boolean,
+  deckMaturity = 0.5
 ): void {
   const healRanking = evaluation.rankings.find((r) =>
     r.itemId?.toLowerCase().includes("rest") || r.itemName?.toLowerCase().includes("rest") || r.itemName?.toLowerCase().includes("heal")
@@ -182,16 +184,23 @@ export function applyRestWeights(
 
   if (!healRanking || !smithRanking) return;
 
-  // Elite within 2 nodes: heal if HP < 75%
-  if (hasEliteAhead && hpPercent < 0.75) {
-    healRanking.tier = "S";
-    healRanking.tierValue = 6;
-    healRanking.confidence = 90;
-    healRanking.recommendation = "strong_pick";
-    healRanking.reasoning = "Heal before elite — survival > optimization";
-    smithRanking.tier = adjustTier(smithRanking.tier, -1);
-    smithRanking.tierValue = tierToValue(smithRanking.tier);
-    smithRanking.recommendation = "situational";
+  // Elite within 2 nodes
+  if (hasEliteAhead) {
+    // High maturity + healthy = safe to upgrade (deck can handle the elite)
+    if (deckMaturity >= 0.6 && hpPercent >= 0.75) {
+      smithRanking.reasoning = "Deck is strong enough for the elite — upgrade compounds value";
+      // Don't override Claude's recommendation, just surface context
+    } else if (hpPercent < 0.75) {
+      healRanking.tier = "S";
+      healRanking.tierValue = 6;
+      healRanking.confidence = 90;
+      healRanking.recommendation = "strong_pick";
+      healRanking.reasoning = `Heal before elite — ${hpPercent < 0.6 ? "critically low HP" : "not healthy enough to risk it"}`;
+      smithRanking.tier = adjustTier(smithRanking.tier, -1);
+      smithRanking.tierValue = tierToValue(smithRanking.tier);
+      smithRanking.recommendation = "situational";
+      smithRanking.reasoning = "Upgrade is valuable but survival comes first with elite ahead";
+    }
   }
 
   // Boss within 3 nodes: heal if HP < 80%

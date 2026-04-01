@@ -65,15 +65,18 @@ SHOP:
 - In Act 3: spend ALL gold. It has zero value after the final boss.`,
 
   map: `
-MAP PATHING — CORE: Maximize relics while keeping HP high. Relics win Act 3. Cards come naturally.
-- Relic sources (elite, treasure, mystery/event) are the highest-value nodes. Prefer paths with MORE relic opportunities.
-- RestSite → Elite is the IDEAL elite path: heal/upgrade then fight for a relic.
-- Treasure nodes = free relic = always high priority.
+MAP PATHING — CORE: Balance relic acquisition against deck development and HP preservation.
+- Treasure nodes = free relic = always high priority (zero HP cost).
+- RestSite → Elite is the IDEAL elite pattern: heal/upgrade then fight for a relic.
 - Unknown/Event nodes: safer than Monster, can give relics/transforms/gold. Prefer over Monster.
 - Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets.
-- Rest sites: critical for HP preservation. Paths with rest sites before elite/boss are safer.
-- At high ascension: sometimes you MUST take risky elite paths to accumulate enough relics to clear Act 3. Factor whether the run can win without more relics.
-- Budget ~20 HP per remaining fight for safety.`,
+- Rest sites: critical — both healing AND upgrading are valuable. Card upgrades compound over the entire run.
+- ELITE PHILOSOPHY by act:
+  - Act 1: Be selective. Upgrades and HP preservation build the foundation. Only take elites when HP is high (>70%) and the deck can handle the fight.
+  - Act 2: Peak window for elites. Deck should be functional — relics here accelerate the endgame.
+  - Act 3: Selective only. Boss preparation matters more than another relic. Avoid elites unless very healthy.
+- Sacrificing an upgrade to heal after an elite is a REAL cost — an upgrade compounds value every remaining fight.
+- Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).`,
 
   rest_site: `
 REST SITE:

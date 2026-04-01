@@ -25,6 +25,9 @@ export interface EvaluationContext {
   curseNames: string[];
   relics: { name: string; description: string }[];
   potionNames: string[];
+  upgradeCount: number;
+  deckMaturity: number;
+  relicCount: number;
 }
 
 export interface CardEvaluation {
