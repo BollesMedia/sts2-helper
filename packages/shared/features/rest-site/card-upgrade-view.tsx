@@ -106,7 +106,7 @@ Cards with + cannot be upgraded again.`,
         </p>
       )}
 
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-5 gap-1.5">
         {(() => {
           let highlightedOne = false;
           return cards.map((card) => {
