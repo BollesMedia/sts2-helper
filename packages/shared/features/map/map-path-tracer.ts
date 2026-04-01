@@ -195,9 +195,11 @@ function dfsScore(
 
   // Path order bonuses between parent and current node
   if (parentType) {
-    if (parentType === "RestSite" && node.type === "Elite") score += 2.0;
+    // Shop before elite: can buy potions/cards to prepare
     if (parentType === "Shop" && node.type === "Elite") score += 1.0;
+    // Rest site after elite: at least you can heal (but lose the upgrade)
     if (parentType === "Elite" && node.type === "RestSite") score += 0.5;
+    // Back-to-back elites: HP attrition death spiral
     if (parentType === "Elite" && node.type === "Elite") score -= 3.0;
   }
 

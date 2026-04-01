@@ -67,15 +67,14 @@ SHOP:
   map: `
 MAP PATHING — CORE: Balance relic acquisition against deck development and HP preservation.
 - Treasure nodes = free relic = always high priority (zero HP cost).
-- RestSite → Elite is the IDEAL elite pattern: heal/upgrade then fight for a relic.
 - Unknown/Event nodes: safer than Monster, can give relics/transforms/gold. Prefer over Monster.
 - Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets.
-- Rest sites: critical — both healing AND upgrading are valuable. Card upgrades compound over the entire run.
+- Rest sites: you get ONE action per visit — heal OR upgrade, never both. Card upgrades compound over the entire run (~3-5 HP saved per fight). Prioritize upgrades when healthy.
+- ELITE COST: fighting an elite means the next rest site is spent healing instead of upgrading. One elite = one lost upgrade. An upgrade compounds value every remaining fight — a random relic may not.
 - ELITE PHILOSOPHY by act:
-  - Act 1: STRONGLY AVOID elites. The starter deck cannot handle them efficiently — you lose ~40 HP and sacrifice 1-2 rest site upgrades for one random relic. Two upgrades > one random relic. Only consider if the elite is unavoidable on the best path AND HP is near full.
-  - Act 2: Peak window for elites. Deck should be functional — relics here accelerate the endgame.
-  - Act 3: Selective only. Boss preparation matters more than another relic. Avoid elites unless very healthy.
-- The hidden cost of elites: healing after an elite sacrifices an upgrade. Each upgrade compounds value every remaining fight (~3-5 HP saved per fight). Two lost upgrades = 90-150 HP lost over an act.
+  - Act 1: STRONGLY AVOID. The starter deck loses ~40 HP to elites, forcing you to heal instead of upgrade. One lost upgrade > one random relic. Only consider if unavoidable AND HP is near full.
+  - Act 2: Peak window. Deck should handle elites efficiently with less HP loss, making the relic worth the cost.
+  - Act 3: Selective only. Boss preparation matters more than another relic. Avoid unless very healthy.
 - Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).`,
 
   rest_site: `
