@@ -288,7 +288,7 @@ export async function POST(request: Request) {
   // Items go LAST for Haiku's recency bias
   // Flag duplicates and cost inline so Claude can't miss them
   const isShop = type === "shop";
-  const costUnit = isShop ? "g" : "E";
+  const costUnit = isShop ? "g" : " energy";
   const deckCardNames = new Set((context.deckCards ?? []).map((c) => c.name.toLowerCase()));
   const itemsStr = items
     .map(
@@ -358,7 +358,7 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
     // Log usage
     logUsage(supabase, {
       userId: body.userId ?? null,
-      evalType: type,
+      evalType: evalType,
       model: "claude-haiku-4-5-20251001",
       inputTokens: message.usage.input_tokens,
       outputTokens: message.usage.output_tokens,

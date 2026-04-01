@@ -73,7 +73,11 @@ function applyCardRewardWeights(
     const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
 
     // Unplayable/curse cards being OFFERED: penalize heavily
-    if (desc.includes("unplayable") || desc.includes("curse")) {
+    const name = ranking.itemName?.toLowerCase() ?? "";
+    const isCurse = desc.includes("unplayable") || desc.includes("curse")
+      || name.includes("curse") || name.includes("writhe") || name.includes("normality")
+      || name.includes("clumsy") || name.includes("injury") || name.includes("doubt");
+    if (isCurse) {
       ranking.tier = "F";
       ranking.tierValue = 1;
       ranking.confidence = 95;
@@ -172,12 +176,16 @@ export function preEvalRestWeights(
   hasBossNear: boolean,
   options: { id: string; name: string }[]
 ): RestWeightResult {
-  const healOption = options.find((o) =>
-    o.id.toLowerCase().includes("rest") || o.name.toLowerCase().includes("rest") || o.name.toLowerCase().includes("heal")
-  );
-  const smithOption = options.find((o) =>
-    o.id.toLowerCase().includes("smith") || o.name.toLowerCase().includes("upgrade")
-  );
+  const healOption = options.find((o) => {
+    const id = o.id.toLowerCase();
+    const n = o.name.toLowerCase();
+    return id === "rest" || id === "heal" || n === "rest" || n === "heal";
+  });
+  const smithOption = options.find((o) => {
+    const id = o.id.toLowerCase();
+    const n = o.name.toLowerCase();
+    return id === "smith" || id === "upgrade" || n === "smith" || n === "upgrade";
+  });
 
   // Auto-heal at <30% HP — no LLM call needed
   if (hpPercent < 0.30 && healOption) {
@@ -207,12 +215,16 @@ export function applyRestWeights(
   hasBossNear: boolean,
   deckMaturity = 0.5
 ): void {
-  const healRanking = evaluation.rankings.find((r) =>
-    r.itemId?.toLowerCase().includes("rest") || r.itemName?.toLowerCase().includes("rest") || r.itemName?.toLowerCase().includes("heal")
-  );
-  const smithRanking = evaluation.rankings.find((r) =>
-    r.itemId?.toLowerCase().includes("smith") || r.itemName?.toLowerCase().includes("upgrade")
-  );
+  const healRanking = evaluation.rankings.find((r) => {
+    const id = r.itemId?.toLowerCase() ?? "";
+    const n = r.itemName?.toLowerCase() ?? "";
+    return id === "rest" || id === "heal" || n === "rest" || n === "heal";
+  });
+  const smithRanking = evaluation.rankings.find((r) => {
+    const id = r.itemId?.toLowerCase() ?? "";
+    const n = r.itemName?.toLowerCase() ?? "";
+    return id === "smith" || id === "upgrade" || n === "smith" || n === "upgrade";
+  });
 
   if (!healRanking || !smithRanking) return;
 
