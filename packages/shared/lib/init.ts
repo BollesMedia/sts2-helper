@@ -1,4 +1,4 @@
-import { setApiBaseUrl, setAccessTokenGetter } from "./api-client";
+import { setApiBaseUrl, setAccessTokenGetter, setFetchImplementation } from "./api-client";
 import { initSupabase } from "../supabase/client";
 import { setAuthRedirectOrigin } from "../supabase/auth";
 
@@ -8,6 +8,7 @@ interface SharedConfig {
   apiBaseUrl: string;
   authRedirectOrigin?: string;
   accessTokenGetter?: () => Promise<string | null>;
+  fetchImplementation?: typeof globalThis.fetch;
 }
 
 export function initSharedConfig(config: SharedConfig) {
@@ -18,5 +19,8 @@ export function initSharedConfig(config: SharedConfig) {
   }
   if (config.accessTokenGetter) {
     setAccessTokenGetter(config.accessTokenGetter);
+  }
+  if (config.fetchImplementation) {
+    setFetchImplementation(config.fetchImplementation);
   }
 }

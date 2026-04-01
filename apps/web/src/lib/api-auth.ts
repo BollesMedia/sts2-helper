@@ -19,13 +19,8 @@ export async function requireAuth(): Promise<
   const headerStore = await headers();
   const authHeader = headerStore.get("authorization");
 
-  console.log("[Auth] authHeader present:", !!authHeader, "starts with Bearer:", authHeader?.startsWith("Bearer "));
-
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
-    console.log("[Auth] Token length:", token.length, "prefix:", token.slice(0, 30) + "...");
-    console.log("[Auth] Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 30) ?? "MISSING");
-    console.log("[Auth] Supabase key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 15) ?? "MISSING");
 
     const supabase = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,8 +28,6 @@ export async function requireAuth(): Promise<
     );
 
     const { data, error: authError } = await supabase.auth.getUser(token);
-
-    console.log("[Auth] getUser result:", { hasUser: !!data?.user, userId: data?.user?.id?.slice(0, 8), error: authError?.message });
 
     if (data?.user) {
       return { userId: data.user.id };

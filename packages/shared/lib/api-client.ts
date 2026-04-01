@@ -4,6 +4,7 @@
  */
 let baseUrl = "";
 let getAccessToken: (() => Promise<string | null>) | null = null;
+let fetchImpl: typeof globalThis.fetch = globalThis.fetch;
 
 export function setApiBaseUrl(url: string) {
   baseUrl = url;
@@ -15,6 +16,14 @@ export function setApiBaseUrl(url: string) {
  */
 export function setAccessTokenGetter(getter: () => Promise<string | null>) {
   getAccessToken = getter;
+}
+
+/**
+ * Override the fetch implementation used for API calls.
+ * Desktop app uses Tauri's HTTP plugin to bypass WebView CORS restrictions.
+ */
+export function setFetchImplementation(impl: typeof globalThis.fetch) {
+  fetchImpl = impl;
 }
 
 export function apiUrl(path: string): string {
@@ -38,27 +47,21 @@ export async function apiFetch(
       const token = await getAccessToken();
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
-        console.log("[apiFetch]", path, "token present, length:", token.length, "prefix:", token.slice(0, 20) + "...");
-      } else {
-        console.warn("[apiFetch]", path, "token getter returned null");
       }
     } catch (err) {
-      console.error("[apiFetch]", path, "token getter threw:", err);
+      console.error("[apiFetch] token getter threw:", err);
     }
-  } else {
-    console.warn("[apiFetch]", path, "no token getter configured — was initSharedConfig called?");
   }
 
   const url = apiUrl(path);
-  console.log("[apiFetch]", "→", init.method ?? "GET", url);
 
-  const res = await fetch(url, {
+  const res = await fetchImpl(url, {
     ...init,
     headers: { ...headers, ...(init.headers as Record<string, string>) },
   });
 
   if (!res.ok) {
-    console.error("[apiFetch]", "←", res.status, res.statusText, path);
+    console.error("[apiFetch]", res.status, res.statusText, path);
   }
 
   return res;

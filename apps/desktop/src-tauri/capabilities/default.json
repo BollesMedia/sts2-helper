@@ -10,6 +10,16 @@
     "updater:default",
     "process:default",
     "deep-link:default",
-    "shell:allow-open"
+    "shell:allow-open",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://sts2-helper.vercel.app/**" },
+        { "url": "https://sts2replay.com/**" },
+        { "url": "https://api.sts2replay.com/**" },
+        { "url": "https://*.supabase.co/**" },
+        { "url": "wss://*.supabase.co/**" }
+      ]
+    }
   ]
 }
