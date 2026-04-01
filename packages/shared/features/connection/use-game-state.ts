@@ -13,54 +13,19 @@ import {
 } from "./polling-config";
 
 /**
- * Validate that a game state response has the expected shape for its state_type.
- * Returns true if the data is safe to use in the component tree.
- * Returns false for malformed data — the fetcher will silently keep the
- * previous valid state instead of showing "disconnected".
+ * Check if the mod response is valid JSON with a state_type string.
+ * This is the ONLY check needed to confirm the mod is connected.
+ * Component-level defense-in-depth (optional chaining) handles missing
+ * properties — we don't reject data here to avoid freezing the UI on
+ * stale cached state during screen transitions.
  */
-function isValidGameState(data: unknown): data is GameState {
+function isGameStateResponse(data: unknown): data is GameState {
   if (!data || typeof data !== "object") return false;
-  const state = data as Record<string, unknown>;
-  if (typeof state.state_type !== "string") return false;
-
-  // Menu state has no nested data
-  if (state.state_type === "menu") return true;
-
-  // Map from state_type to the key holding the nested container object
-  const containerKey: Record<string, string> = {
-    monster: "battle", elite: "battle", boss: "battle",
-    hand_select: "battle",
-    map: "map", shop: "shop", event: "event", rest_site: "rest_site",
-    combat_rewards: "rewards", card_reward: "card_reward",
-    card_select: "card_select", relic_select: "relic_select", treasure: "treasure",
-  };
-
-  const key = containerKey[state.state_type];
-  // Unknown state_type — mod is responding, just no UI for this state
-  if (!key) return true;
-
-  // All other states need a run object
-  if (!state.run || typeof state.run !== "object") return false;
-
-  const container = state[key];
-  if (!container || typeof container !== "object") return false;
-
-  // card_reward has no player field
-  if (state.state_type === "card_reward") return true;
-
-  // All other known states need a player object with at least a character string
-  const { player } = container as Record<string, unknown>;
-  if (!player || typeof player !== "object") return false;
-  if (typeof (player as Record<string, unknown>).character !== "string") return false;
-
-  return true;
+  return typeof (data as Record<string, unknown>).state_type === "string";
 }
 
-/** Tracks the last valid game state so we can fall back during transitions */
-let lastValidState: GameState | null = null;
-
 async function fetcher(url: string): Promise<GameState> {
-  // fetch() itself throws on network errors (mod not running) — that's a real disconnect
+  // fetch() throws on network errors (mod not running) — real disconnect
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`STS2MCP responded with ${res.status}`);
@@ -68,19 +33,11 @@ async function fetcher(url: string): Promise<GameState> {
 
   const data = await res.json();
 
-  if (isValidGameState(data)) {
-    lastValidState = data;
-    return data;
+  if (!isGameStateResponse(data)) {
+    throw new Error("Mod response missing state_type");
   }
 
-  // Mod is responding but data is malformed (transitional state).
-  // Return last valid state instead of throwing — this is NOT a disconnect.
-  if (lastValidState) {
-    return lastValidState;
-  }
-
-  // No previous state to fall back to — still not a disconnect, just nothing to show yet
-  return { state_type: "menu", message: "" } as GameState;
+  return data;
 }
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
