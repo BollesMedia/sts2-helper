@@ -2,8 +2,9 @@
 
 import { useRef } from "react";
 import type { GameState, CombatCard } from "../../types/game-state";
-import { isCombatState } from "../../types/game-state";
+import { isCombatState, hasRun } from "../../types/game-state";
 import { createClient } from "../../supabase/client";
+import { initStarterDecks, getStarterDeck } from "../../supabase/starter-decks";
 
 const STORAGE_KEY = "sts2-deck";
 const VALID_CARDS_KEY = "sts2-valid-cards";
@@ -122,6 +123,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     initialized.current = true;
     deckCards.current = loadFromStorage();
     initValidCardNames();
+    initStarterDecks();
   }
 
   if (!gameState) return deckCards.current;
@@ -178,5 +180,49 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     }
   }
 
+  // At the very start of a run with no deck data, inject the character's starter deck
+  if (deckCards.current.length === 0 && gameState && hasRun(gameState)) {
+    const { act, floor } = gameState.run;
+    if (act === 1 && floor <= 1) {
+      const character = extractCharacter(gameState);
+      if (character) {
+        const starter = getStarterDeck(character);
+        if (starter.length > 0) return starter;
+      }
+    }
+  }
+
   return deckCards.current;
+}
+
+/** Extract character name from any game state that has a player field. */
+function extractCharacter(state: GameState): string | null {
+  if ("relic_select" in state && state.relic_select?.player) {
+    return state.relic_select.player.character;
+  }
+  if ("battle" in state && state.battle?.player) {
+    return state.battle.player.character;
+  }
+  if ("map" in state && state.map?.player) {
+    return state.map.player.character;
+  }
+  if ("shop" in state && state.shop?.player) {
+    return state.shop.player.character;
+  }
+  if ("event" in state && state.event?.player) {
+    return state.event.player.character;
+  }
+  if ("rest_site" in state && state.rest_site?.player) {
+    return state.rest_site.player.character;
+  }
+  if ("rewards" in state && state.rewards?.player) {
+    return state.rewards.player.character;
+  }
+  if ("card_select" in state && state.card_select?.player) {
+    return state.card_select.player.character;
+  }
+  if ("treasure" in state && state.treasure?.player) {
+    return state.treasure.player.character;
+  }
+  return null;
 }
