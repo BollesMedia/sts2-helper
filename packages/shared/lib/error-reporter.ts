@@ -4,6 +4,23 @@ const APP_VERSION = "0.1.0";
 let reportCount = 0;
 const MAX_REPORTS_PER_SESSION = 50;
 
+// Sentry integration — lazy loaded to avoid hard dependency in shared package
+let _sentry: {
+  captureException: (err: unknown, ctx?: unknown) => void;
+  captureMessage: (msg: string, ctx?: unknown) => void;
+  setContext: (name: string, ctx: Record<string, unknown> | null) => void;
+  setTag: (key: string, value: string) => void;
+} | null = null;
+
+/**
+ * Initialize Sentry integration. Call from the app entry point
+ * after Sentry.init() — passes the Sentry module so the shared
+ * package doesn't need @sentry/react as a dependency.
+ */
+export function initErrorReporter(sentry: typeof _sentry) {
+  _sentry = sentry;
+}
+
 function getPlatform(): string {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent.toLowerCase();
@@ -13,7 +30,7 @@ function getPlatform(): string {
 }
 
 /**
- * Report an error or feedback to the remote error_logs table.
+ * Report an error to both Sentry and Supabase error_logs.
  * Fire-and-forget — never blocks, never throws, never causes secondary errors.
  */
 export function reportError(
@@ -21,21 +38,33 @@ export function reportError(
   message: string,
   context?: Record<string, unknown>
 ) {
-  // Throttle: max 50 reports per session to prevent flood
   if (reportCount >= MAX_REPORTS_PER_SESSION) return;
   reportCount++;
 
+  // Send to Sentry with metadata
+  try {
+    if (_sentry) {
+      const err = new Error(message);
+      err.name = source;
+      _sentry.captureException(err, {
+        tags: { source, platform: getPlatform(), app_version: APP_VERSION },
+        extra: context,
+      });
+    }
+  } catch { /* never let Sentry break the app */ }
+
+  // Send to Supabase
   apiFetch("/api/error", {
     method: "POST",
     body: JSON.stringify({
       source,
       level: "error",
-      message: message.slice(0, 2000), // cap message length
+      message: message.slice(0, 2000),
       context,
       app_version: APP_VERSION,
       platform: getPlatform(),
     }),
-  }).catch(() => {}); // Swallow — never let error reporting cause errors
+  }).catch(() => {});
 }
 
 /**
@@ -48,6 +77,16 @@ export function reportInfo(
 ) {
   if (reportCount >= MAX_REPORTS_PER_SESSION) return;
   reportCount++;
+
+  try {
+    if (_sentry) {
+      _sentry.captureMessage(`[${source}] ${message}`, {
+        level: "info",
+        tags: { source, platform: getPlatform() },
+        extra: context,
+      } as unknown);
+    }
+  } catch { /* swallow */ }
 
   apiFetch("/api/error", {
     method: "POST",
@@ -72,12 +111,22 @@ export function reportFeedback(
   if (reportCount >= MAX_REPORTS_PER_SESSION) return;
   reportCount++;
 
+  try {
+    if (_sentry) {
+      _sentry.captureMessage(`[feedback] ${message}`, {
+        level: "info",
+        tags: { source: "user_feedback", platform: getPlatform() },
+        extra: context,
+      } as unknown);
+    }
+  } catch { /* swallow */ }
+
   apiFetch("/api/error", {
     method: "POST",
     body: JSON.stringify({
       source: "user_feedback",
       level: "info",
-      message: message.slice(0, 5000), // allow longer for feedback
+      message: message.slice(0, 5000),
       context,
       app_version: APP_VERSION,
       platform: getPlatform(),

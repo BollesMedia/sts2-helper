@@ -7,7 +7,7 @@ import { AuthProvider } from "./auth-provider";
 import { ErrorBoundary } from "@sts2/shared/components/error-boundary";
 import { initSharedConfig } from "@sts2/shared/lib/init";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
-import { reportError } from "@sts2/shared/lib/error-reporter";
+import { reportError, initErrorReporter } from "@sts2/shared/lib/error-reporter";
 import { createClient } from "@sts2/shared/supabase/client";
 
 // Initialize Sentry for crash reporting
@@ -16,6 +16,14 @@ Sentry.init({
   sendDefaultPii: true,
   environment: import.meta.env.DEV ? "development" : "production",
   release: `sts2-replay@0.1.0`,
+});
+
+// Wire Sentry into the shared error reporter so all reportError() calls go to both Sentry + Supabase
+initErrorReporter({
+  captureException: (err, ctx) => Sentry.captureException(err, ctx as Parameters<typeof Sentry.captureException>[1]),
+  captureMessage: (msg, ctx) => { Sentry.captureMessage(msg, ctx as Parameters<typeof Sentry.captureMessage>[1]); },
+  setContext: (name, ctx) => Sentry.setContext(name, ctx),
+  setTag: (key, value) => Sentry.setTag(key, value),
 });
 
 // Configure shared package for desktop environment
