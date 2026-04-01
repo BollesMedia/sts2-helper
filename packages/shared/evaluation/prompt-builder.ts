@@ -51,9 +51,8 @@ const TYPE_ADDENDA: Record<string, string> = {
   card_reward: `
 CARD REWARD:
 - Exclusive choice: pick ONE or skip ALL.
-- Evaluate against current deck and archetype, not card power in vacuum.
-- At A0-A4 early acts: lean toward picking — most decent cards make the deck better. Skip only genuinely bad or off-archetype cards.
-- At A5+ or late game: skip if none advance the win condition.
+- ACT 1 PHILOSOPHY: Prioritize STANDALONE VALUE over archetype speculation. The biggest Act 1 risk is not having quality cards. Take cards that are strong on their own — good damage, good block, good draw. Do NOT take speculative archetype pieces that need other cards to function (e.g., a scaling power with no way to survive long enough to use it). Only commit to an archetype when a keystone card appears AND you already have supporting pieces.
+- Act 2+: Evaluate against current deck and archetype. Skip if none advance the win condition.
 - Include a pick_summary: "Pick [name] — [reason]" or "Skip — [reason]". Max 15 words.`,
 
   shop: `
@@ -67,7 +66,8 @@ SHOP:
   map: `
 MAP PATHING — CORE: Balance relic acquisition against deck development and HP preservation.
 - Treasure nodes = free relic = always high priority (zero HP cost).
-- Unknown/Event nodes: safer than Monster, can give relics/transforms/gold. Prefer over Monster.
+- Act 1: PRIORITIZE MONSTER FIGHTS for card rewards. More fights = more card selections = value density. The biggest Act 1 risk is reaching the boss without quality cards.
+- Act 2+: Unknown/Event nodes are safer than Monster and can give relics/transforms/gold. Prefer over Monster.
 - Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets.
 - Rest sites: you get ONE action per visit — heal OR upgrade, never both. Card upgrades compound over the entire run (~3-5 HP saved per fight). Prioritize upgrades when healthy.
 - ELITE COST: fighting an elite means the next rest site is spent healing instead of upgrading. One elite = one lost upgrade. An upgrade compounds value every remaining fight — a random relic may not.

@@ -99,7 +99,8 @@ function scoreNode(
     case "RestSite": return scoreRestSite(ctx);
     case "Unknown": return 4;
     case "Shop": return scoreShop(ctx.gold);
-    case "Monster": return 2;
+    // Act 1: more monsters = more card rewards = value density
+    case "Monster": return ctx.act === 1 ? 5 : 2;
     case "Boss": return 0;
     default: return 0;
   }
