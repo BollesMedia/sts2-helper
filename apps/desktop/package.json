@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/react": "^10.47.0",
     "@sts2/shared": "*",
     "@supabase/supabase-js": "^2.100.1",
     "@tauri-apps/api": "^2",

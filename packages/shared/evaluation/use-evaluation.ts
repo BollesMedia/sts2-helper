@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { getCached, setCache } from "../lib/local-cache";
+import { reportError } from "../lib/error-reporter";
 
 interface UseEvaluationConfig<T> {
   /** localStorage key for this evaluation type */
@@ -82,7 +83,9 @@ function useEvaluation<T>(config: UseEvaluationConfig<T>): UseEvaluationResult<T
       setEvaluation(data);
       setCache(cacheKey, evalKey, data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Evaluation failed");
+      const msg = err instanceof Error ? err.message : "Evaluation failed";
+      setError(msg);
+      reportError("evaluation", msg, { cacheKey, evalKey });
     } finally {
       setIsLoading(false);
     }

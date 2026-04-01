@@ -3,8 +3,10 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
 import { AuthProvider } from "./auth-provider";
+import { ErrorBoundary } from "@sts2/shared/components/error-boundary";
 import { initSharedConfig } from "@sts2/shared/lib/init";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
+import { reportError } from "@sts2/shared/lib/error-reporter";
 import { createClient } from "@sts2/shared/supabase/client";
 
 // Configure shared package for desktop environment
@@ -45,10 +47,26 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
   console.warn("[STS2] Supabase credentials not configured. Auth features will not work.");
 }
 
+// Global error handlers — catch unhandled errors and report remotely
+window.onerror = (message, source, lineno, colno, error) => {
+  reportError("unhandled_error", String(message), {
+    source, lineno, colno,
+    stack: error?.stack,
+  });
+};
+
+window.addEventListener("unhandledrejection", (e) => {
+  reportError("unhandled_rejection", e.reason?.message ?? String(e.reason), {
+    stack: e.reason?.stack,
+  });
+});
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

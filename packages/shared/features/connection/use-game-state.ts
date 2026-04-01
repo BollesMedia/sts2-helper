@@ -1,8 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import useSWR from "swr";
 import type { GameState } from "../../types/game-state";
 import { STS2MCP_API_URL } from "../../lib/constants";
+import { reportError } from "../../lib/error-reporter";
 import {
   POLLING_INTERVALS,
   DEFAULT_INTERVAL,
@@ -43,6 +45,19 @@ export function useGameState() {
     : isLoading
       ? "connecting"
       : "connected";
+
+  // Report persistent disconnect (once per session)
+  const disconnectReported = useRef(false);
+  if (error && !disconnectReported.current) {
+    disconnectReported.current = true;
+    reportError("connection", "Game API disconnected", {
+      errorMessage: error.message ?? String(error),
+      url: STS2MCP_API_URL,
+    });
+  }
+  if (!error) {
+    disconnectReported.current = false;
+  }
 
   return { gameState: data ?? null, connectionStatus, error };
 }

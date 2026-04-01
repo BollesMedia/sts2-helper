@@ -6,6 +6,7 @@ import { useChoiceTracker } from "@sts2/shared/features/connection/use-choice-tr
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
+import { reportFeedback } from "@sts2/shared/lib/error-reporter";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
@@ -101,29 +102,48 @@ function AuthenticatedApp() {
         />
       </main>
       {gameState.state_type !== "menu" && (
-        <footer className="border-t border-zinc-800/60 px-4 py-1.5 flex justify-end gap-3">
+        <footer className="border-t border-zinc-800/60 px-4 py-1.5 flex justify-between">
           <button
             onClick={() => {
-              localStorage.removeItem("sts2-eval-cache");
-              localStorage.removeItem("sts2-shop-eval-cache");
-              localStorage.removeItem("sts2-map-eval-cache");
-              localStorage.removeItem("sts2-event-eval-cache");
-              localStorage.removeItem("sts2-rest-eval-cache");
-              window.location.reload();
+              const text = prompt("What happened? Describe the issue:");
+              if (text?.trim()) {
+                reportFeedback(text.trim(), {
+                  state_type: gameState.state_type,
+                  floor: "run" in gameState ? (gameState as { run: { floor: number } }).run.floor : undefined,
+                  act: "run" in gameState ? (gameState as { run: { act: number } }).run.act : undefined,
+                  character: player?.character,
+                });
+                alert("Feedback sent — thanks!");
+              }
             }}
             className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
           >
-            Re-evaluate
+            Send Feedback
           </button>
-          <button
-            onClick={() => {
-              localStorage.clear();
-              window.location.reload();
-            }}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            Clear cache
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                localStorage.removeItem("sts2-eval-cache");
+                localStorage.removeItem("sts2-shop-eval-cache");
+                localStorage.removeItem("sts2-map-eval-cache");
+                localStorage.removeItem("sts2-event-eval-cache");
+                localStorage.removeItem("sts2-rest-eval-cache");
+                window.location.reload();
+              }}
+              className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Re-evaluate
+            </button>
+            <button
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Clear cache
+            </button>
+          </div>
         </footer>
       )}
     </div>
