@@ -10,6 +10,7 @@ import { createClient } from "@sts2/shared/supabase/client";
 // Configure shared package for desktop environment
 // TODO: Read from environment or Tauri config
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://sts2-helper.vercel.app";
+const AUTH_REDIRECT_ORIGIN = "sts2replay://";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
@@ -18,7 +19,7 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
     supabaseUrl: SUPABASE_URL,
     supabaseAnonKey: SUPABASE_ANON_KEY,
     apiBaseUrl: API_BASE,
-    authRedirectOrigin: API_BASE,
+    authRedirectOrigin: AUTH_REDIRECT_ORIGIN,
     // Desktop app sends Bearer token for API auth (no cookies cross-origin)
     // Uses getSession first, refreshes if token is expired
     accessTokenGetter: async () => {

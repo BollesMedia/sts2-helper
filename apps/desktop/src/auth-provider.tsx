@@ -3,16 +3,21 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import { createClient } from "@sts2/shared/supabase/client";
 import {
   signInWithPassword,
   signUpWithPassword,
-  signInWithDiscord,
   signOut as authSignOut,
 } from "@sts2/shared/supabase/auth";
+import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
+import { open } from "@tauri-apps/plugin-shell";
 import type { User } from "@supabase/supabase-js";
+
+const DEEP_LINK_PREFIX = "sts2replay://auth/callback";
 
 interface AuthContextValue {
   user: User | null;
@@ -39,11 +44,10 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
+  const supabaseRef = useRef(createClient());
 
-  if (!initialized) {
-    setInitialized(true);
-    const supabase = createClient();
+  useEffect(() => {
+    const supabase = supabaseRef.current;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -53,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
       if (session?.user?.id) {
@@ -62,7 +66,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("sts2-user-id");
       }
     });
-  }
+
+    // Listen for deep link callbacks (OAuth redirect from browser)
+    let unlistenDeepLink: (() => void) | undefined;
+    onOpenUrl(async (urls) => {
+      for (const url of urls) {
+        if (!url.startsWith(DEEP_LINK_PREFIX)) continue;
+        const hash = url.split("#")[1];
+        if (!hash) continue;
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            console.error("[deep-link] Failed to set session:", error.message);
+          }
+        }
+      }
+    }).then((fn) => { unlistenDeepLink = fn; });
+
+    return () => {
+      subscription.unsubscribe();
+      unlistenDeepLink?.();
+    };
+  }, []);
 
   const signOut = useCallback(async () => {
     await authSignOut();
@@ -82,7 +113,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           (email: string, password: string) => signUpWithPassword(email, password),
           []
         ),
-        signInDiscord: useCallback(() => signInWithDiscord(), []),
+        signInDiscord: useCallback(async () => {
+          const supabase = supabaseRef.current;
+          const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: "discord",
+            options: {
+              redirectTo: DEEP_LINK_PREFIX,
+              skipBrowserRedirect: true,
+            },
+          });
+          if (error) return { error: error.message };
+          if (data.url) await open(data.url);
+          return { error: null };
+        }, []),
         signOut,
       }}
     >

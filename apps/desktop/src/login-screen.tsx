@@ -24,9 +24,6 @@ export function LoginScreen() {
       const { error } = await signUp(email.trim(), password);
       if (error) {
         setError(error);
-      } else {
-        setMessage("Account created! Check your email to confirm, then sign in.");
-        setMode("signin");
       }
     } else {
       const { error } = await signInPassword(email.trim(), password);

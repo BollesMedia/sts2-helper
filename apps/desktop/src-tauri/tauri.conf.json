@@ -28,6 +28,12 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "mobile": [],
+      "desktop": {
+        "schemes": ["sts2replay"]
+      }
+    },
     "updater": {
       "endpoints": [
         "https://github.com/BollesMedia/sts2-helper/releases/latest/download/latest.json"

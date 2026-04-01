@@ -5,8 +5,7 @@ import { createClient } from "./client";
 /**
  * Configurable auth redirect origin.
  * Web app uses window.location.origin (default).
- * Tauri app sets this to "https://sts2replay.com" so OAuth
- * redirects through the web app.
+ * Desktop app handles OAuth via deep links (sts2replay://).
  */
 let authRedirectOrigin = "";
 
