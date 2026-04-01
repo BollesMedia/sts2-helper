@@ -33,19 +33,28 @@ const AUTH_REDIRECT_ORIGIN = "sts2replay://";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
+// Debug: log what env vars are available
+console.log("[Init] API_BASE:", API_BASE);
+console.log("[Init] SUPABASE_URL:", SUPABASE_URL ? SUPABASE_URL.slice(0, 30) + "..." : "EMPTY");
+console.log("[Init] SUPABASE_ANON_KEY:", SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.slice(0, 15) + "..." : "EMPTY");
+
 if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+  console.log("[Init] initSharedConfig running");
   initSharedConfig({
     supabaseUrl: SUPABASE_URL,
     supabaseAnonKey: SUPABASE_ANON_KEY,
     apiBaseUrl: API_BASE,
     authRedirectOrigin: AUTH_REDIRECT_ORIGIN,
-    // Desktop app sends Bearer token for API auth (no cookies cross-origin)
-    // Uses getSession first, refreshes if token is expired
     accessTokenGetter: async () => {
       const client = createClient();
-      const { data } = await client.auth.getSession();
+      const { data, error } = await client.auth.getSession();
+      console.log("[TokenGetter] getSession result:", {
+        hasSession: !!data.session,
+        hasToken: !!data.session?.access_token,
+        expiresAt: data.session?.expires_at,
+        error: error?.message,
+      });
       if (data.session?.access_token) {
-        // Check if token expires within 60 seconds
         const expiresAt = data.session.expires_at ?? 0;
         const now = Math.floor(Date.now() / 1000);
         if (expiresAt > now + 60) {

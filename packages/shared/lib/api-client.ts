@@ -34,18 +34,32 @@ export async function apiFetch(
   };
 
   if (getAccessToken) {
-    const token = await getAccessToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    } else {
-      console.warn("[apiFetch] No access token available — request will be unauthenticated");
+    try {
+      const token = await getAccessToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+        console.log("[apiFetch]", path, "token present, length:", token.length, "prefix:", token.slice(0, 20) + "...");
+      } else {
+        console.warn("[apiFetch]", path, "token getter returned null");
+      }
+    } catch (err) {
+      console.error("[apiFetch]", path, "token getter threw:", err);
     }
   } else {
-    console.warn("[apiFetch] No token getter configured");
+    console.warn("[apiFetch]", path, "no token getter configured — was initSharedConfig called?");
   }
 
-  return fetch(apiUrl(path), {
+  const url = apiUrl(path);
+  console.log("[apiFetch]", "→", init.method ?? "GET", url);
+
+  const res = await fetch(url, {
     ...init,
     headers: { ...headers, ...(init.headers as Record<string, string>) },
   });
+
+  if (!res.ok) {
+    console.error("[apiFetch]", "←", res.status, res.statusText, path);
+  }
+
+  return res;
 }
