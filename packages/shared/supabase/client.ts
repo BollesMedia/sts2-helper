@@ -13,11 +13,16 @@ export function initSupabase(url: string, anonKey: string) {
   supabaseAnonKey = anonKey;
 }
 
+let cachedClient: ReturnType<typeof createBrowserClient<Database>> | null = null;
+
 export function createClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       "Supabase not initialized. Call initSupabase(url, anonKey) before using the Supabase client."
     );
   }
-  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+  if (!cachedClient) {
+    cachedClient = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+  }
+  return cachedClient;
 }
