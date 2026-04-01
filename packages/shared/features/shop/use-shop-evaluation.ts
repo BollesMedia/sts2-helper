@@ -94,14 +94,21 @@ export function useShopEvaluation(
 
     updateFromContext(ctx);
 
-    const items = shopItems.map((item) => ({
+    const gold = state.shop.player.gold;
+    const affordableItems = shopItems.filter((i) => i.can_afford);
+
+    const items = affordableItems.map((item) => ({
       id: getItemId(item),
       name: getItemName(item),
       description: getItemDescription(item),
       cost: item.cost,
       type: item.category === "card" ? item.card_type : item.category,
       rarity: item.category === "card" ? item.card_rarity : undefined,
+      on_sale: item.on_sale ?? false,
     }));
+
+    // Override context gold with shop state's player data (most current)
+    ctx.gold = gold;
 
     try {
       const res = await apiFetch("/api/evaluate", {
@@ -111,6 +118,7 @@ export function useShopEvaluation(
           context: ctx,
           runNarrative: getPromptContext(),
           items,
+          goldBudget: gold,
           runId,
           userId: getUserId(),
           gameVersion: null,

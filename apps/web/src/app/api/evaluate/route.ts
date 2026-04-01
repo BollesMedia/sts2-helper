@@ -286,14 +286,17 @@ export async function POST(request: Request) {
   if (winRateContext) contextStr += winRateContext;
 
   // Items go LAST for Haiku's recency bias
-  // Flag duplicates and energy cost inline so Claude can't miss them
+  // Flag duplicates and cost inline so Claude can't miss them
+  const isShop = type === "shop";
+  const costUnit = isShop ? "g" : "E";
   const deckCardNames = new Set((context.deckCards ?? []).map((c) => c.name.toLowerCase()));
   const itemsStr = items
     .map(
       (item, i) => {
         const isDuplicate = deckCardNames.has(item.name.toLowerCase());
         const dupWarning = isDuplicate ? " [2nd copy — good if core engine piece, bad if mediocre]" : "";
-        return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}E` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""} — ${item.description}${dupWarning}`;
+        const saleTag = (item as Record<string, unknown>).on_sale ? " [SALE 50% OFF]" : "";
+        return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}${costUnit}` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""}${saleTag} — ${item.description}${dupWarning}`;
       }
     )
     .join("\n");
@@ -332,9 +335,11 @@ export async function POST(request: Request) {
     },
   };
 
-  const userPrompt = `${contextStr}
+  const goldBudget = isShop && body.goldBudget != null ? `\nGOLD BUDGET: ${body.goldBudget}g — only recommend items you can afford. All items listed below are affordable.\n` : "";
 
-${type === "card_reward" ? "Offered cards" : "Shop items"}:
+  const userPrompt = `${contextStr}
+${goldBudget}
+${type === "card_reward" ? "Offered cards" : "Shop items (affordable only)"}:
 ${itemsStr}
 ${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
 
