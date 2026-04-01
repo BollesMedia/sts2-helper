@@ -37,7 +37,11 @@ export async function apiFetch(
     const token = await getAccessToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
+    } else {
+      console.warn("[apiFetch] No access token available — request will be unauthenticated");
     }
+  } else {
+    console.warn("[apiFetch] No token getter configured");
   }
 
   return fetch(apiUrl(path), {
