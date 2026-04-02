@@ -185,9 +185,12 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
             </span>
           )}
           {isLoading && (
-            <span className="absolute top-2 right-2 z-10 text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
-              Evaluating...
-            </span>
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-spire-base/50 backdrop-blur-[2px] rounded-lg pointer-events-none">
+              <div className="flex items-center gap-2 bg-spire-surface border border-spire-border rounded-lg px-4 py-2 shadow-lg pointer-events-auto">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-sm text-spire-text-secondary">Evaluating paths...</span>
+              </div>
+            </div>
           )}
 
           <svg

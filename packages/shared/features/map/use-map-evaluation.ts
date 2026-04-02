@@ -90,6 +90,7 @@ export function useMapEvaluation(
       }
     }
 
+    const targetKey = mapKey; // capture for stale response check
     evaluatedKey.current = mapKey;
     setIsLoading(true);
     setError(null);
@@ -216,6 +217,9 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
         throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
       }
 
+      // Guard against stale responses from rapid floor changes
+      if (evaluatedKey.current !== targetKey) return;
+
       const data = await res.json();
       const parsed: MapPathEvaluation = {
         rankings: (data.rankings ?? []).map((r: { option_index: number; node_type: string; tier: string; confidence: number; recommendation: string; reasoning: string }) => ({
@@ -278,7 +282,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
   const retry = () => {
     evaluatedKey.current = "";
     setError(null);
-    setEvaluation(null);
+    // Don't clear evaluation — keep previous path visible during re-eval
   };
 
   if (mapKey !== evaluatedKey.current && !isLoading) {
