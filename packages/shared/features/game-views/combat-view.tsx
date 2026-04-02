@@ -155,7 +155,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
     <div
       className="grid h-full min-h-0 gap-2"
       style={{
-        gridTemplateRows: isBoss ? "auto 1fr auto minmax(0, 1fr)" : "auto 1fr auto",
+        gridTemplateRows: isBoss ? "auto auto auto minmax(0, 1fr)" : "auto auto auto",
       }}
     >
       {/* Row 1: Header bar */}
@@ -173,7 +173,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
       {/* Row 2: Battlefield — players left, enemies right */}
       <div className="grid grid-cols-2 gap-3 min-h-0">
         {/* Left: Players */}
-        <div className="flex flex-col gap-2 min-h-0 overflow-y-auto">
+        <div className="flex flex-col gap-2">
           <PlayerPanel player={player} label="You" />
           {teammatePlayers.map((tp, idx) => (
             <PlayerPanel
@@ -186,7 +186,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </div>
 
         {/* Right: Enemies */}
-        <div className="flex flex-col gap-2 min-h-0 overflow-y-auto">
+        <div className="flex flex-col gap-2">
           {enemies.map((enemy) => (
             <EnemyRow key={enemy.entity_id} enemy={enemy} />
           ))}
