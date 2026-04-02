@@ -46,15 +46,15 @@ export function MenuView({ runState, footer }: MenuViewProps) {
       <div className="text-center space-y-4 max-w-md w-full">
         {runState.pendingOutcome ? (
           <>
-            <h2 className="text-2xl font-semibold text-zinc-200">
+            <h2 className="text-2xl font-display font-semibold text-spire-text">
               Run ended on floor {runState.finalFloor}
             </h2>
-            <p className="text-sm text-zinc-500">How did it go?</p>
+            <p className="text-sm text-spire-text-tertiary">How did it go?</p>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="What went wrong? What would you do differently? Any card picks you regret?"
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+              className="w-full rounded-lg border border-spire-border bg-spire-surface px-4 py-3 text-sm text-spire-text placeholder-spire-text-muted focus:outline-none focus:border-spire-border-emphasis resize-none"
               rows={3}
             />
             <div className="flex items-center justify-center gap-3">
@@ -74,22 +74,22 @@ export function MenuView({ runState, footer }: MenuViewProps) {
           </>
         ) : (
           <>
-            <h2 className="text-2xl font-semibold text-zinc-200">
+            <h2 className="text-2xl font-display font-semibold text-spire-text">
               Waiting for run
             </h2>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-spire-text-tertiary">
               Start a new run in Slay the Spire 2
             </p>
             {lastConfirmed && (
-              <div className="mt-4 rounded-lg border border-zinc-700 bg-zinc-900/50 p-3 space-y-2">
-                <p className="text-xs text-zinc-500">
+              <div className="mt-4 rounded-lg border border-spire-border bg-spire-surface/50 p-3 space-y-2">
+                <p className="text-xs text-spire-text-tertiary">
                   Last run recorded as {lastConfirmed.victory ? "Victory" : "Defeat"}
                 </p>
                 <div className="flex items-center justify-center gap-2">
-                  <span className="text-xs text-zinc-600">Wrong? Correct to:</span>
+                  <span className="text-xs text-spire-text-muted">Wrong? Correct to:</span>
                   <button
                     onClick={() => handleCorrectOutcome(!lastConfirmed.victory)}
-                    className="text-xs text-zinc-400 hover:text-zinc-200 underline transition-colors"
+                    className="text-xs text-spire-text-tertiary hover:text-spire-text underline transition-colors"
                   >
                     {lastConfirmed.victory ? "Defeat" : "Victory"}
                   </button>

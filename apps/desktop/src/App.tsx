@@ -60,7 +60,7 @@ export function App() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center min-h-screen">
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <p className="text-sm text-spire-text-tertiary">Loading...</p>
       </div>
     );
   }
@@ -72,7 +72,7 @@ export function App() {
   if (modCheck === "checking") {
     return (
       <div className="flex flex-1 items-center justify-center min-h-screen">
-        <p className="text-sm text-zinc-500">Checking mod status...</p>
+        <p className="text-sm text-spire-text-tertiary">Checking mod status...</p>
       </div>
     );
   }
@@ -116,7 +116,7 @@ function AuthenticatedApp() {
         />
       </main>
       {gameState.state_type !== "menu" && (
-        <footer className="border-t border-zinc-800/60 px-4 py-1.5 flex justify-between">
+        <footer className="border-t border-spire-border px-4 py-1.5 flex justify-between">
           <button
             onClick={() => {
               const text = prompt("What happened? Describe the issue:");
@@ -130,7 +130,7 @@ function AuthenticatedApp() {
                 alert("Feedback sent — thanks!");
               }
             }}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"
           >
             Send Feedback
           </button>
@@ -144,7 +144,7 @@ function AuthenticatedApp() {
                 localStorage.removeItem("sts2-rest-eval-cache");
                 window.location.reload();
               }}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"
             >
               Re-evaluate
             </button>
@@ -153,7 +153,7 @@ function AuthenticatedApp() {
                 localStorage.clear();
                 window.location.reload();
               }}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"
             >
               Clear cache
             </button>

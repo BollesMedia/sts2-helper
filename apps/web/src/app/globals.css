@@ -40,6 +40,10 @@
   --color-spire-border-emphasis: var(--spire-border-emphasis);
   --color-spire-gold: var(--spire-gold);
   --color-spire-gold-light: var(--spire-gold-light);
+  --color-spire-text: var(--spire-text);
+  --color-spire-text-secondary: var(--spire-text-secondary);
+  --color-spire-text-tertiary: var(--spire-text-tertiary);
+  --color-spire-text-muted: var(--spire-text-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: "Bitter", Georgia, serif;

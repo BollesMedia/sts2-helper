@@ -101,7 +101,7 @@ export function GameStateView({
       return (
         <div className="flex flex-col gap-2">
           {state.card_select.prompt && (
-            <p className="text-xs text-zinc-400">{state.card_select.prompt}</p>
+            <p className="text-xs text-spire-text-tertiary">{state.card_select.prompt}</p>
           )}
           <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
         </div>
@@ -120,13 +120,13 @@ export function GameStateView({
 function PlaceholderView({ title, state }: { title: string; state: GameState }) {
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-xl font-semibold text-zinc-100">{title}</h2>
+      <h2 className="text-xl font-display font-semibold text-spire-text">{title}</h2>
       {hasRun(state) && (
-        <p className="text-xs font-mono text-zinc-600">
+        <p className="text-xs font-mono text-spire-text-muted">
           Act {state.run.act} · Floor {state.run.floor}
         </p>
       )}
-      <p className="text-sm text-zinc-500">View coming soon</p>
+      <p className="text-sm text-spire-text-tertiary">View coming soon</p>
     </div>
   );
 }

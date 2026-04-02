@@ -46,10 +46,10 @@ export function LoginScreen() {
     <div className="flex flex-1 items-center justify-center min-h-screen">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+          <h1 className="text-2xl font-display font-semibold tracking-tight text-spire-text">
             STS2 Replay
           </h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-spire-text-tertiary">
             Sign in to track your runs and get AI advice
           </p>
         </div>
@@ -66,9 +66,9 @@ export function LoginScreen() {
         </button>
 
         <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-zinc-800" />
-          <span className="text-xs text-zinc-600">or</span>
-          <div className="h-px flex-1 bg-zinc-800" />
+          <div className="h-px flex-1 bg-spire-border" />
+          <span className="text-xs text-spire-text-muted">or</span>
+          <div className="h-px flex-1 bg-spire-border" />
         </div>
 
         {/* Email + password */}
@@ -79,7 +79,7 @@ export function LoginScreen() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             required
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+            className="w-full rounded-lg border border-spire-border bg-spire-surface px-4 py-2.5 text-sm text-spire-text placeholder-spire-text-muted focus:outline-none focus:border-spire-border-emphasis"
           />
           <input
             type="password"
@@ -88,12 +88,12 @@ export function LoginScreen() {
             placeholder="Password"
             required
             minLength={6}
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+            className="w-full rounded-lg border border-spire-border bg-spire-surface px-4 py-2.5 text-sm text-spire-text placeholder-spire-text-muted focus:outline-none focus:border-spire-border-emphasis"
           />
           <button
             type="submit"
             disabled={submitting || !email.trim() || !password.trim()}
-            className="w-full rounded-lg bg-zinc-100 px-4 py-2.5 text-sm font-medium text-zinc-900 hover:bg-zinc-200 transition-colors disabled:opacity-50"
+            className="w-full rounded-lg bg-spire-gold px-4 py-2.5 text-sm font-medium text-spire-base hover:bg-spire-gold-light transition-colors disabled:opacity-50"
           >
             {submitting
               ? mode === "signup" ? "Creating account..." : "Signing in..."
@@ -108,7 +108,7 @@ export function LoginScreen() {
               setError(null);
               setMessage(null);
             }}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="text-xs text-spire-text-muted hover:text-spire-text-tertiary transition-colors"
           >
             {mode === "signup"
               ? "Already have an account? Sign in"
