@@ -89,11 +89,11 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
               <span className={typeColor}>{card.type}</span>
             </span>
           </div>
-          {/* Energy orb — character-colored like the game */}
+          {/* Energy orb — octagon, character-colored like the game */}
           <span className={cn(
-            "shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold font-mono bg-gradient-to-br border",
+            "shrink-0 w-9 h-9 flex items-center justify-center text-sm font-bold font-mono bg-gradient-to-br border",
             energy.bg, energy.text, energy.border, energy.glow
-          )}>
+          )} style={{ clipPath: "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)" }}>
             {card.cost}
           </span>
         </div>
