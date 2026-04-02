@@ -51,11 +51,23 @@ export function useMapEvaluation(
   const [error, setError] = useState<string | null>(null);
   const evaluatedKey = useRef<string>(initialEval ? mapKey : "");
   const lastEvalContext = useRef<{ hpPercent: number; deckSize: number; recommendedNodes: Set<string> } | null>(null);
+  const lastEvalTime = useRef<number>(initialEval ? Date.now() : 0);
 
   cachedRef.current = mapKey;
 
   const evaluate = useCallback(async () => {
     if (mapKey === evaluatedKey.current) return;
+
+    // Don't re-evaluate within 5 seconds of the last evaluation
+    // Prevents wasteful evals during map→combat→map transitions
+    if (lastEvalTime.current && Date.now() - lastEvalTime.current < 5000) {
+      evaluatedKey.current = mapKey;
+      // Carry forward the existing evaluation for the new mapKey
+      if (evaluation) {
+        setCache(CACHE_KEY, mapKey, { ...evaluation, rankings: [] });
+      }
+      return;
+    }
 
     // Only one path — no decision to make
     if (options.length <= 1) {
@@ -238,6 +250,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
 
       setEvaluation(parsed);
       setCache(CACHE_KEY, mapKey, parsed);
+      lastEvalTime.current = Date.now();
 
       // Track context for skip-re-eval logic
       const mp = state.player ?? state.map?.player;
