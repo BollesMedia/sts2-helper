@@ -78,10 +78,10 @@ export function useMapEvaluation(
 
   function shouldEvaluate(): boolean {
     // Gate: only 1 option → never evaluate (no decision to make)
-    if (options.length <= 1) { console.log("[MapEval] shouldEvaluate: NO — single option"); return false; }
+    if (options.length <= 1) return false;
 
     // Rule 1: No evaluation exists → evaluate
-    if (!evaluation && !getCached(CACHE_KEY, mapKey)) { console.log("[MapEval] shouldEvaluate: YES — no evaluation"); return true; }
+    if (!evaluation && !getCached(CACHE_KEY, mapKey)) return true;
 
     const prev = lastEvalContext.current;
 
@@ -96,9 +96,7 @@ export function useMapEvaluation(
     if (!currentPos) return true;
 
     // Rule 2: User deviated from recommended path → evaluate
-    const posKey = `${currentPos.col},${currentPos.row}`;
-    const onPath = prev.recommendedNodes.has(posKey);
-    console.log("[MapEval] shouldEvaluate: pos=", posKey, "onPath=", onPath, "recommendedNodes=", [...prev.recommendedNodes], "options=", options.length);
+    const onPath = prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`);
     if (!onPath) return true;
 
     // Rule 3: Significant context change AT A FORK → evaluate
