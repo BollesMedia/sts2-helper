@@ -43,8 +43,8 @@ GAME FACTS:
 - SYNERGY CLAIMS: Only claim a synergy if you can explain the EXACT mechanical interaction. "Pairs with Dark Embrace" is only valid if the card actually has Exhaust. Block cards do NOT trigger exhaust synergies unless they explicitly say "Exhaust."
 
 OUTPUT RULES:
-- Only name cards already in the player's deck. Say "enables [archetype]" not "synergizes with [unowned card]."
-- Reasoning: under 15 words. State tier reason only.
+- Only name deck cards that DIRECTLY interact with the evaluated card. "Fuels Body Slam" is valid (Body Slam uses block). "Pairs with Dark Embrace" is ONLY valid if the card exhausts. Do NOT list deck cards just because they exist.
+- Reasoning: under 20 words. State the mechanical reason for the tier, not a list of deck cards.
 - Respond in JSON only. Rankings MUST have exactly one entry per item, in listed order.
 - Confidence: 90-100 clear pick, 70-89 solid, 40-69 close call, <40 uncertain.`;
 
