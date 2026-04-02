@@ -14,6 +14,7 @@ import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
 import { useState, useRef, useEffect } from "react";
 import { ModVersionBanner } from "./mod-version-banner";
+import { MapEvalProvider } from "@sts2/shared/features/map/map-eval-context";
 
 // Check for updates on app launch
 check().then(async (update) => {
@@ -138,6 +139,7 @@ function AuthenticatedApp() {
   }
 
   return (
+    <MapEvalProvider>
     <div className="flex flex-1 flex-col h-screen overflow-hidden">
       {gameState && <AppHeader gameState={gameState} player={player} onSignOut={signOut} />}
       {modMismatch && (
@@ -211,5 +213,6 @@ function AuthenticatedApp() {
         </footer>
       )}
     </div>
+    </MapEvalProvider>
   );
 }

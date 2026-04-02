@@ -12,9 +12,9 @@ import { registerLastEvaluation } from "../../evaluation/last-evaluation-registr
 import { NODE_TYPE_ICONS } from "./map-scoring";
 import { saveMapContext } from "./map-context-cache";
 import { getCached, setCache } from "../../lib/local-cache";
+import { useMapEvalState } from "./map-eval-context";
 
 const CACHE_KEY = "sts2-map-eval-cache";
-const CONTEXT_KEY = "sts2-map-eval-context";
 
 export interface MapPathEvaluation {
   rankings: {
@@ -60,8 +60,9 @@ export function useMapEvaluation(
   const [error, setError] = useState<string | null>(null);
   const evaluatedKey = useRef<string>(initialEval ? mapKey : "");
 
-  // Persist eval context across component remounts (combat → map transitions)
-  const savedCtx = getCached<SerializedEvalContext>(CONTEXT_KEY, "current");
+  // Eval context persists across remounts via React context (backed by localStorage)
+  const mapEvalState = useMapEvalState();
+  const savedCtx = mapEvalState.getEvalContext();
   const lastEvalContext = useRef<{ hpPercent: number; deckSize: number; act: number; recommendedNodes: Set<string> } | null>(
     savedCtx ? {
       hpPercent: savedCtx.hpPercent,
@@ -291,13 +292,13 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
       };
       lastEvalContext.current = evalCtx;
 
-      // Persist to localStorage for remount recovery
-      setCache(CONTEXT_KEY, "current", {
+      // Persist via context (survives remounts, backed by localStorage)
+      mapEvalState.setEvalContext({
         hpPercent: evalCtx.hpPercent,
         deckSize: evalCtx.deckSize,
         act: evalCtx.act,
         recommendedNodesList: [...recommendedNodes],
-      } satisfies SerializedEvalContext);
+      });
 
       registerLastEvaluation("map", {
         recommendedId: parsed.rankings?.[0]?.nodeType ?? null,

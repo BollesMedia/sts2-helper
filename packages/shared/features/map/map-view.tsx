@@ -13,6 +13,7 @@ import { EvalError } from "../../components/eval-error";
 import type { TierLetter } from "../../evaluation/tier-utils";
 import { computeDeckMaturity, type DeckMaturityInput } from "../../evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "../../evaluation/archetype-detector";
+import { useMapEvalState } from "./map-eval-context";
 
 interface MapViewProps {
   state: MapState & MultiplayerFields;
@@ -132,8 +133,8 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return { hpPct, gold: mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor };
   }, [state, player, deckCards]);
 
-  // Recommended path — persisted to localStorage so it survives remounts
-  const PATH_STORAGE_KEY = "sts2-map-recommended-path";
+  // Recommended path — persisted via React context (survives remounts)
+  const mapEvalState = useMapEvalState();
 
   const recommendedPath = useMemo(() => {
     // Best case: rankings exist, trace from best option
@@ -144,22 +145,20 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
           bestOpt.col, bestOpt.row, nodes, boss,
           pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
         );
-        try { localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(path)); } catch {}
+        mapEvalState.setPath(path);
         return path;
       }
     }
     // Evaluation has a cached path (from carry-forward or API)
     if (evaluation?.recommendedPath?.length) {
-      try { localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(evaluation.recommendedPath)); } catch {}
+      mapEvalState.setPath(evaluation.recommendedPath);
       return evaluation.recommendedPath;
     }
-    // Last resort: load from localStorage (survives remount)
-    try {
-      const stored = localStorage.getItem(PATH_STORAGE_KEY);
-      if (stored) return JSON.parse(stored) as { col: number; row: number }[];
-    } catch {}
+    // Last resort: read from context (survives remount)
+    const stored = mapEvalState.getPath();
+    if (stored.length) return stored;
     return [];
-  }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation]);
+  }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation, mapEvalState]);
 
   const recommendedPathEdges = useMemo(() => {
     const edges = new Set<string>();
