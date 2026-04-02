@@ -1,9 +1,10 @@
 "use client";
 
 import { HpBar } from "../../components/hp-bar";
+import { PlayerHand } from "../../components/player-hand";
 import { BossBriefing } from "../combat/boss-briefing";
 import { cn } from "../../lib/cn";
-import type { CombatState, CombatCard, BattlePlayer } from "../../types/game-state";
+import type { CombatState, CombatCard, BattlePlayer, GameState } from "../../types/game-state";
 import { getPlayer } from "../../types/game-state";
 import { STATE_LABELS } from "./state-labels";
 
@@ -29,7 +30,7 @@ function StatChip({ value, label, color }: { value: number; label: string; color
 }
 
 function StatusBadges({ status }: { status: { name: string; amount: number; type: string }[] }) {
-  if (!status?.length) return null;
+  if (!status.length) return null;
   return (
     <div className="flex flex-wrap gap-1 mt-1.5">
       {status.map((s, i) => (
@@ -59,6 +60,14 @@ function PlayerPanel({
   variant?: "default" | "teammate";
 }) {
   const isTeammate = variant === "teammate";
+
+  // Destructure at the boundary — all accesses below are safe
+  const { hp, max_hp } = player;
+  const energy = player.energy ?? 0;
+  const maxEnergy = player.max_energy ?? 0;
+  const block = player.block ?? 0;
+  const status = player.status ?? [];
+
   return (
     <div
       className={cn(
@@ -68,37 +77,21 @@ function PlayerPanel({
           : "border-zinc-800 bg-zinc-900/60"
       )}
     >
-      {/* Name + stats row */}
       <div className="flex items-center justify-between mb-2">
-        <span
-          className={cn(
-            "text-xs font-semibold tracking-tight",
-            isTeammate ? "text-purple-300" : "text-zinc-200"
-          )}
-        >
+        <span className={cn("text-xs font-semibold tracking-tight", isTeammate ? "text-purple-300" : "text-zinc-200")}>
           {label}
         </span>
         <div className="flex items-center gap-1.5">
-          <StatChip
-            value={player.energy ?? 0}
-            label={`/${player.max_energy ?? 0}e`}
-            color="bg-blue-500/10 text-blue-400 border-blue-500/20"
-          />
-          {(player.block ?? 0) > 0 && (
-            <StatChip
-              value={player.block ?? 0}
-              label="blk"
-              color="bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
-            />
+          <StatChip value={energy} label={`/${maxEnergy}e`} color="bg-blue-500/10 text-blue-400 border-blue-500/20" />
+          {block > 0 && (
+            <StatChip value={block} label="blk" color="bg-cyan-500/10 text-cyan-400 border-cyan-500/20" />
           )}
         </div>
       </div>
 
-      {/* HP bar */}
-      <HpBar current={player.hp} max={player.max_hp} size="sm" />
+      <HpBar current={hp} max={max_hp} size="sm" />
 
-      {/* Status effects inline */}
-      <StatusBadges status={player.status ?? []} />
+      {status.length > 0 && <StatusBadges status={status} />}
     </div>
   );
 }
@@ -106,17 +99,16 @@ function PlayerPanel({
 function EnemyRow({ enemy }: { enemy: CombatState["battle"]["enemies"][number] }) {
   const intent = enemy.intents[0];
   const intentStyle = intent ? (INTENT_STYLES[intent.type] ?? INTENT_DEFAULT) : "";
+  const block = enemy.block ?? 0;
+  const status = enemy.status ?? [];
 
   return (
     <div className="rounded border border-zinc-800/60 bg-zinc-900/40 px-2.5 py-2 space-y-1.5">
-      {/* Name + Intent */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-semibold text-zinc-200 truncate">{enemy.name}</span>
-          {(enemy.block ?? 0) > 0 && (
-            <span className="text-[10px] font-mono text-cyan-400 shrink-0">
-              {enemy.block}B
-            </span>
+          {block > 0 && (
+            <span className="text-[10px] font-mono text-cyan-400 shrink-0">{block}B</span>
           )}
         </div>
         {intent && (
@@ -126,11 +118,9 @@ function EnemyRow({ enemy }: { enemy: CombatState["battle"]["enemies"][number] }
         )}
       </div>
 
-      {/* HP */}
       <HpBar current={enemy.hp} max={enemy.max_hp} size="sm" />
 
-      {/* Status effects */}
-      {enemy.status?.length > 0 && <StatusBadges status={enemy.status} />}
+      {status.length > 0 && <StatusBadges status={status} />}
     </div>
   );
 }
@@ -147,7 +137,9 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
     );
   }
 
+  // Destructure at the boundary
   const { enemies } = state.battle;
+  const hand = player.hand ?? [];
   const teammatePlayers = (state.battle.players ?? []).filter((p) => !p.is_local);
   const isBoss = state.state_type === "boss";
 
@@ -156,7 +148,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
       className={isBoss ? "grid h-full min-h-0 gap-2" : "flex flex-col gap-2 h-full min-h-0"}
       style={isBoss ? { gridTemplateRows: "auto auto minmax(0, 1fr) auto" } : undefined}
     >
-      {/* Row 1: Header bar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-display font-bold text-spire-text">
@@ -168,9 +160,8 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </div>
       </div>
 
-      {/* Row 2: Battlefield — players left, enemies right */}
+      {/* Battlefield — players left, enemies right */}
       <div className="grid grid-cols-2 gap-3 min-h-0">
-        {/* Left: Players */}
         <div className="flex flex-col gap-2">
           <PlayerPanel player={player} label="You" />
           {teammatePlayers.map((tp, idx) => (
@@ -183,7 +174,6 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
           ))}
         </div>
 
-        {/* Right: Enemies */}
         <div className="flex flex-col gap-2">
           {enemies.map((enemy) => (
             <EnemyRow key={enemy.entity_id} enemy={enemy} />
@@ -191,38 +181,19 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </div>
       </div>
 
-      {/* Row 3: Boss Briefing (boss fights only — gets remaining space) */}
+      {/* Boss Briefing */}
       {isBoss && (
         <div className="min-h-0 overflow-y-auto">
-          <BossBriefing
-            enemies={enemies}
-            ascension={state.run.ascension}
-            deckCards={deckCards}
-          />
+          <BossBriefing enemies={enemies} ascension={state.run.ascension} deckCards={deckCards} />
         </div>
       )}
 
-      {/* Spacer pushes hand to bottom in non-boss layout */}
+      {/* Spacer pushes hand to bottom */}
       {!isBoss && <div className="flex-1" />}
 
-      {/* Hand — anchored to bottom, subtle */}
+      {/* Hand — composed component, only renders if hand data exists */}
       <div className="rounded-lg border border-spire-border bg-spire-surface/40 px-3 py-1.5 shrink-0">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <span className="text-[9px] font-medium text-spire-text-muted shrink-0 mr-1">
-            Hand ({(player.hand?.length ?? 0)})
-          </span>
-          {(player.hand ?? []).map((card, i) => (
-            <span
-              key={i}
-              className="rounded border border-spire-border bg-spire-elevated/60 px-2 py-0.5 text-[10px] text-spire-text-secondary whitespace-nowrap shrink-0"
-            >
-              {card.name}
-            </span>
-          ))}
-          {(player.hand?.length ?? 0) === 0 && (
-            <span className="text-[10px] text-spire-text-muted italic">No cards</span>
-          )}
-        </div>
+        <PlayerHand cards={hand} />
       </div>
     </div>
   );
