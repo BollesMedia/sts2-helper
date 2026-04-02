@@ -76,7 +76,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
 
       {error && <EvalError error={error} onRetry={retry} />}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 mt-2">
         {isLoading && !evaluation ? (
           options.map((o) => <CardSkeleton key={o.index} />)
         ) : (

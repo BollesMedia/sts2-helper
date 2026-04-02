@@ -49,7 +49,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
       </div>
 
       {/* Card ratings — compact grid */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 mt-1">
         {isLoading && !evaluation ? (
           <>
             {cards.map((c) => <CardSkeleton key={c.index} />)}
