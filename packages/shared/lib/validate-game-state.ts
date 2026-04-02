@@ -122,8 +122,10 @@ export function validateGameStateStructure(data: unknown): ValidationResult {
     case "boss": {
       const e = checkNested(d, "battle");
       if (e) { errors.push(e); break; }
-      const ep = checkNested(d, "battle.player");
-      if (ep) errors.push(ep);
+      // v0.3.2: player at top level; v0.3.0: nested in battle
+      if (checkNested(d, "player") && checkNested(d, "battle.player")) {
+        errors.push("missing player (neither top-level nor battle.player)");
+      }
       break;
     }
 
