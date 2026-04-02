@@ -105,9 +105,9 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
         {/* Evaluation — tier + recommendation */}
         {evaluation && (
           <div className="flex items-center gap-2 pt-3 border-t border-spire-border-subtle">
-            <TierBadge tier={evaluation.tier} size="sm" glow={isTopPick} />
+            <TierBadge tier={evaluation.tier} size="md" glow={isTopPick} />
             <span className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-medium border",
+              "rounded px-2 py-1 text-xs font-medium border",
               isTopPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : chip + " border-transparent"
             )}>
               {label}
