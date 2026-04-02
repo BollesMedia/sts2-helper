@@ -46,7 +46,15 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
   );
   const restPlayer = state.player ?? state.rest_site?.player;
   const options = state.rest_site.options;
-  const topRank = evaluation?.rankings.find((r) => r.rank === 1);
+  // Find the best option by tier (not rank — post-eval weights can change tiers without updating rank)
+  const tierOrder = ["S", "A", "B", "C", "D", "F"];
+  const topRank = evaluation?.rankings.length
+    ? evaluation.rankings.reduce((best, r) => {
+        const bestTier = tierOrder.indexOf(best.tier);
+        const rTier = tierOrder.indexOf(r.tier);
+        return rTier < bestTier ? r : best;
+      })
+    : null;
 
   return (
     <div className="flex flex-col gap-3">

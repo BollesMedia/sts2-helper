@@ -68,7 +68,11 @@ export function useRestEvaluation(
     const missing = restPlayer.max_hp - restPlayer.hp;
     const mapCtx = loadMapContext();
     const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
-    const hasBossNear = (mapCtx?.floorsToNextBoss ?? 99) <= 3;
+    const currentFloor = state.run.floor;
+    const bossDistance = mapCtx?.floorsToNextBoss ?? Math.min(
+      ...[17, 34, 51].filter((bf) => bf > currentFloor).map((bf) => bf - currentFloor)
+    );
+    const hasBossNear = bossDistance <= 3;
 
     // Pre-eval short-circuit: skip LLM call when answer is obvious
     const preResult = preEvalRestWeights(
