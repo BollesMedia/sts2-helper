@@ -12,7 +12,8 @@ import { reportFeedback, reportInfo } from "@sts2/shared/lib/error-reporter";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { ModVersionBanner } from "./mod-version-banner";
 
 // Check for updates on app launch
 check().then(async (update) => {
@@ -30,9 +31,13 @@ type ModCheckState = "checking" | "ready" | "needs-setup";
 
 interface ModStatus {
   game_found: boolean;
+  game_running: boolean;
   required_mods: {
     id: string;
+    name: string;
+    required_version: string;
     installed: boolean;
+    installed_version: string | null;
     needs_update: boolean;
   }[];
 }
@@ -90,8 +95,35 @@ function AuthenticatedApp() {
   const deckCards = useDeckTracker(gameState);
   const player = usePlayerTracker(gameState);
   const runState = useRunTracker(gameState, user?.id ?? null, connectionStatus === "disconnected");
-  // Side-effect only: logs choices to Supabase
   useChoiceTracker(gameState, deckCards, runState.runId);
+
+  // Runtime mod version check — once per session after connecting
+  const modCheckDone = useRef(false);
+  const [modMismatch, setModMismatch] = useState<{
+    installed: string;
+    required: string;
+    gameRunning: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (connectionStatus !== "connected" || modCheckDone.current) return;
+    modCheckDone.current = true;
+
+    invoke<ModStatus>("get_mod_status")
+      .then((status) => {
+        const sts2mcp = status.required_mods.find((m) => m.id === "STS2_MCP");
+        if (sts2mcp && sts2mcp.needs_update && sts2mcp.installed_version) {
+          setModMismatch({
+            installed: sts2mcp.installed_version,
+            required: sts2mcp.required_version,
+            gameRunning: status.game_running,
+          });
+        }
+      })
+      .catch(() => {
+        // Silent — mod check is best-effort at runtime
+      });
+  }, [connectionStatus]);
 
   if (connectionStatus !== "connected" || !gameState) {
     return (
@@ -106,6 +138,14 @@ function AuthenticatedApp() {
   return (
     <div className="flex flex-1 flex-col h-screen overflow-hidden">
       <AppHeader gameState={gameState} player={player} onSignOut={signOut} />
+      {modMismatch && (
+        <ModVersionBanner
+          installed={modMismatch.installed}
+          required={modMismatch.required}
+          gameRunning={modMismatch.gameRunning}
+          onUpdated={() => setModMismatch(null)}
+        />
+      )}
       <main className="flex-1 min-h-0 p-4">
         <GameStateView
           state={gameState}
