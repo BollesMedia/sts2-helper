@@ -103,8 +103,13 @@ pub fn check_required_mods(mods_dir: &Path) -> Vec<RequiredModStatus> {
                 || m.id.eq_ignore_ascii_case("unified_save_path")
         });
 
-    // Also check if saves are already synced (manually or via the mod)
-    let saves_synced = check_saves_synced();
+    // Only recommend UnifiedSavePath if:
+    // - Already installed (don't remove it), OR
+    // - No existing modded saves (safe to install from scratch)
+    // NEVER install retroactively — it redirects saves to the unmodded
+    // path, making existing modded progress invisible.
+    let has_existing_modded_saves = has_modded_saves();
+    let unified_safe = unified.is_some() || !has_existing_modded_saves;
 
     vec![
         RequiredModStatus {
@@ -121,15 +126,71 @@ pub fn check_required_mods(mods_dir: &Path) -> Vec<RequiredModStatus> {
             id: "UnifiedSavePath".to_string(),
             name: "Unified Save Path".to_string(),
             required_version: "latest".to_string(),
-            installed: unified.is_some() || saves_synced,
-            installed_version: if saves_synced && unified.is_none() {
-                Some("synced manually".to_string())
-            } else {
+            // Mark as installed (skip) if unsafe to install
+            installed: unified.is_some() || !unified_safe,
+            installed_version: if unified.is_some() {
                 unified.map(|m| m.version.clone())
+            } else if !unified_safe {
+                Some("skipped (existing modded saves)".to_string())
+            } else {
+                None
             },
             needs_update: false,
         },
     ]
+}
+
+/// Check if the user has existing modded saves (played with mods before
+/// UnifiedSavePath was installed). If so, installing UnifiedSavePath would
+/// redirect the game away from this data, causing apparent data loss.
+/// Public wrapper for install.rs to check before installing UnifiedSavePath.
+pub fn has_modded_saves_public() -> bool {
+    has_modded_saves()
+}
+
+fn has_modded_saves() -> bool {
+    let save_base = dirs::home_dir();
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = save_base {
+            let base = home.join("Library/Application Support/SlayTheSpire2/steam");
+            if let Ok(entries) = std::fs::read_dir(&base) {
+                for entry in entries.flatten() {
+                    let modded_progress = entry.path().join("modded/profile1/saves/progress.save");
+                    if modded_progress.exists() {
+                        if let Ok(meta) = std::fs::metadata(&modded_progress) {
+                            // >10KB = real save data, not empty/fresh
+                            if meta.len() > 10_000 {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(home) = save_base {
+            let base = home.join("AppData/Roaming/SlayTheSpire2/steam");
+            if let Ok(entries) = std::fs::read_dir(&base) {
+                for entry in entries.flatten() {
+                    let modded_progress = entry.path().join("modded/profile1/saves/progress.save");
+                    if modded_progress.exists() {
+                        if let Ok(meta) = std::fs::metadata(&modded_progress) {
+                            if meta.len() > 10_000 {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    false
 }
 
 /// Check if modded and unmodded saves are already synced.

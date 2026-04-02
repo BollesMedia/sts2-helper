@@ -150,6 +150,9 @@ pub async fn install_sts2mcp(
 }
 
 /// Install UnifiedSavePath from GitHub repo zip.
+/// SAFETY: Only installs on fresh setups. If the user has existing modded
+/// saves, installing this mod would redirect the game to the unmodded path,
+/// making their modded progress invisible.
 pub async fn install_unified_save_path(
     mods_dir: &Path,
     app: &tauri::AppHandle,
@@ -158,6 +161,12 @@ pub async fn install_unified_save_path(
     let dll_path = mods_dir.join("UnifiedSavePath.dll");
     if dll_path.exists() {
         log::info!("UnifiedSavePath already installed");
+        return Ok(InstallOutcome::AlreadyUpToDate);
+    }
+
+    // SAFETY: skip if user has existing modded saves
+    if super::detect::has_modded_saves_public() {
+        log::info!("UnifiedSavePath skipped — existing modded saves detected");
         return Ok(InstallOutcome::AlreadyUpToDate);
     }
 
