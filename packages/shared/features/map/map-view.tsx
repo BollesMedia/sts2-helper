@@ -10,7 +10,6 @@ import { traceRecommendedPath } from "./map-path-tracer";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
-import { RECOMMENDATION_BORDER } from "../../lib/recommendation-styles";
 import type { TierLetter } from "../../evaluation/tier-utils";
 import { computeDeckMaturity, type DeckMaturityInput } from "../../evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "../../evaluation/archetype-detector";
@@ -21,16 +20,17 @@ interface MapViewProps {
   deckCards: CombatCard[];
 }
 
-const NODE_RADIUS = 12;
-const COL_SPACING = 60;
-const ROW_SPACING = 36;
-const PADDING_X = 36;
-const PADDING_Y = 28;
+// --- SVG Constants ---
+
+const NODE_RADIUS = 11;
+const COL_SPACING = 56;
+const ROW_SPACING = 34;
+const PADDING_X = 32;
+const PADDING_Y = 24;
 
 function nodeX(col: number): number {
   return PADDING_X + col * COL_SPACING;
 }
-
 function nodeY(row: number, maxRow: number): number {
   return PADDING_Y + (maxRow - row) * ROW_SPACING;
 }
@@ -42,8 +42,30 @@ const NODE_FILL: Record<string, string> = {
   RestSite: "#34d399",
   Shop: "#60a5fa",
   Treasure: "#a855f7",
-  Unknown: "#a1a1aa",
+  Unknown: "#71717a",
 };
+
+// Softer version for visited nodes
+const NODE_FILL_DIM: Record<string, string> = {
+  Monster: "#7f1d1d",
+  Elite: "#78350f",
+  Boss: "#7f1d1d",
+  RestSite: "#064e3b",
+  Shop: "#1e3a5f",
+  Treasure: "#581c87",
+  Unknown: "#3f3f46",
+};
+
+// --- Sidebar option card border colors by recommendation ---
+
+const REC_BORDER: Record<string, string> = {
+  strong_pick: "border-emerald-500/50",
+  good_pick: "border-blue-500/40",
+  situational: "border-amber-500/40",
+  skip: "border-zinc-800",
+};
+
+// --- Component ---
 
 export function MapView({ state, player, deckCards }: MapViewProps) {
   const { nodes, current_position, visited, next_options, boss } = state.map;
@@ -65,7 +87,6 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     () => new Set(visited.map((v) => `${v.col},${v.row}`)),
     [visited]
   );
-
   const nextOptionSet = useMemo(
     () => new Set(next_options.map((o) => `${o.col},${o.row}`)),
     [next_options]
@@ -78,7 +99,6 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
       const aTier = tierOrder.indexOf(a.tier);
       const bTier = tierOrder.indexOf(b.tier);
       if (aTier !== bTier) return aTier < bTier ? a : b;
-      // Same tier: use confidence as tiebreaker
       return (a.confidence ?? 0) >= (b.confidence ?? 0) ? a : b;
     });
     return best.optionIndex;
@@ -90,7 +110,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return opt ? `${opt.col},${opt.row}` : null;
   }, [bestOptionIndex, next_options]);
 
-  // Context for path tracer scoring
+  // Path tracer context
   const pathCtx = useMemo(() => {
     const act = state.run?.act ?? 1;
     const floor = state.run?.floor ?? 1;
@@ -98,8 +118,6 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     const mapPlayer = state.map?.player;
     const hpPct = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
     const upgradeCount = deckCards.filter((c) => c.name.includes("+")).length;
-
-    // Compute maturity from available data
     const relics = player?.relics ?? [];
     const archetypes = detectArchetypes(deckCards, relics);
     const maturityCtx: DeckMaturityInput = {
@@ -111,16 +129,13 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
       upgradeCount,
     };
     const deckMaturity = computeDeckMaturity(maturityCtx);
-
     return { hpPct, gold: mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor };
   }, [state, player, deckCards]);
 
-  // Full recommended path: trace locally from Claude's best-ranked option.
-  // Preserve previous path during loading so the highlight doesn't flicker.
+  // Recommended path with persistence
   const prevPathRef = useRef<{ col: number; row: number }[]>([]);
 
   const recommendedPath = useMemo(() => {
-    // Best case: we have rankings — trace the recommended path
     if (bestOptionIndex != null) {
       const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
       if (bestOpt) {
@@ -132,12 +147,10 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
         return path;
       }
     }
-    // No rankings but evaluation has a cached path (smart re-eval skipped)
     if (evaluation?.recommendedPath?.length) {
       prevPathRef.current = evaluation.recommendedPath;
       return evaluation.recommendedPath;
     }
-    // Last resort: previous path from this render cycle
     return prevPathRef.current;
   }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation]);
 
@@ -154,32 +167,52 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     [recommendedPath]
   );
 
-  // Multiplayer voting state
+  // Multiplayer voting
   const isMultiplayer = state.game_mode === "multiplayer";
   const mapData = state.map as unknown as Record<string, unknown>;
   const votes = mapData.votes as { player: string; is_local: boolean; voted: boolean }[] | undefined;
   const allVoted = mapData.all_voted as boolean | undefined;
 
   return (
-    <div className="flex gap-4 h-full min-h-0">
-      {/* Main area — SVG Map */}
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
-        <div className="flex-1 min-h-0 rounded-lg border border-zinc-800 bg-zinc-900 p-2 relative">
+    <div className="flex gap-3 h-full min-h-0">
+      {/* Map area */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-1.5">
+        <div className="flex-1 min-h-0 rounded-lg border border-zinc-800 bg-zinc-950/80 p-1.5 relative">
+          {/* Status indicators */}
           {isMultiplayer && votes && !allVoted && (
-            <span className="absolute top-2 left-2 text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-              Voting: {votes.filter((v) => v.voted).length}/{votes.length}
+            <span className="absolute top-2 left-2 z-10 text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+              Voting {votes.filter((v) => v.voted).length}/{votes.length}
             </span>
           )}
           {isLoading && (
-            <span className="absolute top-2 right-2 text-xs text-zinc-500 animate-pulse">
+            <span className="absolute top-2 right-2 z-10 text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
               Evaluating...
             </span>
           )}
+
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             className="w-full h-full"
             preserveAspectRatio="xMidYMid meet"
           >
+            {/* SVG defs for glow effects */}
+            <defs>
+              <filter id="glow-best" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="glow-path" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
             {/* Edges */}
             {nodes.map((node) =>
               node.children.map(([childCol, childRow], ci) => {
@@ -191,59 +224,34 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                 const isVisitedEdge =
                   visitedSet.has(`${node.col},${node.row}`) &&
                   visitedSet.has(`${childCol},${childRow}`);
-
                 const isNextEdge =
                   current_position &&
                   node.col === current_position.col &&
                   node.row === current_position.row &&
                   nextOptionSet.has(`${childCol},${childRow}`);
-
-                const isBestEdge =
-                  isNextEdge &&
-                  bestOptionKey === `${childCol},${childRow}`;
-
-                // Full recommended path: exact edge match (not just node membership)
+                const isBestEdge = isNextEdge && bestOptionKey === `${childCol},${childRow}`;
                 const isPathEdge = !isBestEdge &&
                   recommendedPathEdges.has(`${node.col},${node.row}->${childCol},${childRow}`);
 
+                const isHighlighted = isBestEdge || isPathEdge;
+
                 return (
-                  <g key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}>
-                    {/* Emerald glow for recommended path */}
-                    {(isBestEdge || isPathEdge) && (
-                      <line
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        stroke="#34d399"
-                        strokeWidth={isBestEdge ? 6 : 4}
-                        opacity={isBestEdge ? 0.3 : 0.15}
-                        strokeLinecap="round"
-                        className={isPathEdge ? "animate-[path-pulse_3s_ease-in-out_infinite]" : undefined}
-                      />
-                    )}
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      stroke={
-                        isBestEdge
-                          ? "#34d399"
-                          : isPathEdge
-                            ? "#34d399"
-                            : isVisitedEdge
-                              ? "#71717a"
-                              : isNextEdge
-                                ? "#a1a1aa"
-                                : "#27272a"
-                      }
-                      strokeWidth={isBestEdge ? 2.5 : isPathEdge ? 1.5 : isNextEdge ? 2 : 1}
-                      strokeDasharray={isNextEdge && !isBestEdge ? "4 4" : undefined}
-                      strokeLinecap="round"
-                      opacity={isPathEdge && !isBestEdge ? 0.6 : 1}
-                    />
-                  </g>
+                  <line
+                    key={`${node.col},${node.row}-${childCol},${childRow}-${ci}`}
+                    x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={
+                      isBestEdge ? "#34d399"
+                        : isPathEdge ? "#34d399"
+                        : isVisitedEdge ? "#52525b"
+                        : isNextEdge ? "#a1a1aa"
+                        : "#27272a"
+                    }
+                    strokeWidth={isBestEdge ? 3 : isPathEdge ? 2 : isNextEdge ? 1.5 : 1}
+                    strokeDasharray={isNextEdge && !isBestEdge ? "4 3" : undefined}
+                    strokeLinecap="round"
+                    opacity={isPathEdge && !isBestEdge ? 0.5 : 1}
+                    filter={isHighlighted ? "url(#glow-path)" : undefined}
+                  />
                 );
               })
             )}
@@ -262,74 +270,41 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
               const isBest = bestOptionKey === key;
               const isOnPath = recommendedPathNodes.has(key) && !isBest && !isCurrent;
 
-              const fill = NODE_FILL[node.type] ?? "#71717a";
-              const opacity = isVisited && !isCurrent
-                ? (isOnPath ? 0.5 : 0.3)  // visited path nodes are more visible
-                : 1;
+              const fill = isVisited && !isCurrent
+                ? (NODE_FILL_DIM[node.type] ?? "#3f3f46")
+                : (NODE_FILL[node.type] ?? "#71717a");
 
               return (
-                <g key={key}>
-                  {/* Emerald glow halo for best option */}
-                  {isBest && (
-                    <>
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r={NODE_RADIUS + 8}
-                        fill="#34d399"
-                        opacity={0.15}
-                      />
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r={NODE_RADIUS + 5}
-                        fill="none"
-                        stroke="#34d399"
-                        strokeWidth={2}
-                        opacity={0.6}
-                      />
-                    </>
-                  )}
-                  {/* Subtle ring for recommended path nodes */}
-                  {isOnPath && (
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={NODE_RADIUS + 3}
-                      fill="none"
-                      stroke="#34d399"
-                      strokeWidth={1.5}
-                      opacity={0.4}
-                    />
-                  )}
+                <g key={key} filter={isBest ? "url(#glow-best)" : undefined}>
+                  {/* Current position ring */}
                   {isCurrent && (
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={NODE_RADIUS + 3}
-                      fill="none"
-                      stroke="#fff"
-                      strokeWidth={2}
-                    />
+                    <circle cx={x} cy={y} r={NODE_RADIUS + 4} fill="none" stroke="#fff" strokeWidth={2} opacity={0.8} />
                   )}
+                  {/* Best option outer ring */}
+                  {isBest && (
+                    <circle cx={x} cy={y} r={NODE_RADIUS + 4} fill="none" stroke="#34d399" strokeWidth={2} opacity={0.7} />
+                  )}
+                  {/* Recommended path subtle ring */}
+                  {isOnPath && (
+                    <circle cx={x} cy={y} r={NODE_RADIUS + 3} fill="none" stroke="#34d399" strokeWidth={1} opacity={0.35} />
+                  )}
+                  {/* Node circle */}
                   <circle
-                    cx={x}
-                    cy={y}
-                    r={NODE_RADIUS}
+                    cx={x} cy={y} r={NODE_RADIUS}
                     fill={fill}
-                    opacity={opacity}
-                    stroke={isNext ? "#fff" : "none"}
+                    stroke={isNext && !isBest ? "#a1a1aa" : "none"}
                     strokeWidth={isNext ? 1.5 : 0}
                   />
+                  {/* Label */}
                   <text
-                    x={x}
-                    y={y + 1}
+                    x={x} y={y + 1}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fontSize={11}
+                    fontSize={10}
                     fontWeight={700}
-                    fontFamily="system-ui, sans-serif"
-                    fill={opacity < 0.5 ? "#71717a" : "#fff"}
+                    fontFamily="ui-monospace, monospace"
+                    fill={isVisited && !isCurrent && !isOnPath ? "#52525b" : "#fff"}
+                    style={{ userSelect: "none" }}
                   >
                     {NODE_SVG_LABELS[node.type] ?? "•"}
                   </text>
@@ -339,84 +314,80 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
           </svg>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap gap-2.5 text-[10px] text-zinc-500">
+        {/* Legend — compact inline strip */}
+        <div className="flex items-center gap-3 px-1 text-[9px] text-zinc-600">
           {Object.entries(NODE_TYPE_ICONS).map(([type, icon]) => (
             <span key={type} className="flex items-center gap-1">
               <span
-                className="inline-block h-2 w-2 rounded-full"
+                className="inline-block h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: NODE_FILL[type] }}
               />
-              {icon} {type}
+              <span>{icon}</span>
+              <span>{type}</span>
             </span>
           ))}
         </div>
       </div>
 
-      {/* Sidebar — Compact Evaluation */}
-      <div className="w-56 shrink-0 flex flex-col gap-1.5">
-        {/* Overall advice — truncated */}
+      {/* Sidebar — Evaluation cards */}
+      <div className="w-52 shrink-0 flex flex-col gap-1.5 min-h-0 overflow-y-auto">
+        {/* Overall advice */}
         {evaluation?.overallAdvice && (
-          <p className="text-[10px] text-zinc-400 leading-snug line-clamp-3" title={evaluation.overallAdvice}>
-            {evaluation.overallAdvice}
-          </p>
+          <div className="rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-2">
+            <p className="text-[10px] text-zinc-400 leading-relaxed line-clamp-3" title={evaluation.overallAdvice}>
+              {evaluation.overallAdvice}
+            </p>
+          </div>
         )}
 
         {error && <EvalError error={error} onRetry={retry} />}
 
-        {/* Path recommendations — compact stacked cards */}
+        {/* Path option cards */}
         {next_options.map((opt, i) => {
-          const evalData = evaluation?.rankings.find(
-            (r) => r.optionIndex === i + 1
-          );
+          const evalData = evaluation?.rankings.find((r) => r.optionIndex === i + 1);
           const isBest = bestOptionIndex === i + 1;
 
           return (
             <div
               key={opt.index}
               className={cn(
-                "rounded-lg border bg-zinc-900/60 p-2 transition-all duration-200 relative",
+                "rounded-lg border p-2.5 transition-all duration-150",
                 evalData
-                  ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-700/40"
+                  ? (REC_BORDER[evalData.recommendation] ?? "border-zinc-800")
                   : isBest
                     ? "border-emerald-500/50"
-                    : "border-zinc-700/40",
-                isBest && "shadow-[0_0_12px_rgba(52,211,153,0.2)] border-emerald-500/60"
+                    : "border-zinc-800",
+                isBest
+                  ? "bg-emerald-950/20 shadow-[0_0_12px_rgba(52,211,153,0.12)]"
+                  : "bg-zinc-900/60"
               )}
               title={evalData?.reasoning}
             >
-              {/* "Best" banner for top recommendation */}
-              {isBest && (
-                <div className="absolute -top-1.5 -right-1.5 z-10">
-                  <span className={cn(
-                    "px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider",
-                    "bg-emerald-500 text-zinc-950",
-                    "shadow-[0_0_8px_rgba(52,211,153,0.5)]",
-                    "border border-emerald-400/50"
-                  )}>
-                    Best
-                  </span>
-                </div>
-              )}
-              
-              <div className="flex items-center gap-1">
+              {/* Header: tier + type + best badge */}
+              <div className="flex items-center gap-1.5">
                 {evalData && (
                   <TierBadge tier={evalData.tier as TierLetter} size="sm" glow={isBest} />
                 )}
-                <span className="text-xs">
-                  {NODE_TYPE_ICONS[opt.type] ?? "•"}
-                </span>
+                <span className="text-xs">{NODE_TYPE_ICONS[opt.type] ?? "•"}</span>
                 <span className={cn(
-                  "font-medium text-xs truncate",
-                  isBest ? "text-zinc-50" : "text-zinc-100"
+                  "text-xs font-semibold tracking-tight truncate",
+                  isBest ? "text-emerald-300" : "text-zinc-200"
                 )}>
                   {opt.type}
                 </span>
+                {isBest && (
+                  <span className="ml-auto text-[8px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/25">
+                    Best
+                  </span>
+                )}
               </div>
 
-              {/* Reasoning — truncated to 1 line, full in tooltip */}
-              {evalData && (
-                <p className="mt-1 text-[10px] text-zinc-400 leading-snug line-clamp-3">
+              {/* Reasoning */}
+              {evalData?.reasoning && (
+                <p className={cn(
+                  "mt-1.5 text-[10px] leading-snug line-clamp-2",
+                  isBest ? "text-zinc-300" : "text-zinc-500"
+                )}>
                   {evalData.reasoning}
                 </p>
               )}
