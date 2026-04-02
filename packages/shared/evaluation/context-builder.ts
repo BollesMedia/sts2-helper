@@ -81,7 +81,7 @@ export function buildEvaluationContext(
     upgradeCount,
     relicCount,
     deckMaturity: 0,
-    ...extractPartnerInfo(state),
+    ...extractMultiplayerInfo(state),
   };
 
   partialCtx.deckMaturity = computeDeckMaturity(partialCtx);
@@ -90,11 +90,12 @@ export function buildEvaluationContext(
 }
 
 /**
- * Extract partner player info from multiplayer state.
+ * Extract teammate info from multiplayer state (supports 2-3 player co-op).
  * The multiplayer response has a top-level `players[]` array with all players.
  */
-function extractPartnerInfo(state: GameState): {
+function extractMultiplayerInfo(state: GameState): {
   isMultiplayer?: boolean;
+  teammates?: { character: string; hpPercent?: number; relics?: { name: string; description: string }[] }[];
   partnerCharacter?: string;
   partnerHpPercent?: number;
   partnerRelics?: { name: string; description: string }[];
@@ -104,11 +105,21 @@ function extractPartnerInfo(state: GameState): {
   const players = state.players as ({ character: string; hp: number; max_hp: number; is_local?: boolean; relics?: { name: string; description: string }[] })[] | undefined;
   if (!players || players.length < 2) return { isMultiplayer: true };
 
-  const partner = players.find((p) => !p.is_local) ?? players[1];
+  const teammates = players
+    .filter((p) => !p.is_local)
+    .map((p) => ({
+      character: p.character,
+      hpPercent: p.max_hp > 0 ? p.hp / p.max_hp : 1,
+      relics: p.relics?.map((r) => ({ name: r.name, description: r.description })) ?? [],
+    }));
+
+  // Backward compat: first teammate as "partner"
+  const first = teammates[0];
   return {
     isMultiplayer: true,
-    partnerCharacter: partner.character,
-    partnerHpPercent: partner.max_hp > 0 ? partner.hp / partner.max_hp : 1,
-    partnerRelics: partner.relics?.map((r) => ({ name: r.name, description: r.description })) ?? [],
+    teammates,
+    partnerCharacter: first?.character,
+    partnerHpPercent: first?.hpPercent,
+    partnerRelics: first?.relics,
   };
 }

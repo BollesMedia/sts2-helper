@@ -28,10 +28,18 @@ export interface EvaluationContext {
   upgradeCount: number;
   deckMaturity: number;
   relicCount: number;
-  // Multiplayer — only present in co-op
+  // Multiplayer — only present in co-op (supports 2-3 players)
   isMultiplayer?: boolean;
+  teammates?: {
+    character: string;
+    hpPercent?: number;
+    relics?: { name: string; description: string }[];
+  }[];
+  /** @deprecated Use teammates[] instead */
   partnerCharacter?: string;
+  /** @deprecated Use teammates[] instead */
   partnerHpPercent?: number;
+  /** @deprecated Use teammates[] instead */
   partnerRelics?: { name: string; description: string }[];
 }
 

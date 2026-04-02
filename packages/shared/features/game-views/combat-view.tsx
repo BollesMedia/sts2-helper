@@ -18,7 +18,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
     );
   }
   const { enemies } = state.battle;
-  const partnerPlayer: BattlePlayer | undefined = state.battle.players?.find((p) => !p.is_local);
+  const teammatePlayers = (state.battle.players ?? []).filter((p) => !p.is_local);
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +31,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </span>
       </div>
 
-      <div className={cn("grid gap-4", partnerPlayer ? "grid-cols-3" : "grid-cols-2")}>
+      <div className={cn("grid gap-4", teammatePlayers.length > 0 ? `grid-cols-${2 + teammatePlayers.length}` : "grid-cols-2")}>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">You</h3>
           <div className="flex items-center justify-between">
@@ -43,19 +43,19 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
           </div>
         </div>
 
-        {partnerPlayer && (
-          <div className="rounded-lg border border-purple-800/40 bg-purple-900/10 p-4 space-y-3">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-purple-400">Partner</h3>
+        {teammatePlayers.map((tp, idx) => (
+          <div key={idx} className="rounded-lg border border-purple-800/40 bg-purple-900/10 p-4 space-y-3">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-purple-400">{tp.character ?? `Teammate ${idx + 1}`}</h3>
             <div className="flex items-center justify-between">
-              <HpBar current={partnerPlayer.hp} max={partnerPlayer.max_hp} size="sm" />
+              <HpBar current={tp.hp} max={tp.max_hp} size="sm" />
               <div className="flex items-center gap-3 text-sm font-mono tabular-nums">
-                <span className="text-blue-400">{partnerPlayer.energy ?? 0}/{partnerPlayer.max_energy ?? 0} E</span>
-                <span className="text-cyan-400">{partnerPlayer.block ?? 0} B</span>
+                <span className="text-blue-400">{tp.energy ?? 0}/{tp.max_energy ?? 0} E</span>
+                <span className="text-cyan-400">{tp.block ?? 0} B</span>
               </div>
             </div>
-            {partnerPlayer.status?.length > 0 && (
+            {tp.status?.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {partnerPlayer.status.map((s, i) => (
+                {tp.status.map((s, i) => (
                   <span key={i} className={cn("rounded px-1.5 py-0.5 text-[10px]", s.type === "Buff" ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400")}>
                     {s.name} {s.amount}
                   </span>
@@ -63,7 +63,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
               </div>
             )}
           </div>
-        )}
+        ))}
 
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">Enemies</h3>

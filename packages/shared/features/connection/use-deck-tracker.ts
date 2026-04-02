@@ -170,7 +170,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     const fallbackPlayer =
       (isCombatState(gameState) ? combatPlayer : null) ??
       (gameState.state_type === "hand_select" && "battle" in gameState
-        ? getLocalCombatPlayer(gameState as CombatState & MultiplayerFields)
+        ? getLocalCombatPlayer(gameState as unknown as CombatState & MultiplayerFields)
         : null);
 
     if (fallbackPlayer) {

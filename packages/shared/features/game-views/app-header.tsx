@@ -16,9 +16,9 @@ export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
   const label = STATE_LABELS[gameState.state_type] ?? gameState.state_type;
   const run = hasRun(gameState) ? gameState.run : null;
   const isMultiplayer = gameState.game_mode === "multiplayer";
-  const partner = isMultiplayer && gameState.players
-    ? gameState.players.find((p) => !p.is_local) ?? null
-    : null;
+  const teammates = isMultiplayer && gameState.players
+    ? gameState.players.filter((p) => !p.is_local)
+    : [];
 
   return (
     <header className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/50 px-4 py-2 shadow-[0_1px_8px_rgba(0,0,0,0.3)]">
@@ -68,14 +68,13 @@ export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
             </span>
           </>
         )}
-        {partner && (
-          <>
+        {teammates.map((t, i) => (
+          <span key={i} className="contents">
             <div className="h-3 w-px bg-gradient-to-b from-transparent via-zinc-700 to-transparent" />
-            <span className="text-[10px] text-zinc-500">Partner</span>
-            <span className="text-xs text-zinc-400 font-medium">{partner.character}</span>
-            <HpBar current={partner.hp} max={partner.max_hp} size="sm" />
-          </>
-        )}
+            <span className="text-xs text-zinc-400 font-medium">{t.character}</span>
+            <HpBar current={t.hp} max={t.max_hp} size="sm" />
+          </span>
+        ))}
         {onSignOut && (
           <button
             onClick={onSignOut}

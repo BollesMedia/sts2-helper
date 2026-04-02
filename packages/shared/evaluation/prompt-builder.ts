@@ -125,23 +125,23 @@ BOSS STRATEGY:
 
 const COOP_BASE = `
 
-CO-OP RULES: Block is per-player — you MUST defend yourself; partner's Block does not protect you. Debuffs applied by either player benefit both. Partner synergy: if partner handles debuffs, prioritize damage/scaling. If partner is damage-focused, prioritize debuff application and Block.`;
+CO-OP RULES (2-3 players): Block is per-player — you MUST defend yourself; teammates' Block does not protect you. Debuffs applied by ANY player benefit ALL. Team synergy: if a teammate handles debuffs, prioritize damage/scaling. If teammates are damage-focused, prioritize debuff application and Block.`;
 
 const COOP_ADDENDA: Record<string, string> = {
   card_reward: `
-CO-OP: Debuffs (Vulnerable, Weak) are TOP PRIORITY — one player applying Vulnerable makes ALL players deal 50% more. Co-op exclusive cards (ally Block transfer, shared energy, attack redirect) appear ONLY in multiplayer — prioritize them. Role specialization: if partner handles damage, prioritize Block/debuffs. Card resolution is sequential — debuffs must be played BEFORE damage cards for full team benefit.`,
+CO-OP: Debuffs (Vulnerable, Weak) are TOP PRIORITY — one player applying Vulnerable makes ALL teammates deal 50% more. Co-op exclusive cards (ally Block transfer, shared energy, attack redirect) appear ONLY in multiplayer — prioritize them. Role specialization: coordinate roles across 2-3 players (damage, debuff, defense). Card resolution is sequential — debuffs must be played BEFORE damage cards for full team benefit.`,
 
   shop: `
-CO-OP: Gold is per-player, no sharing. Shop stock is shared — both players can buy the same item independently. Throwing potions (target allies) are higher value in co-op. Coordinate to avoid redundant relic purchases.`,
+CO-OP: Gold is per-player, no sharing. Shop stock is shared — all players can buy the same item independently. Throwing potions (target allies) are higher value in co-op. Coordinate to avoid redundant relic purchases.`,
 
   map: `
-CO-OP: Enemy HP and damage scale ~50-80% with player count — elites and bosses are NOT free just because you have a partner. Treasure chests drop one relic per player — route through treasures aggressively. Path aggression gated by weakest player's SURVIVABILITY (Block + HP, not just HP%). If a player dies in combat, they auto-revive at 1 HP after the team wins. Map path decided by voting — ties broken randomly.`,
+CO-OP: Enemy HP and damage scale with player count (50-80% per extra player). Treasure chests drop one relic per player — route through treasures aggressively. Path aggression gated by WEAKEST player's survivability. If a player dies in combat, they auto-revive at 1 HP after the team wins. Map path decided by voting — ties broken randomly.`,
 
   rest_site: `
-CO-OP: Mend heals another player for 30% of their max HP (costs YOUR rest site action). If partner died in combat and auto-revived at 1 HP, Mend them. Revive resurrects a dead ally but costs a portion of YOUR MAX HP permanently — heavy sacrifice, avoid in Act 1. Coordinate: one player Mends the lowest-HP ally, another Smiths.`,
+CO-OP: Mend heals a teammate for 30% of their max HP (costs YOUR rest site action). If a teammate died in combat and auto-revived at 1 HP, Mend them. Revive resurrects a dead ally but costs a portion of YOUR MAX HP permanently — heavy sacrifice. Coordinate: one player Mends the lowest-HP teammate, others Smith.`,
 
   event: `
-CO-OP: Most events give each player individual choices with individual consequences. Some events have shared consequences decided by group vote (ties broken randomly). For HP-cost events, factor the team's total HP budget — your partner may need to Mend you at the next rest site.`,
+CO-OP: Most events give each player individual choices with individual consequences. Some events have shared consequences decided by group vote (ties broken randomly). For HP-cost events, factor the team's total HP budget — a teammate may need to Mend you at the next rest site.`,
 };
 
 // --- System Prompt Builder ---
@@ -226,13 +226,13 @@ export function buildCompactContext(ctx: EvaluationContext): string {
     `[Archetype] ${archStr}`,
   ];
 
-  // Partner info (multiplayer only)
-  if (ctx.isMultiplayer && ctx.partnerCharacter) {
-    const partnerHp = ctx.partnerHpPercent != null ? ` | HP ${Math.round(ctx.partnerHpPercent * 100)}%` : "";
-    const partnerRelicStr = ctx.partnerRelics?.length
-      ? ` | Relics: ${ctx.partnerRelics.map((r) => r.name).join(", ")}`
-      : "";
-    lines.push(`[Partner] ${ctx.partnerCharacter}${partnerHp}${partnerRelicStr}`);
+  // Teammate info (multiplayer only — supports 2-3 player co-op)
+  if (ctx.isMultiplayer && ctx.teammates?.length) {
+    for (const t of ctx.teammates) {
+      const hp = t.hpPercent != null ? ` | HP ${Math.round(t.hpPercent * 100)}%` : "";
+      const relicStr = t.relics?.length ? ` | Relics: ${t.relics.map((r) => r.name).join(", ")}` : "";
+      lines.push(`[Teammate] ${t.character}${hp}${relicStr}`);
+    }
   }
 
   // Ascension note — brief, ascension-aware
