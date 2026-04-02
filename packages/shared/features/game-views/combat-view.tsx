@@ -161,7 +161,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
       {/* Row 1: Header bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide">
+          <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide">
             {STATE_LABELS[state.state_type] ?? "Combat"}
           </h2>
           <span className="text-[10px] font-mono text-zinc-600 bg-zinc-800/60 px-1.5 py-0.5 rounded">

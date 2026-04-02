@@ -71,7 +71,7 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
         {/* Card header: name + energy cost */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm text-zinc-100 truncate">
+            <h3 className="font-display font-semibold text-sm text-zinc-100 truncate">
               {card.name}
               {card.is_upgraded && (
                 <span className="text-emerald-400 ml-0.5">+</span>

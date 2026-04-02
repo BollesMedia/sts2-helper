@@ -91,7 +91,7 @@ Cards with + cannot be upgraded again.`,
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide">
+        <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide">
           Upgrade a Card
         </h2>
         {isLoading && (

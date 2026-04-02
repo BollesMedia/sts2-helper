@@ -3,14 +3,44 @@
 @source "../../../packages/shared";
 @source ".";
 
+/* Bitter — display font for headings/card names */
+@import url("https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;600;700&display=swap");
+
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* STS2-inspired palette — blue-violet undertone, not pure grey */
+  --spire-base: #0B0D10;
+  --spire-surface: #12141A;
+  --spire-elevated: #1A1D25;
+  --spire-overlay: #22252E;
+  --spire-muted: #2A2D36;
+  --spire-border: #2A2D36;
+  --spire-border-subtle: #1F2229;
+  --spire-border-emphasis: #3D4150;
+  --spire-text: #E8E9ED;
+  --spire-text-secondary: #A1A5B0;
+  --spire-text-tertiary: #6B7084;
+  --spire-text-muted: #4A4F5E;
+  --spire-gold: #D4A843;
+  --spire-gold-light: #F0D68A;
+
+  --background: var(--spire-base);
+  --foreground: var(--spire-text);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-spire-base: var(--spire-base);
+  --color-spire-surface: var(--spire-surface);
+  --color-spire-elevated: var(--spire-elevated);
+  --color-spire-overlay: var(--spire-overlay);
+  --color-spire-muted: var(--spire-muted);
+  --color-spire-border: var(--spire-border);
+  --color-spire-border-subtle: var(--spire-border-subtle);
+  --color-spire-border-emphasis: var(--spire-border-emphasis);
+  --color-spire-gold: var(--spire-gold);
+  --color-spire-gold-light: var(--spire-gold-light);
+  --font-display: "Bitter", Georgia, serif;
 }
 
 body {

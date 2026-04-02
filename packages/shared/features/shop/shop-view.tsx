@@ -69,7 +69,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide">Shop</h2>
+          <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide">Shop</h2>
           <span className="text-xs font-mono tabular-nums text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
             {state.shop?.player?.gold ?? 0}g
           </span>

@@ -89,7 +89,7 @@ Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards 
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide shrink-0">
+        <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide shrink-0">
           Remove a Card
         </h2>
         {isLoading && (

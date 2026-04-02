@@ -21,12 +21,12 @@ export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
     : [];
 
   return (
-    <header className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/50 px-4 py-2 shadow-[0_1px_8px_rgba(0,0,0,0.3)]">
+    <header className="flex items-center justify-between border-b border-spire-border bg-spire-surface px-4 py-2 shadow-[0_1px_8px_rgba(0,0,0,0.3)]">
       <div className="flex items-center gap-3">
         {/* App branding with amber accent */}
         <div className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(251,191,36,0.5)]" />
-          <span className="text-xs font-bold text-zinc-100 tracking-tight">
+          <span className="text-xs font-display font-bold text-spire-text tracking-tight">
             STS2
           </span>
         </div>
