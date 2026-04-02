@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useCallback, useRef, type ReactNode } from "react";
+import { createContext, useContext, useCallback, useMemo, useRef, type ReactNode } from "react";
 
 /**
  * Context for map evaluation state that persists across component remounts.
@@ -62,8 +62,13 @@ export function MapEvalProvider({ children }: { children: ReactNode }) {
     saveToStorage(stateRef.current);
   }, []);
 
+  const value = useMemo(
+    () => ({ getPath, setPath, getEvalContext, setEvalContext }),
+    [getPath, setPath, getEvalContext, setEvalContext]
+  );
+
   return (
-    <Ctx.Provider value={{ getPath, setPath, getEvalContext, setEvalContext }}>
+    <Ctx.Provider value={value}>
       {children}
     </Ctx.Provider>
   );

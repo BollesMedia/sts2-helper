@@ -1,7 +1,7 @@
 "use client";
 import { apiFetch } from "../../lib/api-client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MapState, CombatCard } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext } from "../../evaluation/types";
@@ -324,15 +324,18 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
     setError(null);
   };
 
-  // ─── Trigger: evaluate or carry forward ───
+  // ─── Trigger: evaluate or carry forward (in useEffect, not during render) ───
 
-  if (mapKey !== evaluatedKey.current && !isLoading) {
-    if (shouldEvaluate()) {
-      evaluate();
-    } else {
-      carryForward();
+  useEffect(() => {
+    if (mapKey !== evaluatedKey.current && !isLoading) {
+      if (shouldEvaluate()) {
+        evaluate();
+      } else {
+        carryForward();
+      }
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- shouldEvaluate/carryForward read refs, evaluate is stable via useCallback
+  }, [mapKey, isLoading, evaluate]);
 
   return { evaluation, isLoading, error, retry };
 }

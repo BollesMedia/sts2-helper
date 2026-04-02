@@ -270,6 +270,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
       localStorage.removeItem("sts2-eval-cache");
       localStorage.removeItem("sts2-shop-eval-cache");
       localStorage.removeItem("sts2-map-eval-cache");
+      localStorage.removeItem("sts2-map-eval-state");
       localStorage.removeItem("sts2-event-eval-cache");
       localStorage.removeItem("sts2-rest-eval-cache");
     }

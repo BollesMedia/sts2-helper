@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "../../lib/cn";
 import type { MapState, MultiplayerFields } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
@@ -136,29 +136,34 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
   // Recommended path — persisted via React context (survives remounts)
   const mapEvalState = useMapEvalState();
 
+  // Pure computation — no side effects
   const recommendedPath = useMemo(() => {
-    // Best case: rankings exist, trace from best option
+    // 1. Best case: rankings exist, trace from best option
     if (bestOptionIndex != null) {
       const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
       if (bestOpt) {
-        const path = traceRecommendedPath(
+        return traceRecommendedPath(
           bestOpt.col, bestOpt.row, nodes, boss,
           pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
         );
-        mapEvalState.setPath(path);
-        return path;
       }
     }
-    // Evaluation has a cached path (from carry-forward or API)
+    // 2. Evaluation has a cached path (carry-forward or API response)
     if (evaluation?.recommendedPath?.length) {
-      mapEvalState.setPath(evaluation.recommendedPath);
       return evaluation.recommendedPath;
     }
-    // Last resort: read from context (survives remount)
+    // 3. Last resort: read from context (survives remount)
     const stored = mapEvalState.getPath();
     if (stored.length) return stored;
     return [];
   }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation, mapEvalState]);
+
+  // Persist path to context (side effect, separate from computation)
+  useEffect(() => {
+    if (recommendedPath.length) {
+      mapEvalState.setPath(recommendedPath);
+    }
+  }, [recommendedPath, mapEvalState]);
 
   const recommendedPathEdges = useMemo(() => {
     const edges = new Set<string>();
