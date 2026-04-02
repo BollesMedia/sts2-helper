@@ -24,13 +24,6 @@ interface ShopViewProps {
   runId: string | null;
 }
 
-const CATEGORY_ACCENT: Record<string, string> = {
-  card: "from-blue-500",
-  relic: "from-purple-500",
-  potion: "from-emerald-500",
-  card_removal: "from-red-500",
-};
-
 const TYPE_COLOR: Record<string, string> = {
   Attack: "text-red-400",
   Skill: "text-blue-400",
@@ -168,14 +161,12 @@ function ShopItemCard({ item, evaluation }: { item: ShopItem; evaluation: CardEv
   const type = item.category === "card" ? (item.card_type ?? "Card") : item.category === "card_removal" ? "Service" : item.category;
   const rec = evaluation?.recommendation;
   const isStrongPick = rec === "strong_pick";
-  const accent = CATEGORY_ACCENT[item.category] ?? "from-zinc-600";
-
   const tooltip = [description, evaluation?.reasoning].filter(Boolean).join(" \u2014 ");
 
   return (
     <div
       className={cn(
-        "rounded-lg border bg-zinc-900/70 relative overflow-hidden transition-all duration-150",
+        "rounded-lg border bg-spire-surface relative transition-all duration-150",
         !item.can_afford && "opacity-35",
         isStrongPick && item.can_afford
           ? "border-emerald-500/50 shadow-[0_0_12px_rgba(52,211,153,0.12)]"
@@ -188,10 +179,7 @@ function ShopItemCard({ item, evaluation }: { item: ShopItem; evaluation: CardEv
       )}
       title={tooltip}
     >
-      {/* Category accent edge */}
-      <div className={cn("absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b to-transparent", accent)} />
-
-      <div className="flex items-center gap-2 px-2.5 py-2 pl-3">
+      <div className="flex items-center gap-2 px-2.5 py-2">
         {evaluation && <TierBadge tier={evaluation.tier} size="sm" glow={isStrongPick && item.can_afford} />}
 
         <div className="flex-1 min-w-0">

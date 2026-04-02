@@ -57,24 +57,3 @@ export const STATUS_COLORS = {
   debuff: "bg-red-500/10 text-red-400 border-red-500/20",
 } as const;
 
-// --- Shop Category Accent Colors ---
-
-export const SHOP_CATEGORY_ACCENT: Record<string, string> = {
-  card: "from-blue-500",
-  relic: "from-purple-500",
-  potion: "from-emerald-500",
-  card_removal: "from-red-500",
-};
-
-// --- Rest Site Option Accents ---
-
-export const REST_OPTION_ACCENT: Record<string, string> = {
-  HEAL: "from-red-500",
-  SMITH: "from-blue-500",
-  LIFT: "from-amber-500",
-  TOKE: "from-emerald-500",
-  DIG: "from-purple-500",
-  RECALL: "from-cyan-500",
-  MEND: "from-pink-500",
-  REVIVE: "from-amber-400",
-};

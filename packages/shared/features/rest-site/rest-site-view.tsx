@@ -21,16 +21,6 @@ const OPTION_ICONS: Record<string, string> = {
   REVIVE: "\u2728",
 };
 
-const OPTION_ACCENT: Record<string, string> = {
-  HEAL: "from-red-500",
-  SMITH: "from-blue-500",
-  LIFT: "from-amber-500",
-  TOKE: "from-emerald-500",
-  DIG: "from-purple-500",
-  RECALL: "from-cyan-500",
-  MEND: "from-pink-500",
-  REVIVE: "from-amber-400",
-};
 
 interface RestSiteViewProps {
   state: RestSiteState;
@@ -88,8 +78,6 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
                 r.itemName.toLowerCase() === opt.name.toLowerCase()
             );
             const isTopPick = topPick === evalData && evalData != null;
-            const accent = OPTION_ACCENT[opt.id] ?? "from-zinc-600";
-
             return (
               <div
                 key={opt.index}
@@ -100,9 +88,6 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
                 )}
                 title={evalData?.reasoning}
               >
-                {/* Accent edge */}
-                <div className={cn("absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b to-transparent", accent)} />
-
                 {isTopPick && <PickBanner />}
 
                 <div className="p-4 pt-5 pl-3.5 flex flex-col gap-3">

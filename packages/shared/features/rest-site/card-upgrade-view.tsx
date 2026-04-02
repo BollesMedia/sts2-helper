@@ -127,16 +127,13 @@ Cards with + cannot be upgraded again.`,
               <div
                 key={card.index}
                 className={cn(
-                  "rounded-lg border px-2.5 py-2 relative overflow-hidden transition-all duration-150",
+                  "rounded-lg border px-2.5 py-2 transition-all duration-150",
                   isRecommended
                     ? "border-blue-500/50 bg-blue-950/20 shadow-[0_0_10px_rgba(59,130,246,0.12)]"
-                    : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800/60"
+                    : "border-spire-border bg-spire-surface hover:bg-spire-elevated"
                 )}
                 title={card.description}
               >
-                {isRecommended && (
-                  <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 to-transparent" />
-                )}
                 <span className={cn(
                   "font-medium text-[11px] truncate block",
                   isRecommended ? "text-blue-200" : "text-zinc-300"

@@ -125,17 +125,13 @@ Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards 
               <div
                 key={card.index}
                 className={cn(
-                  "rounded-lg border px-2.5 py-2 relative overflow-hidden transition-all duration-150",
+                  "rounded-lg border px-2.5 py-2 transition-all duration-150",
                   isRecommended
                     ? "border-emerald-500/50 bg-emerald-950/20 shadow-[0_0_10px_rgba(52,211,153,0.12)]"
-                    : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800/60"
+                    : "border-spire-border bg-spire-surface hover:bg-spire-elevated"
                 )}
                 title={card.description}
               >
-                {/* Accent edge */}
-                {isRecommended && (
-                  <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-500 to-transparent" />
-                )}
                 <span className={cn(
                   "font-medium text-[11px] truncate block",
                   isRecommended ? "text-emerald-200" : "text-zinc-300"
