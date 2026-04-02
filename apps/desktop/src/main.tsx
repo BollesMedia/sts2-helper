@@ -25,6 +25,7 @@ initErrorReporter({
   captureMessage: (msg, ctx) => { Sentry.captureMessage(msg, ctx as Parameters<typeof Sentry.captureMessage>[1]); },
   setContext: (name, ctx) => Sentry.setContext(name, ctx),
   setTag: (key, value) => Sentry.setTag(key, value),
+  setUser: (user) => Sentry.setUser(user),
 });
 
 // Configure shared package for desktop environment

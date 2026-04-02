@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createClient } from "@sts2/shared/supabase/client";
+import { setReportingUser } from "@sts2/shared/lib/error-reporter";
 import {
   signInWithPassword,
   signUpWithPassword,
@@ -54,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (session?.user?.id) {
         localStorage.setItem("sts2-user-id", session.user.id);
+        setReportingUser({ id: session.user.id, email: session.user.email });
       }
     });
 
@@ -62,8 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (session?.user?.id) {
         localStorage.setItem("sts2-user-id", session.user.id);
+        setReportingUser({ id: session.user.id, email: session.user.email });
       } else {
         localStorage.removeItem("sts2-user-id");
+        setReportingUser(null);
       }
     });
 

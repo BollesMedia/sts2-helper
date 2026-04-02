@@ -11,6 +11,7 @@ let _sentry: {
   captureMessage: (msg: string, ctx?: unknown) => void;
   setContext: (name: string, ctx: Record<string, unknown> | null) => void;
   setTag: (key: string, value: string) => void;
+  setUser: (user: { id: string; email?: string } | null) => void;
 } | null = null;
 
 /**
@@ -20,6 +21,14 @@ let _sentry: {
  */
 export function initErrorReporter(sentry: typeof _sentry) {
   _sentry = sentry;
+}
+
+/**
+ * Set the authenticated user for error reporting.
+ * Call when auth state changes — ties Sentry events to the user.
+ */
+export function setReportingUser(user: { id: string; email?: string } | null) {
+  _sentry?.setUser(user);
 }
 
 function getPlatform(): string {
