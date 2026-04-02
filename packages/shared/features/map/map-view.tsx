@@ -275,18 +275,14 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
                 : (NODE_FILL[node.type] ?? "#71717a");
 
               return (
-                <g key={key} filter={isBest ? "url(#glow-best)" : undefined}>
+                <g key={key} filter={isBest || isOnPath ? "url(#glow-path)" : undefined}>
                   {/* Current position ring */}
                   {isCurrent && (
                     <circle cx={x} cy={y} r={NODE_RADIUS + 4} fill="none" stroke="#fff" strokeWidth={2} opacity={0.8} />
                   )}
-                  {/* Best option outer ring */}
-                  {isBest && (
-                    <circle cx={x} cy={y} r={NODE_RADIUS + 4} fill="none" stroke="#34d399" strokeWidth={2} opacity={0.7} />
-                  )}
-                  {/* Recommended path subtle ring */}
-                  {isOnPath && (
-                    <circle cx={x} cy={y} r={NODE_RADIUS + 3} fill="none" stroke="#34d399" strokeWidth={1} opacity={0.35} />
+                  {/* Best option + all path nodes: green halo */}
+                  {(isBest || isOnPath) && (
+                    <circle cx={x} cy={y} r={NODE_RADIUS + 4} fill="none" stroke="#34d399" strokeWidth={2} opacity={0.6} />
                   )}
                   {/* Node circle */}
                   <circle
