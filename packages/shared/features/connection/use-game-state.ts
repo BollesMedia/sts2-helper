@@ -9,6 +9,7 @@ import {
   STS2MCP_MULTIPLAYER_URL,
 } from "../../lib/constants";
 import { reportError } from "../../lib/error-reporter";
+import { validateGameStateStructure } from "../../lib/validate-game-state";
 import {
   POLLING_INTERVALS,
   DEFAULT_INTERVAL,
@@ -16,13 +17,40 @@ import {
   ERROR_INTERVAL,
 } from "./polling-config";
 
+/** Rate-limit validation error reports — one per stateType+errors combo per session */
+const reportedValidationErrors = new Set<string>();
+
 /**
- * Check if the mod response is valid JSON with a state_type string.
- * Component-level defense-in-depth handles missing properties.
+ * Validate mod response structure. Logs + reports to Sentry/Supabase on failure,
+ * but still returns data (soft failure) so downstream null guards handle gracefully.
  */
-function isGameStateResponse(data: unknown): data is GameState {
-  if (!data || typeof data !== "object") return false;
-  return typeof (data as Record<string, unknown>).state_type === "string";
+function validateAndReturn(data: unknown): GameState {
+  const result = validateGameStateStructure(data);
+
+  if (!result.stateType) {
+    throw new Error("Mod response missing state_type");
+  }
+
+  if (!result.valid) {
+    const errorKey = `${result.stateType}:${result.errors.join(",")}`;
+    console.warn(
+      `[GameState] Validation failed for "${result.stateType}":`,
+      result.errors,
+      "Raw keys:",
+      data && typeof data === "object" ? Object.keys(data) : "N/A"
+    );
+
+    if (!reportedValidationErrors.has(errorKey)) {
+      reportedValidationErrors.add(errorKey);
+      reportError("game_state_validation", `Invalid ${result.stateType} response`, {
+        stateType: result.stateType,
+        errors: result.errors,
+        rawKeys: data && typeof data === "object" ? Object.keys(data) : [],
+      });
+    }
+  }
+
+  return data as GameState;
 }
 
 /** Cached game mode — avoids 409 ping-pong on every poll */
@@ -43,26 +71,17 @@ async function fetcher(): Promise<GameState> {
       : STS2MCP_SINGLEPLAYER_URL;
     const retryRes = await fetch(retryUrl);
     if (!retryRes.ok) {
-      // Retry failed — reset to singleplayer as safe default (e.g., old mod without multiplayer)
       activeMode = "singleplayer";
       throw new Error(`STS2MCP responded with ${retryRes.status}`);
     }
-    const retryData = await retryRes.json();
-    if (!isGameStateResponse(retryData)) {
-      throw new Error("Mod response missing state_type");
-    }
-    return retryData;
+    return validateAndReturn(await retryRes.json());
   }
 
   if (!res.ok) {
     throw new Error(`STS2MCP responded with ${res.status}`);
   }
 
-  const data = await res.json();
-  if (!isGameStateResponse(data)) {
-    throw new Error("Mod response missing state_type");
-  }
-  return data;
+  return validateAndReturn(await res.json());
 }
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
