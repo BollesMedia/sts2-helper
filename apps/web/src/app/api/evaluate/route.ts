@@ -130,6 +130,41 @@ export async function POST(request: Request) {
       if (bossCompact) mapPromptFull += `\n\n${bossCompact}`;
     }
 
+    // Boss briefing: simple JSON response, no tool use
+    if (evalType === "boss_briefing") {
+      try {
+        const message = await anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 512,
+          system: systemPrompt,
+          messages: [{ role: "user", content: mapPromptFull }],
+        });
+
+        logUsage(supabase, {
+          userId: body.userId ?? null,
+          evalType: "boss_briefing",
+          model: "claude-haiku-4-5-20251001",
+          inputTokens: message.usage.input_tokens,
+          outputTokens: message.usage.output_tokens,
+        }).catch(console.error);
+
+        const textBlock = message.content.find((b) => b.type === "text");
+        const text = textBlock && textBlock.type === "text" ? textBlock.text : "";
+        // Extract JSON from response
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return NextResponse.json(parsed);
+          } catch {}
+        }
+        return NextResponse.json({ strategy: text });
+      } catch (err) {
+        console.error("[Evaluate] Boss briefing error:", err);
+        return NextResponse.json({ error: "Boss briefing failed" }, { status: 500 });
+      }
+    }
+
     // Select tool schema based on eval type
     const isMapEval = evalType === "map";
     const isSimpleEval = evalType === "card_removal" || evalType === "card_upgrade";
