@@ -89,6 +89,7 @@ interface EvaluateRequest {
   runNarrative?: string | null;
   runId: string | null;
   gameVersion: string | null;
+  goldBudget?: number | null;
 }
 
 export async function POST(request: Request) {
