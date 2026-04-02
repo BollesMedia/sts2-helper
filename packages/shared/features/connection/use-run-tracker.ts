@@ -171,7 +171,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
   }
 
   // Track player HP and enemy state for outcome detection
-  const localCombatPlayer = isCombatState(gameState) ? getPlayer(gameState) as BattlePlayer | undefined : null;
+  const localCombatPlayer = isCombatState(gameState) ? getPlayer(gameState) : null;
   if (isCombatState(gameState) && localCombatPlayer) {
     lastPlayerHp.current = localCombatPlayer.hp;
     lastEnemiesAllDead.current = gameState.battle.enemies.every(

@@ -3,7 +3,7 @@
 import { HpBar } from "../../components/hp-bar";
 import { BossBriefing } from "../combat/boss-briefing";
 import { cn } from "../../lib/cn";
-import type { CombatState, CombatCard, BattlePlayer, GameState } from "../../types/game-state";
+import type { CombatState, CombatCard, BattlePlayer } from "../../types/game-state";
 import { getPlayer } from "../../types/game-state";
 import { STATE_LABELS } from "./state-labels";
 
@@ -138,7 +138,7 @@ function EnemyRow({ enemy }: { enemy: CombatState["battle"]["enemies"][number] }
 // --- Main component ---
 
 export function CombatView({ state, deckCards }: { state: CombatState; deckCards: CombatCard[] }) {
-  const player = getPlayer(state as unknown as GameState) as BattlePlayer | undefined;
+  const player = getPlayer(state);
   if (!player) {
     return (
       <div className="flex items-center justify-center h-full">

@@ -134,7 +134,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
 
   // ─── COMBAT: Ground truth sync (round 1 only) ───
   // Round 1 is the cleanest snapshot — no exhaust, no enemy-added cards yet
-  const combatPlayer = isCombatState(gameState) ? getPlayer(gameState) as BattlePlayer | undefined : null;
+  const combatPlayer = isCombatState(gameState) ? getPlayer(gameState) : null;
   if (isCombatState(gameState) && combatPlayer && gameState.battle?.round <= 1) {
     const p = combatPlayer;
     const allPiles = [
@@ -169,9 +169,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   if (deckCards.current.length === 0) {
     const fallbackPlayer =
       (isCombatState(gameState) ? combatPlayer : null) ??
-      (gameState.state_type === "hand_select" && "battle" in gameState
-        ? getPlayer(gameState) as BattlePlayer | undefined
-        : null);
+      (gameState.state_type === "hand_select" ? getPlayer(gameState) : null);
 
     if (fallbackPlayer) {
       const allPiles = [

@@ -9,7 +9,7 @@ import {
   STS2MCP_MULTIPLAYER_URL,
 } from "../../lib/constants";
 import { reportError } from "../../lib/error-reporter";
-import { validateGameStateStructure } from "../../lib/validate-game-state";
+import { validateGameStateStructure, snapshotShape } from "../../lib/validate-game-state";
 import {
   POLLING_INTERVALS,
   DEFAULT_INTERVAL,
@@ -32,7 +32,7 @@ function validateAndReturn(data: unknown): GameState {
   }
 
   if (!result.valid) {
-    const errorKey = `${result.stateType}:${result.errors.join(",")}`;
+    const errorKey = `v2:${result.stateType}:${result.errors.join(",")}`;
     console.warn(
       `[GameState] Validation failed for "${result.stateType}":`,
       result.errors,
@@ -46,6 +46,8 @@ function validateAndReturn(data: unknown): GameState {
         stateType: result.stateType,
         errors: result.errors,
         rawKeys: data && typeof data === "object" ? Object.keys(data) : [],
+        responseShape: snapshotShape(data, 3),
+        activeMode,
       });
     }
   }
@@ -124,7 +126,7 @@ export function useGameState() {
     disconnectReported.current = false;
   }
 
-  const gameMode = (data as Record<string, unknown> | undefined)?.game_mode as string | undefined;
+  const gameMode = data?.game_mode;
 
   return { gameState: data ?? null, connectionStatus, error, gameMode: gameMode ?? activeMode };
 }

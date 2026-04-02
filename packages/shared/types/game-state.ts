@@ -406,37 +406,39 @@ export function hasRun(
  * v0.3.2: player is at top level (state.player).
  * v0.3.0 compat: falls back to container-nested player.
  * Multiplayer: finds local player in battle.players[].
+ *
+ * Overloaded: returns BattlePlayer for combat states, PlayerSummary otherwise.
  */
+export function getPlayer(state: CombatState): BattlePlayer | undefined;
+export function getPlayer(state: HandSelectState): BattlePlayer | undefined;
+export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined;
 export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined {
   // v0.3.2: top-level player
   if (state.player) return state.player;
 
   // Multiplayer combat: find local player in battle.players[]
-  if ("battle" in state && state.battle?.players?.length) {
-    const localSlot = state.local_player_slot;
-    if (localSlot != null && state.battle.players[localSlot]) {
-      return state.battle.players[localSlot];
+  if ("battle" in state) {
+    const battle = (state as CombatState | HandSelectState).battle;
+    if (battle?.players?.length) {
+      const localSlot = state.local_player_slot;
+      if (localSlot != null && battle.players[localSlot]) {
+        return battle.players[localSlot];
+      }
+      return battle.players.find((p) => p.is_local) ?? battle.players[0];
     }
-    return state.battle.players.find((p) => p.is_local) ?? state.battle.players[0];
+    // v0.3.0 compat
+    if (battle?.player) return battle.player;
   }
 
-  // v0.3.0 compat: nested player in container
-  if ("battle" in state && state.battle?.player) return state.battle.player;
-  if ("map" in state) return (state as MapState).map?.player;
-  if ("shop" in state) return (state as ShopState).shop?.player;
-  if ("event" in state) return (state as EventState).event?.player;
-  if ("rest_site" in state) return (state as RestSiteState).rest_site?.player;
-  if ("rewards" in state) return (state as CombatRewardsState).rewards?.player;
-  if ("card_select" in state) return (state as CardSelectState).card_select?.player;
-  if ("relic_select" in state) return (state as RelicSelectState).relic_select?.player;
-  if ("treasure" in state) return (state as TreasureState).treasure?.player;
+  // v0.3.0 compat: nested player in non-combat containers
+  // Use Record access to avoid discriminated union narrowing issues
+  const s = state as unknown as Record<string, { player?: PlayerSummary | BattlePlayer } | undefined>;
+  for (const key of ["map", "shop", "event", "rest_site", "rewards", "card_select", "relic_select", "treasure"]) {
+    if (s[key]?.player) return s[key]!.player;
+  }
 
   return undefined;
 }
 
 /** @deprecated Use getPlayer() instead */
-export function getLocalCombatPlayer(
-  state: (CombatState | HandSelectState) & MultiplayerFields
-): BattlePlayer | undefined {
-  return getPlayer(state as unknown as GameState) as BattlePlayer | undefined;
-}
+export const getLocalCombatPlayer = getPlayer;

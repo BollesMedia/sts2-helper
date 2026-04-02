@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState } from "../../types/game-state";
+import type { GameState, ShopState } from "../../types/game-state";
 import { isCombatState, getPlayer } from "../../types/game-state";
 
 const STORAGE_KEY = "sts2-player";
@@ -60,12 +60,19 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
   // Unified player extraction — works with v0.3.2 (top-level) and v0.3.0 (nested)
   const p = getPlayer(gameState);
   if (p && gameState.state_type !== "menu") {
-    const isCombat = isCombatState(gameState);
-    const bp = p as { energy?: number; max_energy?: number; potions?: { name: string; description: string }[]; relics?: { name: string; description: string }[] };
+    // In combat, getPlayer returns BattlePlayer (has energy, max_energy, full relics/potions)
+    // In non-combat v0.3.2, PlayerSummary now also has relics/potions/status
+    const maxEnergy = "max_energy" in p ? (p.max_energy ?? 3) : (player.current?.maxEnergy ?? 3);
+    const relics = "relics" in p && p.relics
+      ? p.relics.map((r) => ({ id: "id" in r ? r.id : "", name: r.name, description: r.description }))
+      : (player.current?.relics ?? []);
+    const potions = "potions" in p && p.potions
+      ? p.potions.map((pot) => ({ name: pot.name, description: pot.description }))
+      : (player.current?.potions ?? []);
 
     // Shop: extract removal cost
     const removalItem = gameState.state_type === "shop" && "shop" in gameState
-      ? (gameState as { shop: { items?: { category: string; cost: number }[] } }).shop?.items?.find((i) => i.category === "card_removal")
+      ? (gameState as ShopState).shop?.items?.find((i) => i.category === "card_removal")
       : null;
 
     setPlayer(player, {
@@ -73,9 +80,9 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
       hp: p.hp,
       maxHp: p.max_hp,
       gold: p.gold,
-      maxEnergy: (isCombat ? bp.max_energy : undefined) ?? player.current?.maxEnergy ?? 3,
-      relics: bp.relics?.map((r) => ({ id: (r as { id?: string }).id ?? "", name: r.name, description: r.description })) ?? player.current?.relics ?? [],
-      potions: (bp.potions ?? player.current?.potions ?? []).map((pot) => ({ name: pot.name, description: pot.description })),
+      maxEnergy,
+      relics,
+      potions,
       cardRemovalCost: removalItem?.cost ?? player.current?.cardRemovalCost ?? null,
     });
   }
