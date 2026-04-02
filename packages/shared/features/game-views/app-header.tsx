@@ -15,6 +15,10 @@ interface AppHeaderProps {
 export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
   const label = STATE_LABELS[gameState.state_type] ?? gameState.state_type;
   const run = hasRun(gameState) ? gameState.run : null;
+  const stateAny = gameState as unknown as Record<string, unknown>;
+  const isMultiplayer = stateAny.game_mode === "multiplayer";
+  const players = stateAny.players as { character: string; hp: number; max_hp: number; is_local?: boolean }[] | undefined;
+  const partner = isMultiplayer && players ? players.find((p) => !p.is_local) : null;
 
   return (
     <header className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/50 px-4 py-2 shadow-[0_1px_8px_rgba(0,0,0,0.3)]">
@@ -32,6 +36,15 @@ export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
 
         {/* State label */}
         <span className="text-xs font-medium text-zinc-300">{label}</span>
+
+        {isMultiplayer && (
+          <>
+            <div className="h-3 w-px bg-gradient-to-b from-transparent via-zinc-700 to-transparent" />
+            <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
+              CO-OP
+            </span>
+          </>
+        )}
 
         {run && (
           <>
@@ -53,6 +66,14 @@ export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
             <span className="text-xs font-mono tabular-nums text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
               {player.gold}g
             </span>
+          </>
+        )}
+        {partner && (
+          <>
+            <div className="h-3 w-px bg-gradient-to-b from-transparent via-zinc-700 to-transparent" />
+            <span className="text-[10px] text-zinc-500">Partner</span>
+            <span className="text-xs text-zinc-400 font-medium">{partner.character}</span>
+            <HpBar current={partner.hp} max={partner.max_hp} size="sm" />
           </>
         )}
         {onSignOut && (

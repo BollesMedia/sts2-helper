@@ -153,11 +153,23 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     [recommendedPath]
   );
 
+  // Multiplayer voting state
+  const stateAny = state as unknown as Record<string, unknown>;
+  const isMultiplayer = stateAny.game_mode === "multiplayer";
+  const mapData = state.map as unknown as Record<string, unknown>;
+  const votes = mapData.votes as { player: string; is_local: boolean; voted: boolean }[] | undefined;
+  const allVoted = mapData.all_voted as boolean | undefined;
+
   return (
     <div className="flex gap-4 h-full min-h-0">
       {/* Main area — SVG Map */}
       <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
         <div className="flex-1 min-h-0 rounded-lg border border-zinc-800 bg-zinc-900 p-2 relative">
+          {isMultiplayer && votes && !allVoted && (
+            <span className="absolute top-2 left-2 text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+              Voting: {votes.filter((v) => v.voted).length}/{votes.length}
+            </span>
+          )}
           {isLoading && (
             <span className="absolute top-2 right-2 text-xs text-zinc-500 animate-pulse">
               Evaluating...

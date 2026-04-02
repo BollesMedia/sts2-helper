@@ -3,7 +3,7 @@
 import { HpBar } from "../../components/hp-bar";
 import { BossBriefing } from "../combat/boss-briefing";
 import { cn } from "../../lib/cn";
-import type { CombatState, CombatCard } from "../../types/game-state";
+import type { CombatState, CombatCard, BattlePlayer } from "../../types/game-state";
 import { getLocalCombatPlayer } from "../../types/game-state";
 import { STATE_LABELS } from "./state-labels";
 
@@ -18,6 +18,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
     );
   }
   const { enemies } = state.battle;
+  const partnerPlayer: BattlePlayer | undefined = state.battle.players?.find((p) => !p.is_local);
 
   return (
     <div className="flex flex-col gap-6">
@@ -30,9 +31,9 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className={cn("grid gap-4", partnerPlayer ? "grid-cols-3" : "grid-cols-2")}>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">Player</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">You</h3>
           <div className="flex items-center justify-between">
             <HpBar current={player.hp} max={player.max_hp} />
             <div className="flex items-center gap-3 text-sm font-mono tabular-nums">
@@ -41,6 +42,28 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
             </div>
           </div>
         </div>
+
+        {partnerPlayer && (
+          <div className="rounded-lg border border-purple-800/40 bg-purple-900/10 p-4 space-y-3">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-purple-400">Partner</h3>
+            <div className="flex items-center justify-between">
+              <HpBar current={partnerPlayer.hp} max={partnerPlayer.max_hp} size="sm" />
+              <div className="flex items-center gap-3 text-sm font-mono tabular-nums">
+                <span className="text-blue-400">{partnerPlayer.energy}/{partnerPlayer.max_energy} E</span>
+                <span className="text-cyan-400">{partnerPlayer.block} B</span>
+              </div>
+            </div>
+            {partnerPlayer.status?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {partnerPlayer.status.map((s, i) => (
+                  <span key={i} className={cn("rounded px-1.5 py-0.5 text-[10px]", s.type === "Buff" ? "bg-emerald-400/10 text-emerald-400" : "bg-red-400/10 text-red-400")}>
+                    {s.name} {s.amount}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">Enemies</h3>
