@@ -49,25 +49,16 @@ export function ModVersionBanner({ installed, required, gameRunning, onUpdated }
     }
   }, [onUpdated]);
 
-  if (state.type === "mismatch" && state.gameRunning) {
-    return (
-      <div className="border-b border-amber-500/30 bg-amber-500/5 px-4 py-2 flex items-center justify-between">
-        <p className="text-xs text-amber-400">
-          Mod v{state.installed} detected — v{state.required} required. Close the game to auto-update.
-        </p>
-      </div>
-    );
-  }
-
   if (state.type === "mismatch") {
     return (
       <div className="border-b border-amber-500/30 bg-amber-500/5 px-4 py-2 flex items-center justify-between">
         <p className="text-xs text-amber-400">
           Mod v{state.installed} detected — v{state.required} required.
+          {state.gameRunning && " Close the game first, then update."}
         </p>
         <button
           onClick={handleUpdate}
-          className="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+          className="text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 px-3 py-1 rounded border border-amber-500/25 transition-colors"
         >
           Update now
         </button>
