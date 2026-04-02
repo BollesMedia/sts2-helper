@@ -120,11 +120,9 @@ export function validateGameStateStructure(data: unknown): ValidationResult {
     case "monster":
     case "elite":
     case "boss": {
-      const e = checkNested(d, "battle");
-      if (e) { errors.push(e); break; }
-      // v0.3.2: player at top level; v0.3.0: nested in battle
-      if (checkNested(d, "player") && checkNested(d, "battle.player")) {
-        errors.push("missing player (neither top-level nor battle.player)");
+      // battle can be absent during transition (mod returns message instead)
+      if (!checkNested(d, "battle") && !("message" in d)) {
+        errors.push("missing battle");
       }
       break;
     }
