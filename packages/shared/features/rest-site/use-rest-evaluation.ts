@@ -58,7 +58,12 @@ export function useRestEvaluation(
     setIsLoading(true);
     setError(null);
 
-    const restPlayer = state.rest_site.player;
+    const restPlayer = state.rest_site?.player;
+    if (!restPlayer) {
+      setError("Player data unavailable");
+      setIsLoading(false);
+      return;
+    }
     const hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
     const missing = restPlayer.max_hp - restPlayer.hp;
     const mapCtx = loadMapContext();

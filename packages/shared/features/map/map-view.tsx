@@ -95,7 +95,8 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     const act = state.run?.act ?? 1;
     const floor = state.run?.floor ?? 1;
     const relicCount = player?.relics.length ?? 0;
-    const hpPct = state.map.player.max_hp > 0 ? state.map.player.hp / state.map.player.max_hp : 1;
+    const mapPlayer = state.map?.player;
+    const hpPct = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
     const upgradeCount = deckCards.filter((c) => c.name.includes("+")).length;
 
     // Compute maturity from available data
@@ -111,7 +112,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     };
     const deckMaturity = computeDeckMaturity(maturityCtx);
 
-    return { hpPct, gold: state.map.player.gold, act, deckMaturity, relicCount, floor };
+    return { hpPct, gold: mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor };
   }, [state, player, deckCards]);
 
   // Full recommended path: trace locally from Claude's best-ranked option.

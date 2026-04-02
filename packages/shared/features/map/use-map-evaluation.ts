@@ -71,12 +71,12 @@ export function useMapEvaluation(
     }
 
     // Skip re-eval if user is following the recommended path and context hasn't changed significantly
-    const currentPos = state.map.current_position;
+    const currentPos = state.map?.current_position;
     const prev = lastEvalContext.current;
     if (prev && currentPos) {
       const onRecommendedPath = prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`);
-      const mapPlayer = state.map.player;
-      const hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+      const mapPlayer = state.map?.player;
+      const hpPercent = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
       const hpSimilar = Math.abs(hpPercent - prev.hpPercent) < 0.15;
       const deckSimilar = Math.abs(deckCards.length - prev.deckSize) <= 1;
 
@@ -109,14 +109,16 @@ export function useMapEvaluation(
     updateFromContext(ctx);
 
     // Override context gold/HP with map state's player data (most current)
-    const mapPlayer = state.map.player;
-    ctx.gold = mapPlayer.gold;
-    ctx.hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+    const mapPlayer = state.map?.player;
+    if (mapPlayer) {
+      ctx.gold = mapPlayer.gold;
+      ctx.hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+    }
 
     const contextStr = buildCompactContext(ctx);
 
     // Build a node lookup for path tracing
-    const allNodes = state.map.nodes;
+    const allNodes = state.map?.nodes ?? [];
     const nodeMap = new Map<string, typeof allNodes[0]>();
     for (const n of allNodes) {
       nodeMap.set(`${n.col},${n.row}`, n);
@@ -234,7 +236,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
       setCache(CACHE_KEY, mapKey, parsed);
 
       // Track context for skip-re-eval logic
-      const mp = state.map.player;
+      const mp = state.map?.player;
       const recommendedNodes = new Set<string>();
       // Include all next options (the user could pick any recommended one)
       for (const opt of options) {
@@ -249,7 +251,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
         recommendedNodes.add(`${p.col},${p.row}`);
       }
       lastEvalContext.current = {
-        hpPercent: mp.max_hp > 0 ? mp.hp / mp.max_hp : 1,
+        hpPercent: mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1,
         deckSize: deckCards.length,
         recommendedNodes,
       };

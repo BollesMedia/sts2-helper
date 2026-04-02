@@ -32,14 +32,14 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
       {/* Header with inline summary */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-100 shrink-0">
-          {state.event.event_name}
+          {state.event?.event_name ?? "Event"}
         </h2>
         {isLoading && (
           <span className="text-xs text-zinc-500 animate-pulse">Evaluating...</span>
         )}
       </div>
 
-      {state.event.body && (
+      {state.event?.body && (
         <p className="text-xs text-zinc-400 leading-snug line-clamp-2" title={state.event.body}>
           {state.event.body}
         </p>
