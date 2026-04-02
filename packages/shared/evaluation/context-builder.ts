@@ -81,9 +81,36 @@ export function buildEvaluationContext(
     upgradeCount,
     relicCount,
     deckMaturity: 0,
+    ...extractPartnerInfo(state),
   };
 
   partialCtx.deckMaturity = computeDeckMaturity(partialCtx);
 
   return partialCtx;
+}
+
+/**
+ * Extract partner player info from multiplayer state.
+ * The multiplayer response has a top-level `players[]` array with all players.
+ */
+function extractPartnerInfo(state: GameState): {
+  isMultiplayer?: boolean;
+  partnerCharacter?: string;
+  partnerHpPercent?: number;
+  partnerRelics?: { name: string; description: string }[];
+} {
+  const stateAny = state as unknown as Record<string, unknown>;
+  const gameMode = stateAny.game_mode as string | undefined;
+  if (gameMode !== "multiplayer") return {};
+
+  const players = stateAny.players as { character: string; hp: number; max_hp: number; is_local?: boolean; relics?: { name: string; description: string }[] }[] | undefined;
+  if (!players || players.length < 2) return { isMultiplayer: true };
+
+  const partner = players.find((p) => !p.is_local) ?? players[1];
+  return {
+    isMultiplayer: true,
+    partnerCharacter: partner.character,
+    partnerHpPercent: partner.max_hp > 0 ? partner.hp / partner.max_hp : 1,
+    partnerRelics: partner.relics?.map((r) => ({ name: r.name, description: r.description })) ?? [],
+  };
 }

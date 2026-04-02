@@ -28,6 +28,11 @@ export interface EvaluationContext {
   upgradeCount: number;
   deckMaturity: number;
   relicCount: number;
+  // Multiplayer — only present in co-op
+  isMultiplayer?: boolean;
+  partnerCharacter?: string;
+  partnerHpPercent?: number;
+  partnerRelics?: { name: string; description: string }[];
 }
 
 export interface CardEvaluation {

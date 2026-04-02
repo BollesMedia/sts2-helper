@@ -254,7 +254,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
         runId: newRunId,
         character: character ?? "Unknown",
         ascension,
-        gameMode: "singleplayer",
+        gameMode: (gameState as unknown as Record<string, unknown>).game_mode as string ?? "singleplayer",
         userId,
       }),
     }).then(() => {}).catch(console.error);

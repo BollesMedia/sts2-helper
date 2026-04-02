@@ -113,7 +113,8 @@ export async function POST(request: Request) {
   // Hooks can specify evalType explicitly (rest_site, event, etc.)
   // Otherwise fall back to the request type
   const evalType: EvalType = (body.evalType as EvalType) ?? (type === "map" && body.mapPrompt ? "map" : type as EvalType);
-  const systemPrompt = buildSystemPrompt(evalType);
+  const isMultiplayer = context.isMultiplayer === true;
+  const systemPrompt = buildSystemPrompt(evalType, isMultiplayer);
   console.log("[Evaluate] evalType:", evalType, "system prompt length:", systemPrompt.length);
 
   // ─── MAP/EVENT/REST/ETC EVALUATION (via mapPrompt) ───
