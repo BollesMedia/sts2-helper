@@ -52,7 +52,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide">Rest Site</h2>
+        <h2 className="text-sm font-display font-bold text-spire-text">Rest Site</h2>
         {isLoading && (
           <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
             Evaluating...
@@ -147,14 +147,14 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
                   </div>
 
                   {/* Description */}
-                  <p className="text-[10px] text-zinc-500 leading-snug line-clamp-2 mt-1.5">
+                  <p className="text-xs text-spire-text-tertiary leading-relaxed line-clamp-2 mt-1.5">
                     {opt.description}
                   </p>
 
                   {/* Reasoning */}
                   {evalData?.reasoning && (
                     <p className={cn(
-                      "mt-1.5 text-[10px] leading-snug line-clamp-2",
+                      "mt-1.5 text-sm leading-relaxed line-clamp-2",
                       isTopPick ? "text-zinc-300" : "text-zinc-500"
                     )}>
                       {evalData.reasoning}

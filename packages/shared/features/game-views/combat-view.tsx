@@ -161,11 +161,11 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
       {/* Row 1: Header bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide">
+          <h2 className="text-sm font-display font-bold text-spire-text">
             {STATE_LABELS[state.state_type] ?? "Combat"}
           </h2>
-          <span className="text-[10px] font-mono text-zinc-600 bg-zinc-800/60 px-1.5 py-0.5 rounded">
-            R{state.battle.round}
+          <span className="text-[10px] font-mono text-spire-text-tertiary bg-spire-elevated/50 px-1.5 py-0.5 rounded">
+            Round {state.battle.round}
           </span>
         </div>
       </div>

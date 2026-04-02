@@ -334,7 +334,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
         {/* Overall advice */}
         {evaluation?.overallAdvice && (
           <div className="rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-2">
-            <p className="text-[10px] text-zinc-400 leading-relaxed line-clamp-3" title={evaluation.overallAdvice}>
+            <p className="text-xs text-spire-text-tertiary leading-relaxed line-clamp-3" title={evaluation.overallAdvice}>
               {evaluation.overallAdvice}
             </p>
           </div>
@@ -385,7 +385,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
               {/* Reasoning */}
               {evalData?.reasoning && (
                 <p className={cn(
-                  "mt-1.5 text-[10px] leading-snug line-clamp-2",
+                  "mt-1.5 text-xs leading-relaxed line-clamp-2",
                   isBest ? "text-zinc-300" : "text-zinc-500"
                 )}>
                   {evalData.reasoning}

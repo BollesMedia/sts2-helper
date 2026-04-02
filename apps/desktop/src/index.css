@@ -3,8 +3,8 @@
 @source "../../../packages/shared";
 @source ".";
 
-/* Bitter — display font for headings/card names */
-@import url("https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;600;700&display=swap");
+/* Outfit (display) + DM Sans (body) */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
 
 :root {
   /* STS2-inspired palette — blue-violet undertone, not pure grey */
@@ -44,13 +44,14 @@
   --color-spire-text-secondary: var(--spire-text-secondary);
   --color-spire-text-tertiary: var(--spire-text-tertiary);
   --color-spire-text-muted: var(--spire-text-muted);
-  --font-display: "Bitter", Georgia, serif;
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
 }
 
 /* Map path pulse animation */

@@ -85,18 +85,25 @@ Mirrors STS2's banner colors exactly.
 
 | Role | Font | Weight | Usage |
 |------|------|--------|-------|
-| Display | Bitter | 600-700 | Card names, section headers, view titles |
-| Body | system-ui | 400-500 | Descriptions, evaluations, advice |
+| Display | Outfit | 500-700 | Card names, section headers, view titles |
+| Body | DM Sans | 400-500 | Descriptions, evaluations, advice |
 | Data | ui-monospace | 500 | Numbers, costs, damage, stats |
 
-### Loading Bitter
+### Loading Fonts
 
-Via Google Fonts, loaded in the app root:
-```html
-<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;600;700&display=swap" rel="stylesheet">
+Via Google Fonts, loaded in the app root CSS:
+```css
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
 ```
 
-Applied via Tailwind `fontFamily.display` or the CSS class `font-display`.
+Applied via Tailwind: `font-display` (Outfit) for headings, `font-body` (DM Sans) as default body font.
+
+### Text Sizing Rules
+
+- Evaluation reasoning, advice text: minimum `text-sm` (14px)
+- Card descriptions: minimum `text-xs` (12px)
+- Labels, metadata, badges: `text-[10px]` acceptable
+- Headers: no uppercase — use font weight and size for hierarchy
 
 ## Component Patterns
 

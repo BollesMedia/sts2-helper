@@ -24,7 +24,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
     <div className="flex flex-col gap-3">
       {/* Header row with inline summary */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-display font-bold text-spire-text uppercase tracking-wide shrink-0">Card Reward</h2>
+        <h2 className="text-sm font-display font-bold text-spire-text shrink-0">Card Reward</h2>
         
         {/* Inline pick summary or skip message */}
         {evaluation?.pickSummary && !isLoading && (
