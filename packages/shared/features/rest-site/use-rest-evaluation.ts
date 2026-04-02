@@ -2,7 +2,8 @@
 import { apiFetch } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
-import type { RestSiteState, CombatCard } from "../../types/game-state";
+import type { RestSiteState, CombatCard, GameState } from "../../types/game-state";
+import { getPlayer } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation, CardEvaluation } from "../../evaluation/types";
 import { tierToValue, type TierLetter } from "../../evaluation/tier-utils";
@@ -58,7 +59,7 @@ export function useRestEvaluation(
     setIsLoading(true);
     setError(null);
 
-    const restPlayer = state.player ?? state.rest_site?.player;
+    const restPlayer = getPlayer(state as unknown as GameState);
     if (!restPlayer) {
       setError("Player data unavailable");
       setIsLoading(false);

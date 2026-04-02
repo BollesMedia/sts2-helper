@@ -2,7 +2,8 @@
 import { apiFetch } from "../../lib/api-client";
 
 import { useCallback, useRef, useState } from "react";
-import type { ShopState, ShopItem, CombatCard } from "../../types/game-state";
+import type { ShopState, ShopItem, CombatCard, GameState } from "../../types/game-state";
+import { getPlayer } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { EvaluationContext, CardRewardEvaluation } from "../../evaluation/types";
 import { buildEvaluationContext } from "../../evaluation/context-builder";
@@ -94,7 +95,8 @@ export function useShopEvaluation(
 
     updateFromContext(ctx);
 
-    const gold = (state.player ?? state.shop?.player)?.gold ?? 0;
+    const shopPlayer = getPlayer(state as unknown as GameState);
+    const gold = shopPlayer?.gold ?? 0;
     const affordableItems = shopItems.filter((i) => i.can_afford);
 
     const items = affordableItems.map((item) => ({
