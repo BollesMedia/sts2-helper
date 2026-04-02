@@ -9,7 +9,6 @@ interface CardRatingProps {
   evaluation: CardEvaluation | null;
   rank?: number;
   isTopPick?: boolean;
-  /** Character name for energy orb color */
   character?: string;
 }
 
@@ -29,13 +28,12 @@ const RARITY_COLOR: Record<string, string> = {
   Curse: "text-red-500",
 };
 
-/** Character class → energy orb colors (bg gradient + text + border + glow) */
 const CHARACTER_ENERGY: Record<string, { bg: string; text: string; border: string; glow: string }> = {
-  "The Ironclad":   { bg: "from-red-600/85 to-red-800/85",       text: "text-white",      border: "border-red-400/40",    glow: "shadow-[0_0_6px_rgba(239,68,68,0.3)]" },
-  "The Silent":     { bg: "from-green-600/85 to-green-800/85",    text: "text-white",      border: "border-green-400/40",  glow: "shadow-[0_0_6px_rgba(34,197,94,0.3)]" },
-  "The Defect":     { bg: "from-blue-500/85 to-blue-700/85",      text: "text-white",      border: "border-blue-400/40",   glow: "shadow-[0_0_6px_rgba(59,130,246,0.3)]" },
-  "The Necrobinder": { bg: "from-purple-600/85 to-purple-800/85", text: "text-white",      border: "border-purple-400/40", glow: "shadow-[0_0_6px_rgba(168,85,247,0.3)]" },
-  "The Regent":     { bg: "from-cyan-500/85 to-cyan-700/85",      text: "text-white",      border: "border-cyan-400/40",   glow: "shadow-[0_0_6px_rgba(34,211,238,0.3)]" },
+  "The Ironclad":    { bg: "from-red-600/85 to-red-800/85",       text: "text-white",  border: "border-red-400/40",    glow: "shadow-[0_0_6px_rgba(239,68,68,0.3)]" },
+  "The Silent":      { bg: "from-green-600/85 to-green-800/85",    text: "text-white",  border: "border-green-400/40",  glow: "shadow-[0_0_6px_rgba(34,197,94,0.3)]" },
+  "The Defect":      { bg: "from-blue-500/85 to-blue-700/85",      text: "text-white",  border: "border-blue-400/40",   glow: "shadow-[0_0_6px_rgba(59,130,246,0.3)]" },
+  "The Necrobinder":  { bg: "from-purple-600/85 to-purple-800/85", text: "text-white",  border: "border-purple-400/40", glow: "shadow-[0_0_6px_rgba(168,85,247,0.3)]" },
+  "The Regent":      { bg: "from-cyan-500/85 to-cyan-700/85",      text: "text-white",  border: "border-cyan-400/40",   glow: "shadow-[0_0_6px_rgba(34,211,238,0.3)]" },
 };
 
 const DEFAULT_ENERGY = { bg: "from-zinc-500 to-zinc-700", text: "text-white", border: "border-zinc-400/50", glow: "" };
@@ -73,10 +71,18 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
         </div>
       )}
 
-      <div className="p-4 pt-5 flex flex-col gap-3">
-        {/* Card header: name + energy orb */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <div className="p-4 pt-5 flex flex-col gap-4">
+        {/* Top section: energy orb (top-left like game) + name + meta */}
+        <div className="flex items-start gap-3">
+          {/* Energy orb — top-left, octagon */}
+          <span className={cn(
+            "shrink-0 w-8 h-8 flex items-center justify-center text-base font-bold font-mono bg-gradient-to-br border mt-0.5",
+            energy.bg, energy.text, energy.border, energy.glow
+          )} style={{ clipPath: "polygon(30% 2%, 70% 2%, 98% 30%, 98% 70%, 70% 98%, 30% 98%, 2% 70%, 2% 30%)" }}>
+            {card.cost}
+          </span>
+
+          <div className="min-w-0 flex-1">
             <h3 className="font-display font-semibold text-base text-spire-text truncate">
               {card.name}
               {card.is_upgraded && (
@@ -89,13 +95,6 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
               <span className={typeColor}>{card.type}</span>
             </span>
           </div>
-          {/* Energy orb — octagon, character-colored like the game */}
-          <span className={cn(
-            "shrink-0 w-8 h-8 flex items-center justify-center text-base font-bold font-mono bg-gradient-to-br border",
-            energy.bg, energy.text, energy.border, energy.glow
-          )} style={{ clipPath: "polygon(30% 2%, 70% 2%, 98% 30%, 98% 70%, 70% 98%, 30% 98%, 2% 70%, 2% 30%)" }}>
-            {card.cost}
-          </span>
         </div>
 
         {/* Description */}
@@ -103,7 +102,7 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
           {card.description}
         </p>
 
-        {/* Evaluation — tier + recommendation on one line */}
+        {/* Evaluation — tier + recommendation */}
         {evaluation && (
           <div className="flex items-center gap-2 pt-3 border-t border-spire-border-subtle">
             <TierBadge tier={evaluation.tier} size="sm" glow={isTopPick} />
