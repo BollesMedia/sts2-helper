@@ -155,7 +155,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
     <div
       className="grid h-full min-h-0 gap-2"
       style={{
-        gridTemplateRows: isBoss ? "auto auto auto minmax(0, 1fr)" : "auto auto auto",
+        gridTemplateRows: isBoss ? "auto auto minmax(0, 1fr) auto" : "auto auto auto",
       }}
     >
       {/* Row 1: Header bar */}
@@ -193,27 +193,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </div>
       </div>
 
-      {/* Row 3: Hand — horizontal strip */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 shrink-0">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 shrink-0 mr-1">
-            Hand
-          </span>
-          {player.hand.map((card, i) => (
-            <span
-              key={i}
-              className="rounded border border-zinc-700/80 bg-zinc-800/80 px-2 py-1 text-[11px] font-medium text-zinc-300 whitespace-nowrap shrink-0 hover:border-zinc-600 hover:text-zinc-100 transition-colors"
-            >
-              {card.name}
-            </span>
-          ))}
-          {player.hand.length === 0 && (
-            <span className="text-[11px] text-zinc-600 italic">No cards</span>
-          )}
-        </div>
-      </div>
-
-      {/* Row 4: Boss Briefing (boss fights only, scrollable) */}
+      {/* Row 3: Boss Briefing (boss fights only — gets remaining space) */}
       {isBoss && (
         <div className="min-h-0 overflow-y-auto">
           <BossBriefing
@@ -223,6 +203,26 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
           />
         </div>
       )}
+
+      {/* Row 4: Hand — anchored to bottom, subtle */}
+      <div className="rounded-lg border border-spire-border bg-spire-surface/40 px-3 py-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <span className="text-[9px] font-medium text-spire-text-muted shrink-0 mr-1">
+            Hand ({player.hand.length})
+          </span>
+          {player.hand.map((card, i) => (
+            <span
+              key={i}
+              className="rounded border border-spire-border bg-spire-elevated/60 px-2 py-0.5 text-[10px] text-spire-text-secondary whitespace-nowrap shrink-0"
+            >
+              {card.name}
+            </span>
+          ))}
+          {player.hand.length === 0 && (
+            <span className="text-[10px] text-spire-text-muted italic">No cards</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
