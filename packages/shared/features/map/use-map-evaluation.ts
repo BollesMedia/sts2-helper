@@ -262,28 +262,24 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
       setEvaluation(parsed);
       setCache(CACHE_KEY, mapKey, parsed);
 
-      // Build recommendedNodes — the full traced path from best option to boss
+      // Build recommendedNodes — trace path from EVERY evaluated option
+      // Picking any evaluated option is "on plan" — deviation is picking
+      // a node that wasn't one of the evaluated options at all.
       const mp = state.player ?? state.map?.player;
       const recommendedNodes = new Set<string>();
-      const tierOrder = ["S", "A", "B", "C", "D", "F"];
-      if (parsed.rankings.length > 0) {
-        const bestRanking = parsed.rankings.reduce((a, b) => {
-          const aT = tierOrder.indexOf(a.tier);
-          const bT = tierOrder.indexOf(b.tier);
-          return bT < aT ? b : aT < bT ? a : (a.confidence ?? 0) >= (b.confidence ?? 0) ? a : b;
-        });
-        const bestOpt = options.find((_, i) => i + 1 === bestRanking.optionIndex);
-        if (bestOpt) {
-          // Trace the full path from best option to boss (same as map-view does for rendering)
-          const hpPct = mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1;
-          const fullPath = traceRecommendedPath(
-            bestOpt.col, bestOpt.row,
-            state.map?.nodes ?? [], state.map.boss,
-            hpPct, mp?.gold ?? 0, state.run?.act ?? 1, 0, 0, state.run?.floor ?? 1
-          );
-          for (const p of fullPath) {
-            recommendedNodes.add(`${p.col},${p.row}`);
-          }
+      const hpPct = mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1;
+      const allNodes = state.map?.nodes ?? [];
+      const bossPos = state.map.boss;
+
+      for (const opt of options) {
+        recommendedNodes.add(`${opt.col},${opt.row}`);
+        // Trace full path from each option to boss
+        const fullPath = traceRecommendedPath(
+          opt.col, opt.row, allNodes, bossPos,
+          hpPct, mp?.gold ?? 0, state.run?.act ?? 1, 0, 0, state.run?.floor ?? 1
+        );
+        for (const p of fullPath) {
+          recommendedNodes.add(`${p.col},${p.row}`);
         }
       }
       // Also include API's recommended path if provided
