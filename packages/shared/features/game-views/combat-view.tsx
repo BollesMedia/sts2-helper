@@ -98,7 +98,7 @@ function PlayerPanel({
       <HpBar current={player.hp} max={player.max_hp} size="sm" />
 
       {/* Status effects inline */}
-      <StatusBadges status={player.status} />
+      <StatusBadges status={player.status ?? []} />
     </div>
   );
 }
@@ -209,9 +209,9 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
       <div className="rounded-lg border border-spire-border bg-spire-surface/40 px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-1.5 overflow-x-auto">
           <span className="text-[9px] font-medium text-spire-text-muted shrink-0 mr-1">
-            Hand ({player.hand.length})
+            Hand ({(player.hand?.length ?? 0)})
           </span>
-          {player.hand.map((card, i) => (
+          {(player.hand ?? []).map((card, i) => (
             <span
               key={i}
               className="rounded border border-spire-border bg-spire-elevated/60 px-2 py-0.5 text-[10px] text-spire-text-secondary whitespace-nowrap shrink-0"
@@ -219,7 +219,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
               {card.name}
             </span>
           ))}
-          {player.hand.length === 0 && (
+          {(player.hand?.length ?? 0) === 0 && (
             <span className="text-[10px] text-spire-text-muted italic">No cards</span>
           )}
         </div>
