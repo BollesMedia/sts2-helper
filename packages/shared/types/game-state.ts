@@ -413,8 +413,19 @@ export function getPlayer(state: CombatState): BattlePlayer | undefined;
 export function getPlayer(state: HandSelectState): BattlePlayer | undefined;
 export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined;
 export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined {
-  // v0.3.2: top-level player
+  // v0.3.2 singleplayer: top-level player
   if (state.player) return state.player;
+
+  // Multiplayer: find local player in top-level players[] array
+  if (state.players?.length) {
+    const localSlot = state.local_player_slot;
+    if (localSlot != null && state.players[localSlot]) {
+      return state.players[localSlot] as unknown as PlayerSummary;
+    }
+    const local = state.players.find((p) => p.is_local);
+    if (local) return local as unknown as PlayerSummary;
+    return state.players[0] as unknown as PlayerSummary;
+  }
 
   // Multiplayer combat: find local player in battle.players[]
   if ("battle" in state) {

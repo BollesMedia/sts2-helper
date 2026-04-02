@@ -118,6 +118,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const deckCards = useRef<CombatCard[]>([]);
   const prevStateType = useRef<string | null>(null);
   const initialized = useRef(false);
+  const combatSynced = useRef(false);
 
   if (!initialized.current) {
     initialized.current = true;
@@ -132,10 +133,14 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
   const prevType = prevStateType.current;
   prevStateType.current = currentType;
 
-  // ─── COMBAT: Ground truth sync (round 1 only) ───
-  // Round 1 is the cleanest snapshot — no exhaust, no enemy-added cards yet
+  // ─── COMBAT: Ground truth sync (once per combat entry) ───
+  // Round 1 start is the cleanest snapshot — no exhaust, no enemy-added cards yet
+  // Only sync once per combat to avoid flip-flopping from mid-turn card movement
   const combatPlayer = isCombatState(gameState) ? getPlayer(gameState) : null;
-  if (isCombatState(gameState) && combatPlayer && gameState.battle?.round <= 1) {
+  if (!isCombatState(gameState)) {
+    combatSynced.current = false; // Reset when leaving combat
+  }
+  if (isCombatState(gameState) && combatPlayer && gameState.battle?.round <= 1 && !combatSynced.current) {
     const p = combatPlayer;
     const allPiles = [
       ...(p.hand ?? []),
@@ -145,20 +150,14 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     ];
     const combatDeck = allPiles.filter(isPlayerCard);
 
-    // Only update if we got a meaningful deck
     if (combatDeck.length > 0) {
       const newNames = combatDeck.map((c) => c.name).sort().join(",");
       const oldNames = deckCards.current.map((c) => c.name).sort().join(",");
 
       if (newNames !== oldNames) {
-        console.log("[DeckTracker] Deck updated:", {
-          from: deckCards.current.length,
-          to: combatDeck.length,
-          filtered: allPiles.length - combatDeck.length,
-          round: gameState.battle.round,
-        });
         deckCards.current = combatDeck;
         saveToStorage(combatDeck);
+        combatSynced.current = true; // Don't sync again this combat
       }
     }
   }
