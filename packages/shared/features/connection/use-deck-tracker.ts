@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard, CombatState, MultiplayerFields } from "../../types/game-state";
-import { isCombatState, hasRun, getLocalCombatPlayer } from "../../types/game-state";
+import type { GameState, CombatCard, BattlePlayer } from "../../types/game-state";
+import { isCombatState, hasRun, getPlayer } from "../../types/game-state";
 import { createClient } from "../../supabase/client";
 import { initStarterDecks, getStarterDeck } from "../../supabase/starter-decks";
 
@@ -134,7 +134,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
 
   // ─── COMBAT: Ground truth sync (round 1 only) ───
   // Round 1 is the cleanest snapshot — no exhaust, no enemy-added cards yet
-  const combatPlayer = isCombatState(gameState) ? getLocalCombatPlayer(gameState) : null;
+  const combatPlayer = isCombatState(gameState) ? getPlayer(gameState) as BattlePlayer | undefined : null;
   if (isCombatState(gameState) && combatPlayer && gameState.battle?.round <= 1) {
     const p = combatPlayer;
     const allPiles = [
@@ -170,7 +170,7 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
     const fallbackPlayer =
       (isCombatState(gameState) ? combatPlayer : null) ??
       (gameState.state_type === "hand_select" && "battle" in gameState
-        ? getLocalCombatPlayer(gameState as unknown as CombatState & MultiplayerFields)
+        ? getPlayer(gameState) as BattlePlayer | undefined
         : null);
 
     if (fallbackPlayer) {
@@ -227,33 +227,5 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
 
 /** Extract character name from any game state that has a player field. */
 function extractCharacter(state: GameState): string | null {
-  if ("relic_select" in state && state.relic_select?.player) {
-    return state.relic_select.player.character;
-  }
-  if ("battle" in state && state.battle) {
-    const p = getLocalCombatPlayer(state as CombatState);
-    if (p) return p.character;
-  }
-  if ("map" in state && state.map?.player) {
-    return state.map.player.character;
-  }
-  if ("shop" in state && state.shop?.player) {
-    return state.shop.player.character;
-  }
-  if ("event" in state && state.event?.player) {
-    return state.event.player.character;
-  }
-  if ("rest_site" in state && state.rest_site?.player) {
-    return state.rest_site.player.character;
-  }
-  if ("rewards" in state && state.rewards?.player) {
-    return state.rewards.player.character;
-  }
-  if ("card_select" in state && state.card_select?.player) {
-    return state.card_select.player.character;
-  }
-  if ("treasure" in state && state.treasure?.player) {
-    return state.treasure.player.character;
-  }
-  return null;
+  return getPlayer(state)?.character ?? null;
 }

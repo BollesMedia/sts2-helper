@@ -44,7 +44,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
   const { evaluation, isLoading, error, retry } = useRestEvaluation(
     state, deckCards, player, runId
   );
-  const restPlayer = state.rest_site.player;
+  const restPlayer = state.player ?? state.rest_site?.player;
   const options = state.rest_site.options;
   const topRank = evaluation?.rankings.find((r) => r.rank === 1);
 

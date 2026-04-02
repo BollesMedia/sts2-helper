@@ -58,7 +58,7 @@ export function useRestEvaluation(
     setIsLoading(true);
     setError(null);
 
-    const restPlayer = state.rest_site?.player;
+    const restPlayer = state.player ?? state.rest_site?.player;
     if (!restPlayer) {
       setError("Player data unavailable");
       setIsLoading(false);

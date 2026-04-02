@@ -115,7 +115,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     const act = state.run?.act ?? 1;
     const floor = state.run?.floor ?? 1;
     const relicCount = player?.relics.length ?? 0;
-    const mapPlayer = state.map?.player;
+    const mapPlayer = state.player ?? state.map?.player;
     const hpPct = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
     const upgradeCount = deckCards.filter((c) => c.name.includes("+")).length;
     const relics = player?.relics ?? [];

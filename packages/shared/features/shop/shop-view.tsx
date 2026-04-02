@@ -71,7 +71,7 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-display font-bold text-spire-text">Shop</h2>
           <span className="text-xs font-mono tabular-nums text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-            {state.shop?.player?.gold ?? 0}g
+            {(state.player ?? state.shop?.player)?.gold ?? 0}g
           </span>
         </div>
         {isLoading && (

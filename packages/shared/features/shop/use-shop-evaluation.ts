@@ -94,7 +94,7 @@ export function useShopEvaluation(
 
     updateFromContext(ctx);
 
-    const gold = state.shop?.player?.gold ?? 0;
+    const gold = (state.player ?? state.shop?.player)?.gold ?? 0;
     const affordableItems = shopItems.filter((i) => i.can_afford);
 
     const items = affordableItems.map((item) => ({

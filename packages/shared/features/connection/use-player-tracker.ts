@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { GameState } from "../../types/game-state";
-import { isCombatState, getLocalCombatPlayer } from "../../types/game-state";
+import { isCombatState, getPlayer } from "../../types/game-state";
 
 const STORAGE_KEY = "sts2-player";
 
@@ -57,92 +57,26 @@ export function usePlayerTracker(gameState: GameState | null): TrackedPlayer | n
 
   if (!gameState) return player.current;
 
-  if (isCombatState(gameState)) {
-    const p = getLocalCombatPlayer(gameState);
-    if (p) {
-      setPlayer(player, {
-        character: p.character,
-        hp: p.hp,
-        maxHp: p.max_hp,
-        gold: p.gold,
-        maxEnergy: p.max_energy,
-        relics: p.relics,
-        potions: p.potions.map((pot) => ({ name: pot.name, description: pot.description })),
-        cardRemovalCost: player.current?.cardRemovalCost ?? null,
-      });
-    }
-  }
+  // Unified player extraction — works with v0.3.2 (top-level) and v0.3.0 (nested)
+  const p = getPlayer(gameState);
+  if (p && gameState.state_type !== "menu") {
+    const isCombat = isCombatState(gameState);
+    const bp = p as { energy?: number; max_energy?: number; potions?: { name: string; description: string }[]; relics?: { name: string; description: string }[] };
 
-  if (gameState.state_type === "combat_rewards" && gameState.rewards?.player) {
-    const p = gameState.rewards.player;
+    // Shop: extract removal cost
+    const removalItem = gameState.state_type === "shop" && "shop" in gameState
+      ? (gameState as { shop: { items?: { category: string; cost: number }[] } }).shop?.items?.find((i) => i.category === "card_removal")
+      : null;
+
     setPlayer(player, {
       character: p.character,
       hp: p.hp,
       maxHp: p.max_hp,
       gold: p.gold,
-      maxEnergy: player.current?.maxEnergy ?? 3,
-      relics: player.current?.relics ?? [],
-      potions: player.current?.potions ?? [],
-      cardRemovalCost: player.current?.cardRemovalCost ?? null,
-    });
-  }
-
-  if (gameState.state_type === "map" && gameState.map?.player) {
-    const p = gameState.map.player;
-    setPlayer(player, {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: player.current?.maxEnergy ?? 3,
-      relics: player.current?.relics ?? [],
-      potions: player.current?.potions ?? [],
-      cardRemovalCost: player.current?.cardRemovalCost ?? null,
-    });
-  }
-
-  if (gameState.state_type === "shop" && gameState.shop?.player) {
-    const p = gameState.shop.player;
-    const removalItem = gameState.shop.items?.find(
-      (i) => i.category === "card_removal"
-    );
-    setPlayer(player, {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: player.current?.maxEnergy ?? 3,
-      relics: player.current?.relics ?? [],
-      potions: player.current?.potions ?? [],
+      maxEnergy: (isCombat ? bp.max_energy : undefined) ?? player.current?.maxEnergy ?? 3,
+      relics: bp.relics?.map((r) => ({ id: (r as { id?: string }).id ?? "", name: r.name, description: r.description })) ?? player.current?.relics ?? [],
+      potions: (bp.potions ?? player.current?.potions ?? []).map((pot) => ({ name: pot.name, description: pot.description })),
       cardRemovalCost: removalItem?.cost ?? player.current?.cardRemovalCost ?? null,
-    });
-  }
-
-  if (gameState.state_type === "event" && gameState.event?.player) {
-    const p = gameState.event.player;
-    setPlayer(player, {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: player.current?.maxEnergy ?? 3,
-      relics: player.current?.relics ?? [],
-      potions: player.current?.potions ?? [],
-      cardRemovalCost: player.current?.cardRemovalCost ?? null,
-    });
-  }
-
-  if (gameState.state_type === "rest_site" && gameState.rest_site?.player) {
-    const p = gameState.rest_site.player;
-    setPlayer(player, {
-      character: p.character,
-      hp: p.hp,
-      maxHp: p.max_hp,
-      gold: p.gold,
-      maxEnergy: player.current?.maxEnergy ?? 3,
-      relics: player.current?.relics ?? [],
-      potions: player.current?.potions ?? [],
-      cardRemovalCost: player.current?.cardRemovalCost ?? null,
     });
   }
 

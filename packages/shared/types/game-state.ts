@@ -97,14 +97,24 @@ export interface BattlePlayer {
   stars?: number | null;
 }
 
-/** Player summary on non-combat screens */
+/** Player summary — v0.3.2 includes block/status/relics/potions at top level */
 export interface PlayerSummary {
   character: string;
   hp: number;
   max_hp: number;
   gold: number;
+  block?: number;
+  status?: StatusEffect[];
+  relics?: GameRelic[];
+  potions?: GamePotion[];
   potion_slots?: number;
   open_potion_slots?: number;
+}
+
+/** Top-level fields present on all game states (v0.3.2+) */
+export interface BaseFields {
+  /** v0.3.2: player at top level. In combat, this is BattlePlayer; otherwise PlayerSummary. */
+  player?: BattlePlayer | PlayerSummary;
 }
 
 export interface RunInfo {
@@ -150,11 +160,14 @@ export interface MapNode {
 
 export interface CombatState {
   state_type: "monster" | "elite" | "boss";
+  /** v0.3.2: player at top level (BattlePlayer in combat) */
+  player?: BattlePlayer;
   battle: {
     round: number;
     turn: string;
     is_play_phase: boolean;
-    player: BattlePlayer;
+    /** @deprecated v0.3.0 compat — use top-level state.player instead */
+    player?: BattlePlayer;
     /** Multiplayer: array of all players. Local player has is_local: true. */
     players?: (BattlePlayer & { is_local?: boolean })[];
     enemies: Enemy[];
@@ -164,6 +177,7 @@ export interface CombatState {
 
 export interface CardRewardState {
   state_type: "card_reward";
+  player?: PlayerSummary;
   card_reward: {
     cards: DetailedCard[];
     can_skip: boolean;
@@ -173,8 +187,10 @@ export interface CardRewardState {
 
 export interface CombatRewardsState {
   state_type: "combat_rewards";
+  player?: PlayerSummary;
   rewards: {
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     items: {
       index: number;
       type: string;
@@ -188,8 +204,11 @@ export interface CombatRewardsState {
 
 export interface MapState {
   state_type: "map";
+  /** v0.3.2: player at top level */
+  player?: PlayerSummary;
   map: {
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     current_position: MapNodePosition | null;
     visited: MapNodePosition[];
     next_options: MapNextOption[];
@@ -226,8 +245,10 @@ export interface ShopItem {
 
 export interface ShopState {
   state_type: "shop";
+  player?: PlayerSummary;
   shop: {
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     items: ShopItem[];
     can_proceed: boolean;
   };
@@ -248,13 +269,15 @@ export interface EventOption {
 
 export interface EventState {
   state_type: "event";
+  player?: PlayerSummary;
   event: {
     event_id: string;
     event_name: string;
     is_ancient: boolean;
     in_dialogue: boolean;
     body?: string | null;
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     options: EventOption[];
   };
   run: RunInfo;
@@ -262,8 +285,10 @@ export interface EventState {
 
 export interface RestSiteState {
   state_type: "rest_site";
+  player?: PlayerSummary;
   rest_site: {
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     options: {
       index: number;
       id: string;
@@ -278,10 +303,12 @@ export interface RestSiteState {
 
 export interface CardSelectState {
   state_type: "card_select";
+  player?: PlayerSummary;
   card_select: {
     screen_type: string;
     prompt: string;
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     cards: DetailedCard[];
     can_confirm: boolean;
     can_cancel: boolean;
@@ -291,6 +318,7 @@ export interface CardSelectState {
 
 export interface HandSelectState {
   state_type: "hand_select";
+  player?: BattlePlayer;
   hand_select: {
     mode: string;
     prompt: string;
@@ -302,7 +330,8 @@ export interface HandSelectState {
     round: number;
     turn: string;
     is_play_phase: boolean;
-    player: BattlePlayer;
+    /** @deprecated v0.3.0 compat */
+    player?: BattlePlayer;
     players?: (BattlePlayer & { is_local?: boolean })[];
     enemies: Enemy[];
   };
@@ -311,9 +340,11 @@ export interface HandSelectState {
 
 export interface RelicSelectState {
   state_type: "relic_select";
+  player?: PlayerSummary;
   relic_select: {
     prompt: string;
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     relics: (GameRelic & { index: number })[];
     can_skip: boolean;
   };
@@ -322,8 +353,10 @@ export interface RelicSelectState {
 
 export interface TreasureState {
   state_type: "treasure";
+  player?: PlayerSummary;
   treasure: {
-    player: PlayerSummary;
+    /** @deprecated v0.3.0 compat */
+    player?: PlayerSummary;
     relics: (GameRelic & { index: number; rarity: string })[];
     can_proceed: boolean;
   };
@@ -348,7 +381,7 @@ export type GameState = (
   | RelicSelectState
   | TreasureState
   | MenuState
-) & MultiplayerFields;
+) & MultiplayerFields & BaseFields;
 
 // ============================================
 // Type guards
@@ -369,26 +402,41 @@ export function hasRun(
 }
 
 /**
- * Get the local player's BattlePlayer data from a combat or hand_select state.
- * In singleplayer: returns battle.player.
- * In multiplayer: finds the local player in battle.players[].
+ * Get the player data from any game state.
+ * v0.3.2: player is at top level (state.player).
+ * v0.3.0 compat: falls back to container-nested player.
+ * Multiplayer: finds local player in battle.players[].
  */
+export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined {
+  // v0.3.2: top-level player
+  if (state.player) return state.player;
+
+  // Multiplayer combat: find local player in battle.players[]
+  if ("battle" in state && state.battle?.players?.length) {
+    const localSlot = state.local_player_slot;
+    if (localSlot != null && state.battle.players[localSlot]) {
+      return state.battle.players[localSlot];
+    }
+    return state.battle.players.find((p) => p.is_local) ?? state.battle.players[0];
+  }
+
+  // v0.3.0 compat: nested player in container
+  if ("battle" in state && state.battle?.player) return state.battle.player;
+  if ("map" in state) return (state as MapState).map?.player;
+  if ("shop" in state) return (state as ShopState).shop?.player;
+  if ("event" in state) return (state as EventState).event?.player;
+  if ("rest_site" in state) return (state as RestSiteState).rest_site?.player;
+  if ("rewards" in state) return (state as CombatRewardsState).rewards?.player;
+  if ("card_select" in state) return (state as CardSelectState).card_select?.player;
+  if ("relic_select" in state) return (state as RelicSelectState).relic_select?.player;
+  if ("treasure" in state) return (state as TreasureState).treasure?.player;
+
+  return undefined;
+}
+
+/** @deprecated Use getPlayer() instead */
 export function getLocalCombatPlayer(
   state: (CombatState | HandSelectState) & MultiplayerFields
 ): BattlePlayer | undefined {
-  const battle = state.battle;
-  if (!battle) return undefined;
-
-  // Multiplayer: find local player in array
-  if (battle.players?.length) {
-    const localSlot = state.local_player_slot;
-    if (localSlot != null && battle.players[localSlot]) {
-      return battle.players[localSlot];
-    }
-    // Fallback: find by is_local flag
-    return battle.players.find((p) => p.is_local) ?? battle.players[0];
-  }
-
-  // Singleplayer: direct player field
-  return battle.player;
+  return getPlayer(state as unknown as GameState) as BattlePlayer | undefined;
 }

@@ -75,7 +75,7 @@ export function useMapEvaluation(
     const prev = lastEvalContext.current;
     if (prev && currentPos) {
       const onRecommendedPath = prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`);
-      const mapPlayer = state.map?.player;
+      const mapPlayer = state.player ?? state.map?.player;
       const hpPercent = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
       const hpSimilar = Math.abs(hpPercent - prev.hpPercent) < 0.15;
       const deckSimilar = Math.abs(deckCards.length - prev.deckSize) <= 1;
@@ -109,7 +109,7 @@ export function useMapEvaluation(
     updateFromContext(ctx);
 
     // Override context gold/HP with map state's player data (most current)
-    const mapPlayer = state.map?.player;
+    const mapPlayer = state.player ?? state.map?.player;
     if (mapPlayer) {
       ctx.gold = mapPlayer.gold;
       ctx.hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
@@ -199,7 +199,7 @@ export function useMapEvaluation(
           runNarrative: getPromptContext(),
           mapPrompt: `${contextStr}
 
-HP: ${mapPlayer.hp}/${mapPlayer.max_hp} (${Math.round((mapPlayer.hp / Math.max(1, mapPlayer.max_hp)) * 100)}%) | Gold: ${mapPlayer.gold}g | Removal cost: ${player?.cardRemovalCost ?? "?"}g
+HP: ${mapPlayer?.hp ?? 0}/${mapPlayer?.max_hp ?? 0} (${Math.round(((mapPlayer?.hp ?? 0) / Math.max(1, mapPlayer?.max_hp ?? 1)) * 100)}%) | Gold: ${mapPlayer?.gold ?? 0}g | Removal cost: ${player?.cardRemovalCost ?? "?"}g
 Map: ${mapOverview} | Boss in ${state.map.boss.row - currentRow} floors
 
 Paths (each line = node in order, ├─ = branch point):
@@ -236,7 +236,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
       setCache(CACHE_KEY, mapKey, parsed);
 
       // Track context for skip-re-eval logic
-      const mp = state.map?.player;
+      const mp = state.player ?? state.map?.player;
       const recommendedNodes = new Set<string>();
       // Include all next options (the user could pick any recommended one)
       for (const opt of options) {

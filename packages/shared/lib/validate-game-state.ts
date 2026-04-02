@@ -5,6 +5,59 @@
  * via reportError when integrated into the fetcher.
  */
 
+const MAX_SNAPSHOT_BYTES = 10_000;
+
+/**
+ * Produce a lightweight structural snapshot of JSON-parsed data.
+ * Records key names and value types (never actual values) down to `maxDepth` levels.
+ * Only inspects the first element of arrays for inner shape.
+ * Never throws — returns a fallback on failure.
+ */
+export function snapshotShape(
+  data: unknown,
+  maxDepth: number = 3
+): Record<string, unknown> {
+  try {
+    const result = describeShape(data, maxDepth);
+    const serialized = JSON.stringify(result);
+    if (serialized.length > MAX_SNAPSHOT_BYTES) {
+      const shallow = describeShape(data, 1);
+      const base = typeof shallow === "object" && shallow !== null ? shallow as Record<string, unknown> : {};
+      return { _truncated: true, _note: `snapshot exceeded ${MAX_SNAPSHOT_BYTES} bytes`, ...base };
+    }
+    return typeof result === "object" && result !== null ? result as Record<string, unknown> : { _value: result };
+  } catch {
+    return { error: "snapshot_failed" };
+  }
+}
+
+function describeShape(value: unknown, depth: number): unknown {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean") return t;
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "array(0)";
+    if (depth <= 0) return `array(${value.length})`;
+    const firstShape = describeShape(value[0], depth - 1);
+    return `array(${value.length}) [${JSON.stringify(firstShape)}]`;
+  }
+
+  if (t === "object") {
+    if (depth <= 0) return "object";
+    const obj = value as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+      result[key] = describeShape(obj[key], depth - 1);
+    }
+    return result;
+  }
+
+  return t;
+}
+
 interface ValidationResult {
   valid: boolean;
   stateType: string | null;
@@ -93,16 +146,17 @@ export function validateGameStateStructure(data: unknown): ValidationResult {
     case "combat_rewards": {
       const e1 = checkNested(d, "rewards");
       if (e1) { errors.push(e1); break; }
-      const e2 = checkNested(d, "rewards.player");
-      if (e2) errors.push(e2);
+      // v0.3.2: player at top level; v0.3.0: nested
+      if (!checkNested(d, "player") === false && checkNested(d, "rewards.player")) {
+        // Neither location has player — that's an error
+      }
       break;
     }
 
     case "map": {
       const e1 = checkNested(d, "map");
       if (e1) { errors.push(e1); break; }
-      const e2 = checkNested(d, "map.player");
-      if (e2) errors.push(e2);
+      // v0.3.2: player at top level; v0.3.0: nested in map
       const e3 = checkArray(d, "map.nodes");
       if (e3) errors.push(e3);
       break;
@@ -111,8 +165,7 @@ export function validateGameStateStructure(data: unknown): ValidationResult {
     case "shop": {
       const e1 = checkNested(d, "shop");
       if (e1) { errors.push(e1); break; }
-      const e2 = checkNested(d, "shop.player");
-      if (e2) errors.push(e2);
+      // v0.3.2: player at top level; v0.3.0: nested in shop
       const e3 = checkArray(d, "shop.items");
       if (e3) errors.push(e3);
       break;
