@@ -139,7 +139,7 @@ function EnemyRow({ enemy }: { enemy: CombatState["battle"]["enemies"][number] }
 
 export function CombatView({ state, deckCards }: { state: CombatState; deckCards: CombatCard[] }) {
   const player = getPlayer(state);
-  if (!player) {
+  if (!player || !state.battle) {
     return (
       <div className="flex items-center justify-center h-full">
         <span className="text-sm text-zinc-500 animate-pulse">Connecting to combat...</span>
