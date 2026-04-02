@@ -38,6 +38,8 @@ GAME FACTS:
 - STS2 has 3 acts. There is no Act 4. Gold is worthless after the Act 3 boss.
 - Unplayable and Curse cards are always the #1 removal priority, above Strikes.
 - Relics are vital for clearing Act 3 — maximize relic acquisition opportunities (elites, treasures, events).
+- ENCHANTED CARDS: Ancient events transform deck cards into stronger versions (e.g., Bash → Break). Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
+- READ DESCRIPTIONS: Always check what a card actually does. If the description mentions Vulnerable, Block, Strength, Draw, Exhaust, etc., that card supports those archetypes.
 
 OUTPUT RULES:
 - Only name cards already in the player's deck. Say "enables [archetype]" not "synergizes with [unowned card]."
