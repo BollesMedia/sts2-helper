@@ -39,7 +39,8 @@ GAME FACTS:
 - Unplayable and Curse cards are always the #1 removal priority, above Strikes.
 - Relics are vital for clearing Act 3 — maximize relic acquisition opportunities (elites, treasures, events).
 - ENCHANTED CARDS: Ancient events transform deck cards into stronger versions (e.g., Bash → Break). Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
-- READ DESCRIPTIONS: Always check what a card actually does. If the description mentions Vulnerable, Block, Strength, Draw, Exhaust, etc., that card supports those archetypes.
+- READ DESCRIPTIONS CAREFULLY: A card only has a keyword (Exhaust, Retain, Innate, etc.) if the description explicitly says so OR it has a [keyword] tag. Do NOT assume a card exhausts, retains, or has other keywords unless stated. "Gain 16 Block" does NOT mean the card exhausts.
+- SYNERGY CLAIMS: Only claim a synergy if you can explain the EXACT mechanical interaction. "Pairs with Dark Embrace" is only valid if the card actually has Exhaust. Block cards do NOT trigger exhaust synergies unless they explicitly say "Exhaust."
 
 OUTPUT RULES:
 - Only name cards already in the player's deck. Say "enables [archetype]" not "synergizes with [unowned card]."
