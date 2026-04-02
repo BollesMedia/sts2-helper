@@ -31,11 +31,11 @@ const RARITY_COLOR: Record<string, string> = {
 
 /** Character class → energy orb colors (bg gradient + text + border + glow) */
 const CHARACTER_ENERGY: Record<string, { bg: string; text: string; border: string; glow: string }> = {
-  "The Ironclad":   { bg: "from-red-500 to-red-700",       text: "text-white",      border: "border-red-400/50",    glow: "shadow-[0_0_8px_rgba(239,68,68,0.4)]" },
-  "The Silent":     { bg: "from-green-500 to-green-700",    text: "text-white",      border: "border-green-400/50",  glow: "shadow-[0_0_8px_rgba(34,197,94,0.4)]" },
-  "The Defect":     { bg: "from-blue-400 to-blue-600",      text: "text-white",      border: "border-blue-400/50",   glow: "shadow-[0_0_8px_rgba(59,130,246,0.4)]" },
-  "The Necrobinder": { bg: "from-purple-500 to-purple-700", text: "text-white",      border: "border-purple-400/50", glow: "shadow-[0_0_8px_rgba(168,85,247,0.4)]" },
-  "The Regent":     { bg: "from-cyan-400 to-cyan-600",      text: "text-white",      border: "border-cyan-400/50",   glow: "shadow-[0_0_8px_rgba(34,211,238,0.4)]" },
+  "The Ironclad":   { bg: "from-red-600/85 to-red-800/85",       text: "text-white",      border: "border-red-400/40",    glow: "shadow-[0_0_6px_rgba(239,68,68,0.3)]" },
+  "The Silent":     { bg: "from-green-600/85 to-green-800/85",    text: "text-white",      border: "border-green-400/40",  glow: "shadow-[0_0_6px_rgba(34,197,94,0.3)]" },
+  "The Defect":     { bg: "from-blue-500/85 to-blue-700/85",      text: "text-white",      border: "border-blue-400/40",   glow: "shadow-[0_0_6px_rgba(59,130,246,0.3)]" },
+  "The Necrobinder": { bg: "from-purple-600/85 to-purple-800/85", text: "text-white",      border: "border-purple-400/40", glow: "shadow-[0_0_6px_rgba(168,85,247,0.3)]" },
+  "The Regent":     { bg: "from-cyan-500/85 to-cyan-700/85",      text: "text-white",      border: "border-cyan-400/40",   glow: "shadow-[0_0_6px_rgba(34,211,238,0.3)]" },
 };
 
 const DEFAULT_ENERGY = { bg: "from-zinc-500 to-zinc-700", text: "text-white", border: "border-zinc-400/50", glow: "" };
