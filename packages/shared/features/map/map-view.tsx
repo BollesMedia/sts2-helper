@@ -132,10 +132,11 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return { hpPct, gold: mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor };
   }, [state, player, deckCards]);
 
-  // Recommended path with persistence
-  const prevPathRef = useRef<{ col: number; row: number }[]>([]);
+  // Recommended path — persisted to localStorage so it survives remounts
+  const PATH_STORAGE_KEY = "sts2-map-recommended-path";
 
   const recommendedPath = useMemo(() => {
+    // Best case: rankings exist, trace from best option
     if (bestOptionIndex != null) {
       const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
       if (bestOpt) {
@@ -143,15 +144,21 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
           bestOpt.col, bestOpt.row, nodes, boss,
           pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
         );
-        prevPathRef.current = path;
+        try { localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(path)); } catch {}
         return path;
       }
     }
+    // Evaluation has a cached path (from carry-forward or API)
     if (evaluation?.recommendedPath?.length) {
-      prevPathRef.current = evaluation.recommendedPath;
+      try { localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(evaluation.recommendedPath)); } catch {}
       return evaluation.recommendedPath;
     }
-    return prevPathRef.current;
+    // Last resort: load from localStorage (survives remount)
+    try {
+      const stored = localStorage.getItem(PATH_STORAGE_KEY);
+      if (stored) return JSON.parse(stored) as { col: number; row: number }[];
+    } catch {}
+    return [];
   }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation]);
 
   const recommendedPathEdges = useMemo(() => {
