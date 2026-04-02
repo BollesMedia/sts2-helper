@@ -81,12 +81,10 @@ export function useMapEvaluation(
     // Gate: only 1 option → never evaluate (no decision to make)
     if (options.length <= 1) return false;
 
-    // Rule 1: No evaluation exists → evaluate
-    if (!evaluation && !getCached(CACHE_KEY, mapKey)) return true;
-
     const prev = lastEvalContext.current;
 
-    // No previous context → evaluate (first launch, cache cleared)
+    // Rule 1: No evaluation has EVER been done this act → evaluate
+    // Check: do we have context from a previous eval? If not, this is a fresh start.
     if (!prev) return true;
 
     // Act changed → always re-evaluate
