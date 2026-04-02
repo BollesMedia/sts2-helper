@@ -199,7 +199,7 @@ export function useRunTracker(gameState: GameState | null, userId: string | null
     if (deck.length > 0) {
       lastDeckNames.current = deck.map((c) => c.name);
     }
-    if (p.relics.length > 0) {
+    if (p.relics?.length) {
       lastRelicNames.current = p.relics.map((r) => r.name);
     }
   }
