@@ -84,8 +84,9 @@ export function validateGameStateStructure(data: unknown): ValidationResult {
   const errors: string[] = [];
 
   // v0.3.2: player should be top-level on all non-menu states
+  // Multiplayer uses `players` array instead of `player`
   // Transitional states may have message instead — that's OK
-  if (stateType !== "menu" && !d.player && !d.message) {
+  if (stateType !== "menu" && !d.player && !d.players && !d.message) {
     errors.push("missing top-level player");
   }
 
