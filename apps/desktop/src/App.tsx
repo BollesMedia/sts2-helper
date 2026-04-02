@@ -125,7 +125,9 @@ function AuthenticatedApp() {
       });
   }, [connectionStatus]);
 
-  if (connectionStatus !== "connected" || !gameState) {
+  // When mod mismatch is detected, keep the update UI visible even if the game
+  // disconnects (user closed it to update). Otherwise show the normal connection banner.
+  if ((connectionStatus !== "connected" || !gameState) && !modMismatch) {
     return (
       <ConnectionBanner
         status={connectionStatus}
@@ -137,7 +139,7 @@ function AuthenticatedApp() {
 
   return (
     <div className="flex flex-1 flex-col h-screen overflow-hidden">
-      <AppHeader gameState={gameState} player={player} onSignOut={signOut} />
+      {gameState && <AppHeader gameState={gameState} player={player} onSignOut={signOut} />}
       {modMismatch && (
         <ModVersionBanner
           installed={modMismatch.installed}
@@ -147,15 +149,23 @@ function AuthenticatedApp() {
         />
       )}
       <main className="flex-1 min-h-0 p-4">
-        <GameStateView
-          state={gameState}
-          deckCards={deckCards}
-          player={player}
-          runId={runState.runId}
-          runState={runState}
-        />
+        {gameState ? (
+          <GameStateView
+            state={gameState}
+            deckCards={deckCards}
+            player={player}
+            runId={runState.runId}
+            runState={runState}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-spire-text-tertiary">
+              {modMismatch ? "Update the mod above, then relaunch the game." : "Waiting for game connection..."}
+            </p>
+          </div>
+        )}
       </main>
-      {gameState.state_type !== "menu" && (
+      {gameState && gameState.state_type !== "menu" && (
         <footer className="border-t border-spire-border px-4 py-1.5 flex justify-between">
           <button
             onClick={() => {
