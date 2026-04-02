@@ -48,7 +48,7 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
         <p className="text-sm text-spire-text-tertiary">Waiting for game state to update...</p>
       )}
 
-      <div className="grid grid-cols-3 gap-3 mt-1">
+      <div className="grid grid-cols-3 gap-3">
         {isLoading && !evaluation ? (
           options.map((o) => <CardSkeleton key={o.index} />)
         ) : (

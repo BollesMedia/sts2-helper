@@ -76,7 +76,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
 
       {error && <EvalError error={error} onRetry={retry} />}
 
-      <div className="grid grid-cols-2 gap-2 mt-2">
+      <div className="grid grid-cols-2 gap-2">
         {isLoading && !evaluation ? (
           options.map((o) => <CardSkeleton key={o.index} />)
         ) : (
@@ -94,7 +94,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
               <div
                 key={opt.index}
                 className={cn(
-                  "rounded-lg border bg-spire-surface relative overflow-hidden transition-all duration-150",
+                  "rounded-lg border bg-spire-surface relative transition-all duration-150",
                   !opt.is_enabled && "opacity-40",
                   evalBorderClass(evalData?.recommendation, isTopPick)
                 )}
