@@ -153,7 +153,7 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
 
   return (
     <div
-      className={isBoss ? "grid h-full min-h-0 gap-2" : "flex flex-col gap-2"}
+      className={isBoss ? "grid h-full min-h-0 gap-2" : "flex flex-col gap-2 h-full min-h-0"}
       style={isBoss ? { gridTemplateRows: "auto auto minmax(0, 1fr) auto" } : undefined}
     >
       {/* Row 1: Header bar */}
@@ -202,7 +202,10 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
         </div>
       )}
 
-      {/* Row 4: Hand — anchored to bottom, subtle */}
+      {/* Spacer pushes hand to bottom in non-boss layout */}
+      {!isBoss && <div className="flex-1" />}
+
+      {/* Hand — anchored to bottom, subtle */}
       <div className="rounded-lg border border-spire-border bg-spire-surface/40 px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-1.5 overflow-x-auto">
           <span className="text-[9px] font-medium text-spire-text-muted shrink-0 mr-1">
