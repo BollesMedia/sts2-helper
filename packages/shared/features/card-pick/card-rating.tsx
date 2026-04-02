@@ -11,12 +11,12 @@ interface CardRatingProps {
   isTopPick?: boolean;
 }
 
-const TYPE_BADGE: Record<string, { label: string; color: string }> = {
-  Attack: { label: "Attack", color: "text-red-400 bg-red-500/10 border-red-500/20" },
-  Skill: { label: "Skill", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-  Power: { label: "Power", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-  Status: { label: "Status", color: "text-zinc-400 bg-zinc-500/10 border-zinc-500/20" },
-  Curse: { label: "Curse", color: "text-red-400 bg-red-500/10 border-red-500/20" },
+const TYPE_COLOR: Record<string, string> = {
+  Attack: "text-red-400",
+  Skill: "text-blue-400",
+  Power: "text-amber-400",
+  Status: "text-zinc-500",
+  Curse: "text-red-500",
 };
 
 const RARITY_COLOR: Record<string, string> = {
@@ -27,11 +27,11 @@ const RARITY_COLOR: Record<string, string> = {
   Curse: "text-red-500",
 };
 
-export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProps) {
+export function CardRating({ card, evaluation, isTopPick }: CardRatingProps) {
   const rec = evaluation?.recommendation;
   const chip = rec ? RECOMMENDATION_CHIP[rec] ?? RECOMMENDATION_CHIP.situational : "";
   const label = rec ? RECOMMENDATION_LABEL[rec] ?? RECOMMENDATION_LABEL.situational : "";
-  const typeBadge = TYPE_BADGE[card.type] ?? TYPE_BADGE.Skill;
+  const typeColor = TYPE_COLOR[card.type] ?? "text-zinc-500";
   const rarityColor = RARITY_COLOR[card.rarity] ?? "text-zinc-500";
 
   return (
@@ -50,57 +50,49 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
       )}
       title={evaluation?.reasoning}
     >
-      {/* Pick This — absolutely positioned so cards align vertically */}
+      {/* Pick This — solid background, centered above card */}
       {isTopPick && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
-          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/25 whitespace-nowrap shadow-[0_0_8px_rgba(52,211,153,0.3)]">
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+          <span className="text-[10px] font-bold text-emerald-950 bg-emerald-400 px-3 py-0.5 rounded-full whitespace-nowrap shadow-[0_0_12px_rgba(52,211,153,0.4)]">
             Pick This
           </span>
         </div>
       )}
 
-      <div className="p-3.5 pt-4 space-y-3">
+      <div className="p-4 pt-5 flex flex-col gap-3">
         {/* Card header: name + energy cost */}
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-display font-semibold text-sm text-spire-text truncate">
+            <h3 className="font-display font-semibold text-base text-spire-text truncate">
               {card.name}
               {card.is_upgraded && (
                 <span className="text-emerald-400 ml-0.5">+</span>
               )}
             </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <span className={cn("rounded border px-1.5 py-0.5 text-[10px] font-medium", typeBadge.color)}>
-                {typeBadge.label}
-              </span>
-              <span className={cn("text-[10px] font-medium", rarityColor)}>{card.rarity}</span>
-            </div>
+            {/* Type + Rarity merged into one line */}
+            <span className="text-[11px]">
+              <span className={rarityColor}>{card.rarity}</span>
+              <span className="text-spire-text-muted mx-1">/</span>
+              <span className={typeColor}>{card.type}</span>
+            </span>
           </div>
           {/* Energy cost */}
-          <span className="shrink-0 rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-xs font-bold font-mono tabular-nums text-blue-400">
-            {card.cost}E
+          <span className="shrink-0 rounded-md border border-blue-500/30 bg-blue-500/10 w-8 h-8 flex items-center justify-center text-sm font-bold font-mono text-blue-400">
+            {card.cost}
           </span>
         </div>
 
         {/* Description */}
-        <p className="text-xs text-spire-text-secondary leading-relaxed line-clamp-2">
+        <p className="text-sm text-spire-text-secondary leading-relaxed line-clamp-2">
           {card.description}
         </p>
 
-        {/* Evaluation row */}
+        {/* Evaluation — tier + recommendation on one line */}
         {evaluation && (
-          <div className="pt-2.5 border-t border-spire-border-subtle flex items-center gap-2">
+          <div className="flex items-center gap-2 pt-3 border-t border-spire-border-subtle">
             <TierBadge tier={evaluation.tier} size="sm" glow={isTopPick} />
-            {rank != null && (
-              <span className={cn(
-                "text-sm font-bold font-mono tabular-nums",
-                isTopPick ? "text-emerald-500/80" : "text-spire-text-muted"
-              )}>
-                #{rank}
-              </span>
-            )}
             <span className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-medium border ml-auto",
+              "rounded px-1.5 py-0.5 text-[10px] font-medium border",
               isTopPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : chip + " border-transparent"
             )}>
               {label}
@@ -108,7 +100,7 @@ export function CardRating({ card, evaluation, rank, isTopPick }: CardRatingProp
           </div>
         )}
 
-        {/* Reasoning — readable size */}
+        {/* Reasoning */}
         {evaluation?.reasoning && (
           <p className={cn(
             "text-sm leading-relaxed line-clamp-2",
