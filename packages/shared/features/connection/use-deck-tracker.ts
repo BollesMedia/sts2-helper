@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import type { GameState, CombatCard, CombatState } from "../../types/game-state";
+import type { GameState, CombatCard, CombatState, MultiplayerFields } from "../../types/game-state";
 import { isCombatState, hasRun, getLocalCombatPlayer } from "../../types/game-state";
 import { createClient } from "../../supabase/client";
 import { initStarterDecks, getStarterDeck } from "../../supabase/starter-decks";
@@ -156,6 +156,35 @@ export function useDeckTracker(gameState: GameState | null): CombatCard[] {
           to: combatDeck.length,
           filtered: allPiles.length - combatDeck.length,
           round: gameState.battle.round,
+        });
+        deckCards.current = combatDeck;
+        saveToStorage(combatDeck);
+      }
+    }
+  }
+
+  // ─── FALLBACK: sync from any combat/hand_select round if deck is empty ───
+  // Covers cases where the app started mid-run (missed round 1) or localStorage was cleared.
+  // A slightly "dirty" snapshot (with possible exhaust/temp cards) is far better than no deck context.
+  if (deckCards.current.length === 0) {
+    const fallbackPlayer =
+      (isCombatState(gameState) ? combatPlayer : null) ??
+      (gameState.state_type === "hand_select" && "battle" in gameState
+        ? getLocalCombatPlayer(gameState as CombatState & MultiplayerFields)
+        : null);
+
+    if (fallbackPlayer) {
+      const allPiles = [
+        ...(fallbackPlayer.hand ?? []),
+        ...(fallbackPlayer.draw_pile ?? []),
+        ...(fallbackPlayer.discard_pile ?? []),
+        ...(fallbackPlayer.exhaust_pile ?? []),
+      ];
+      const combatDeck = allPiles.filter(isPlayerCard);
+      if (combatDeck.length > 0) {
+        console.log("[DeckTracker] Mid-combat fallback sync:", {
+          cards: combatDeck.length,
+          stateType: currentType,
         });
         deckCards.current = combatDeck;
         saveToStorage(combatDeck);
