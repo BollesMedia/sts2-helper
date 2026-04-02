@@ -28,7 +28,6 @@ export function CardUpgradeView({ state, deckCards, player }: CardUpgradeViewPro
   const [isLoading, setIsLoading] = useState(false);
   const evaluatedKey = useRef("");
 
-  // Only show upgradeable cards (not already upgraded)
   const cards = state.card_select.cards.filter((c) => !c.name.endsWith("+"));
   const cardKey = cards.map((c) => c.name).sort().join(",");
 
@@ -90,22 +89,32 @@ Cards with + cannot be upgraded again.`,
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Upgrade a Card</h2>
+        <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide">
+          Upgrade a Card
+        </h2>
         {isLoading && (
-          <span className="text-xs text-zinc-500 animate-pulse">Evaluating...</span>
+          <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
+            Evaluating...
+          </span>
         )}
       </div>
 
-      {recommendation && (
-        <p className="text-sm text-emerald-300 font-medium">
-          Upgrade {recommendation.cardName}
+      {/* Recommendation banner */}
+      {recommendation && !isLoading && (
+        <div className="rounded border border-blue-500/30 bg-blue-950/20 px-3 py-2 flex items-center gap-2">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded border border-blue-500/25 shrink-0">
+            Upgrade
+          </span>
+          <span className="text-xs font-semibold text-blue-300">{recommendation.cardName}</span>
           {recommendation.reasoning && (
-            <span className="text-zinc-400 font-normal"> — {recommendation.reasoning}</span>
+            <span className="text-[10px] text-zinc-500 truncate">{recommendation.reasoning}</span>
           )}
-        </p>
+        </div>
       )}
 
+      {/* Card grid */}
       <div className="grid grid-cols-5 gap-1.5">
         {(() => {
           let highlightedOne = false;
@@ -118,18 +127,25 @@ Cards with + cannot be upgraded again.`,
               <div
                 key={card.index}
                 className={cn(
-                  "rounded border px-2.5 py-1.5 text-xs",
+                  "rounded-lg border px-2.5 py-2 relative overflow-hidden transition-all duration-150",
                   isRecommended
-                    ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
-                    : "border-zinc-800 bg-zinc-900/50 text-zinc-400"
+                    ? "border-blue-500/50 bg-blue-950/20 shadow-[0_0_10px_rgba(59,130,246,0.12)]"
+                    : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800/60"
                 )}
+                title={card.description}
               >
-                <span className={cn("font-medium", isRecommended ? "text-emerald-200" : "text-zinc-200")}>
+                {isRecommended && (
+                  <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 to-transparent" />
+                )}
+                <span className={cn(
+                  "font-medium text-[11px] truncate block",
+                  isRecommended ? "text-blue-200" : "text-zinc-300"
+                )}>
                   {card.name}
                 </span>
-                {isRecommended && (
-                  <span className="ml-1.5 text-[10px] text-emerald-400 uppercase font-bold">upgrade</span>
-                )}
+                <span className="text-[9px] text-zinc-600 truncate block mt-0.5">
+                  {card.description.slice(0, 40)}{card.description.length > 40 ? "..." : ""}
+                </span>
               </div>
             );
           });

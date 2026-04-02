@@ -24,7 +24,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
     <div className="flex flex-col gap-3">
       {/* Header row with inline summary */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-zinc-100 shrink-0">Card Reward</h2>
+        <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide shrink-0">Card Reward</h2>
         
         {/* Inline pick summary or skip message */}
         {evaluation?.pickSummary && !isLoading && (
@@ -42,7 +42,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
         )}
         
         {isLoading && (
-          <span className="text-xs text-zinc-500 animate-pulse">
+          <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
             Evaluating...
           </span>
         )}

@@ -13,7 +13,6 @@ import {
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
 import {
-  RECOMMENDATION_BORDER,
   RECOMMENDATION_CHIP,
   RECOMMENDATION_LABEL,
 } from "../../lib/recommendation-styles";
@@ -25,7 +24,14 @@ interface ShopViewProps {
   runId: string | null;
 }
 
-const TYPE_COLORS: Record<string, string> = {
+const CATEGORY_ACCENT: Record<string, string> = {
+  card: "from-blue-500",
+  relic: "from-purple-500",
+  potion: "from-emerald-500",
+  card_removal: "from-red-500",
+};
+
+const TYPE_COLOR: Record<string, string> = {
   Attack: "text-red-400",
   Skill: "text-blue-400",
   Power: "text-amber-400",
@@ -36,10 +42,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
   const { evaluation, isLoading, error, retry } = useShopEvaluation(
-    state,
-    deckCards,
-    player,
-    runId
+    state, deckCards, player, runId
   );
 
   const items = state.shop.items.filter((i) => i.is_stocked);
@@ -47,7 +50,6 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
   const relics = items.filter((i) => i.category === "relic");
   const potions = items.filter((i) => i.category === "potion");
   const cardRemoval = items.find((i) => i.category === "card_removal");
-
   const stockedItems = items;
 
   const findEval = (item: ShopItem) => {
@@ -67,13 +69,13 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-zinc-100">Shop</h2>
-          <span className="text-xs text-zinc-500">
+          <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wide">Shop</h2>
+          <span className="text-xs font-mono tabular-nums text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
             {state.shop?.player?.gold ?? 0}g
           </span>
         </div>
         {isLoading && (
-          <span className="text-xs text-zinc-500 animate-pulse">
+          <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
             Evaluating...
           </span>
         )}
@@ -81,29 +83,25 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
 
       {/* Spending plan */}
       {evaluation?.spendingPlan && (
-        <p className="text-xs text-blue-300 shrink-0">
-          {evaluation.spendingPlan}
-        </p>
+        <div className="rounded border border-blue-500/20 bg-blue-950/20 px-2.5 py-1.5 shrink-0">
+          <p className="text-[10px] text-blue-300 leading-relaxed">
+            {evaluation.spendingPlan}
+          </p>
+        </div>
       )}
 
       {error && <EvalError error={error} onRetry={retry} />}
 
       {/* Items — two columns */}
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-x-4 gap-y-3 content-start overflow-y-auto">
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-x-3 gap-y-2 content-start overflow-y-auto">
         {/* Left column: Cards */}
         <div className="space-y-2">
           {cards.length > 0 && (
             <ShopSection title="Cards">
               {cards.map((item) => (
-                <ShopRow
+                <ShopItemCard
                   key={item.index}
-                  name={getItemName(item)}
-                  description={getItemDescription(item)}
-                  cost={item.cost}
-                  type={item.card_type ?? "Card"}
-                  rarity={item.card_rarity}
-                  affordable={item.can_afford}
-                  onSale={item.on_sale}
+                  item={item}
                   evaluation={findEval(item) ?? null}
                 />
               ))}
@@ -116,13 +114,9 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
           {relics.length > 0 && (
             <ShopSection title="Relics">
               {relics.map((item) => (
-                <ShopRow
+                <ShopItemCard
                   key={item.index}
-                  name={getItemName(item)}
-                  description={getItemDescription(item)}
-                  cost={item.cost}
-                  type="Relic"
-                  affordable={item.can_afford}
+                  item={item}
                   evaluation={findEval(item) ?? null}
                 />
               ))}
@@ -132,13 +126,9 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
           {potions.length > 0 && (
             <ShopSection title="Potions">
               {potions.map((item) => (
-                <ShopRow
+                <ShopItemCard
                   key={item.index}
-                  name={getItemName(item)}
-                  description={getItemDescription(item)}
-                  cost={item.cost}
-                  type="Potion"
-                  affordable={item.can_afford}
+                  item={item}
                   evaluation={findEval(item) ?? null}
                 />
               ))}
@@ -147,12 +137,8 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
 
           {cardRemoval && (
             <ShopSection title="Services">
-              <ShopRow
-                name="Card Removal"
-                description="Remove a card from your deck"
-                cost={cardRemoval.cost}
-                type="Service"
-                affordable={cardRemoval.can_afford}
+              <ShopItemCard
+                item={cardRemoval}
                 evaluation={findEval(cardRemoval) ?? null}
               />
             </ShopSection>
@@ -163,16 +149,10 @@ export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
   );
 }
 
-function ShopSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function ShopSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+      <h3 className="mb-1.5 text-[9px] font-bold uppercase tracking-widest text-zinc-600 flex items-center gap-2">
         <span className="h-px flex-1 bg-gradient-to-r from-zinc-700/50 to-transparent" />
         {title}
         <span className="h-px flex-1 bg-gradient-to-l from-zinc-700/50 to-transparent" />
@@ -182,76 +162,77 @@ function ShopSection({
   );
 }
 
-interface ShopRowProps {
-  name: string;
-  description: string;
-  cost: number;
-  type: string;
-  rarity?: string;
-  affordable: boolean;
-  onSale?: boolean;
-  evaluation: CardEvaluation | null;
-}
-
-function ShopRow({
-  name,
-  description,
-  cost,
-  type,
-  rarity,
-  affordable,
-  onSale,
-  evaluation,
-}: ShopRowProps) {
+function ShopItemCard({ item, evaluation }: { item: ShopItem; evaluation: CardEvaluation | null }) {
+  const name = getItemName(item);
+  const description = getItemDescription(item);
+  const type = item.category === "card" ? (item.card_type ?? "Card") : item.category === "card_removal" ? "Service" : item.category;
   const rec = evaluation?.recommendation;
   const isStrongPick = rec === "strong_pick";
-  const border = rec
-    ? RECOMMENDATION_BORDER[rec] ?? "border-zinc-800"
-    : "border-zinc-700/40";
+  const accent = CATEGORY_ACCENT[item.category] ?? "from-zinc-600";
 
-  // Build tooltip: description + reasoning
-  const tooltip = [description, evaluation?.reasoning].filter(Boolean).join(" — ");
+  const tooltip = [description, evaluation?.reasoning].filter(Boolean).join(" \u2014 ");
 
   return (
     <div
       className={cn(
-        "rounded-lg border bg-zinc-900/60 transition-all duration-200",
-        border,
-        !affordable && "opacity-40",
-        isStrongPick && affordable && "border-emerald-500/50 shadow-[0_0_12px_rgba(52,211,153,0.15)]",
-        "hover:bg-zinc-800/60"
+        "rounded-lg border bg-zinc-900/70 relative overflow-hidden transition-all duration-150",
+        !item.can_afford && "opacity-35",
+        isStrongPick && item.can_afford
+          ? "border-emerald-500/50 shadow-[0_0_12px_rgba(52,211,153,0.12)]"
+          : rec === "good_pick"
+            ? "border-blue-500/30"
+            : rec === "situational"
+              ? "border-amber-500/30"
+              : "border-zinc-800",
+        item.can_afford && "hover:bg-zinc-800/60"
       )}
       title={tooltip}
     >
-      {/* Compact row — no expand, hover tooltip for details */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5">
-        {evaluation && <TierBadge tier={evaluation.tier} size="sm" glow={isStrongPick && affordable} />}
-        <span className={cn(
-          "text-xs truncate flex-1",
-          isStrongPick && affordable ? "text-zinc-50 font-medium" : "text-zinc-200"
-        )}>{name}</span>
-        {rec && (
-          <span
-            className={cn(
-              "rounded px-1 py-0.5 text-[9px] font-medium shrink-0 border",
-              isStrongPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
+      {/* Category accent edge */}
+      <div className={cn("absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b to-transparent", accent)} />
+
+      <div className="flex items-center gap-2 px-2.5 py-2 pl-3">
+        {evaluation && <TierBadge tier={evaluation.tier} size="sm" glow={isStrongPick && item.can_afford} />}
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className={cn(
+              "text-xs font-medium truncate",
+              isStrongPick && item.can_afford ? "text-zinc-50" : "text-zinc-200"
+            )}>
+              {name}
+            </span>
+            {item.on_sale && (
+              <span className="text-[8px] font-bold uppercase text-emerald-400 bg-emerald-500/15 px-1 py-px rounded border border-emerald-500/25">
+                Sale
+              </span>
             )}
-          >
-            {RECOMMENDATION_LABEL[rec]}
-          </span>
-        )}
-        <span className={cn("text-[10px] shrink-0", TYPE_COLORS[type] ?? "text-zinc-500")}>
-          {type}
-        </span>
-        <span
-          className={cn(
-            "text-[10px] font-medium shrink-0 tabular-nums",
-            affordable ? "text-amber-400" : "text-zinc-600"
+          </div>
+          {/* Description + reasoning preview */}
+          {evaluation?.reasoning && (
+            <p className="text-[9px] text-zinc-600 truncate mt-0.5">{evaluation.reasoning}</p>
           )}
-        >
-          {onSale && <span className="text-emerald-400 mr-1">SALE</span>}
-          {cost}g
-        </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {rec && (
+            <span className={cn(
+              "rounded px-1 py-0.5 text-[8px] font-semibold border",
+              isStrongPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : RECOMMENDATION_CHIP[rec] + " border-transparent"
+            )}>
+              {RECOMMENDATION_LABEL[rec]}
+            </span>
+          )}
+          <span className={cn("text-[10px] shrink-0", TYPE_COLOR[type] ?? "text-zinc-500")}>
+            {type}
+          </span>
+          <span className={cn(
+            "text-[10px] font-semibold font-mono tabular-nums",
+            item.can_afford ? "text-amber-400" : "text-zinc-600"
+          )}>
+            {item.cost}g
+          </span>
+        </div>
       </div>
     </div>
   );
