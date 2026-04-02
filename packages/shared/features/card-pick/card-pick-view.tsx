@@ -85,6 +85,7 @@ export function CardPickView({ state, deckCards, player, runId, exclusive = true
                   evaluation={cardEval ?? null}
                   rank={cardEval?.rank}
                   isTopPick={isTopPick}
+                  character={player?.character}
                 />
               );
             });

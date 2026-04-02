@@ -9,6 +9,8 @@ interface CardRatingProps {
   evaluation: CardEvaluation | null;
   rank?: number;
   isTopPick?: boolean;
+  /** Character name for energy orb color */
+  character?: string;
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -27,12 +29,24 @@ const RARITY_COLOR: Record<string, string> = {
   Curse: "text-red-500",
 };
 
-export function CardRating({ card, evaluation, isTopPick }: CardRatingProps) {
+/** Character class → energy orb colors (bg gradient + text + border + glow) */
+const CHARACTER_ENERGY: Record<string, { bg: string; text: string; border: string; glow: string }> = {
+  "The Ironclad":   { bg: "from-red-500 to-red-700",       text: "text-white",      border: "border-red-400/50",    glow: "shadow-[0_0_8px_rgba(239,68,68,0.4)]" },
+  "The Silent":     { bg: "from-green-500 to-green-700",    text: "text-white",      border: "border-green-400/50",  glow: "shadow-[0_0_8px_rgba(34,197,94,0.4)]" },
+  "The Defect":     { bg: "from-blue-400 to-blue-600",      text: "text-white",      border: "border-blue-400/50",   glow: "shadow-[0_0_8px_rgba(59,130,246,0.4)]" },
+  "The Necrobinder": { bg: "from-purple-500 to-purple-700", text: "text-white",      border: "border-purple-400/50", glow: "shadow-[0_0_8px_rgba(168,85,247,0.4)]" },
+  "The Regent":     { bg: "from-cyan-400 to-cyan-600",      text: "text-white",      border: "border-cyan-400/50",   glow: "shadow-[0_0_8px_rgba(34,211,238,0.4)]" },
+};
+
+const DEFAULT_ENERGY = { bg: "from-zinc-500 to-zinc-700", text: "text-white", border: "border-zinc-400/50", glow: "" };
+
+export function CardRating({ card, evaluation, isTopPick, character }: CardRatingProps) {
   const rec = evaluation?.recommendation;
   const chip = rec ? RECOMMENDATION_CHIP[rec] ?? RECOMMENDATION_CHIP.situational : "";
   const label = rec ? RECOMMENDATION_LABEL[rec] ?? RECOMMENDATION_LABEL.situational : "";
   const typeColor = TYPE_COLOR[card.type] ?? "text-zinc-500";
   const rarityColor = RARITY_COLOR[card.rarity] ?? "text-zinc-500";
+  const energy = (character ? CHARACTER_ENERGY[character] : undefined) ?? DEFAULT_ENERGY;
 
   return (
     <div
@@ -60,7 +74,7 @@ export function CardRating({ card, evaluation, isTopPick }: CardRatingProps) {
       )}
 
       <div className="p-4 pt-5 flex flex-col gap-3">
-        {/* Card header: name + energy cost */}
+        {/* Card header: name + energy orb */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="font-display font-semibold text-base text-spire-text truncate">
@@ -69,15 +83,17 @@ export function CardRating({ card, evaluation, isTopPick }: CardRatingProps) {
                 <span className="text-emerald-400 ml-0.5">+</span>
               )}
             </h3>
-            {/* Type + Rarity merged into one line */}
             <span className="text-[11px]">
               <span className={rarityColor}>{card.rarity}</span>
               <span className="text-spire-text-muted mx-1">/</span>
               <span className={typeColor}>{card.type}</span>
             </span>
           </div>
-          {/* Energy cost */}
-          <span className="shrink-0 rounded-md border border-blue-500/30 bg-blue-500/10 w-8 h-8 flex items-center justify-center text-sm font-bold font-mono text-blue-400">
+          {/* Energy orb — character-colored like the game */}
+          <span className={cn(
+            "shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold font-mono bg-gradient-to-br border",
+            energy.bg, energy.text, energy.border, energy.glow
+          )}>
             {card.cost}
           </span>
         </div>
