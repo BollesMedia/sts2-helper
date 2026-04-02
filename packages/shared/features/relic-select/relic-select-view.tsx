@@ -10,10 +10,9 @@ import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext, addMilestone } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { apiFetch } from "../../lib/api-client";
-import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
+import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "../../components/eval-card";
 import type { TierLetter } from "../../evaluation/tier-utils";
-import { RECOMMENDATION_BORDER } from "../../lib/recommendation-styles";
 
 interface RelicSelectViewProps {
   state: RelicSelectState;
@@ -156,7 +155,7 @@ Use RELIC_1, RELIC_2, RELIC_3 matching the numbered options above.`,
     evaluate();
   }
 
-  const topRank = evaluation?.rankings.find((r) => r.rank === 1);
+  const topPick = evaluation?.rankings ? findTopPick(evaluation.rankings) : null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -178,40 +177,33 @@ Use RELIC_1, RELIC_2, RELIC_3 matching the numbered options above.`,
       <div className="grid grid-cols-3 gap-3">
         {relics.map((relic, i) => {
           const evalData = evaluation?.rankings.find((r) => r.itemIndex === i);
-          const isTopPick = topRank?.itemIndex === i;
+          const isTopPick = topPick === evalData && evalData != null;
 
           return (
             <div
               key={relic.index}
               className={cn(
-                "rounded-lg border bg-zinc-900/60 p-3 relative card-depth card-depth-hover",
-                isTopPick
-                  ? "border-emerald-500/60 ring-2 ring-emerald-500/30 shadow-[0_0_16px_rgba(52,211,153,0.2)]"
-                  : evalData
-                    ? RECOMMENDATION_BORDER[evalData.recommendation] ?? "border-zinc-800"
-                    : "border-zinc-800"
+                "rounded-lg border bg-spire-surface relative transition-all duration-150",
+                evalBorderClass(evalData?.recommendation, isTopPick)
               )}
               title={evalData?.reasoning}
             >
-              {/* "Pick This" banner */}
-              {isTopPick && (
-                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
-                  <div className="px-3 py-0.5 rounded-full bg-emerald-500 text-[10px] font-bold uppercase tracking-widest text-zinc-950 shadow-[0_0_12px_rgba(52,211,153,0.5),0_2px_8px_rgba(0,0,0,0.4)] border border-emerald-400/50">
-                    Pick This
+              {isTopPick && <PickBanner />}
+
+              <div className="p-4 pt-5 flex flex-col gap-3">
+                <h3 className="font-display font-semibold text-sm text-spire-text truncate">{relic.name}</h3>
+                <p className="text-sm text-spire-text-secondary leading-relaxed line-clamp-2">{relic.description}</p>
+
+                {evalData && (
+                  <div className="pt-3 border-t border-spire-border-subtle">
+                    <EvalRow tier={evalData.tier as TierLetter} recommendation={evalData.recommendation} isTopPick={isTopPick} />
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className={cn("flex items-center gap-2", isTopPick && "mt-1.5")}>
-                {evalData && <TierBadge tier={evalData.tier} size="sm" glow={isTopPick} />}
-                <span className="font-medium text-sm text-zinc-100 truncate">{relic.name}</span>
+                {evalData?.reasoning && (
+                  <Reasoning text={evalData.reasoning} isTopPick={isTopPick} />
+                )}
               </div>
-
-              <p className="mt-1 text-[10px] text-zinc-500 leading-snug line-clamp-2">{relic.description}</p>
-
-              {evalData && (
-                <p className="mt-1.5 text-xs text-zinc-400 leading-snug line-clamp-2">{evalData.reasoning}</p>
-              )}
             </div>
           );
         })}

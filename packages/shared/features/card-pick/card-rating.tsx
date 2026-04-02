@@ -1,8 +1,8 @@
 import { cn } from "../../lib/cn";
-import { TierBadge } from "../../components/tier-badge";
-import { RECOMMENDATION_CHIP, RECOMMENDATION_LABEL } from "../../lib/recommendation-styles";
+import { PickBanner, EvalRow, Reasoning, evalBorderClass } from "../../components/eval-card";
 import type { CardEvaluation } from "../../evaluation/types";
 import type { DetailedCard } from "../../types/game-state";
+import type { TierLetter } from "../../evaluation/tier-utils";
 
 interface CardRatingProps {
   card: DetailedCard;
@@ -39,9 +39,6 @@ const CHARACTER_ENERGY: Record<string, { bg: string; text: string; border: strin
 const DEFAULT_ENERGY = { bg: "from-zinc-500 to-zinc-700", text: "text-white", border: "border-zinc-400/50", glow: "" };
 
 export function CardRating({ card, evaluation, isTopPick, character }: CardRatingProps) {
-  const rec = evaluation?.recommendation;
-  const chip = rec ? RECOMMENDATION_CHIP[rec] ?? RECOMMENDATION_CHIP.situational : "";
-  const label = rec ? RECOMMENDATION_LABEL[rec] ?? RECOMMENDATION_LABEL.situational : "";
   const typeColor = TYPE_COLOR[card.type] ?? "text-zinc-500";
   const rarityColor = RARITY_COLOR[card.rarity] ?? "text-zinc-500";
   const energy = (character ? CHARACTER_ENERGY[character] : undefined) ?? DEFAULT_ENERGY;
@@ -50,31 +47,15 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
     <div
       className={cn(
         "rounded-lg border bg-spire-surface relative transition-all duration-150",
-        isTopPick
-          ? "border-emerald-500/60 shadow-[0_0_20px_rgba(52,211,153,0.15)]"
-          : rec === "strong_pick"
-            ? "border-emerald-500/40"
-            : rec === "good_pick"
-              ? "border-blue-500/30"
-              : rec === "situational"
-                ? "border-amber-500/30"
-                : "border-spire-border"
+        evalBorderClass(evaluation?.recommendation, isTopPick)
       )}
       title={evaluation?.reasoning}
     >
-      {/* Pick This — solid background, centered above card */}
-      {isTopPick && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-          <span className="text-[10px] font-bold text-emerald-950 bg-emerald-400 px-3 py-0.5 rounded-full whitespace-nowrap shadow-[0_0_12px_rgba(52,211,153,0.4)]">
-            Pick This
-          </span>
-        </div>
-      )}
+      {isTopPick && <PickBanner />}
 
       <div className="p-4 pt-5 flex flex-col gap-4">
-        {/* Top section: energy orb (top-left like game) + name + meta */}
+        {/* Top section: energy orb + name + meta */}
         <div className="flex items-start gap-3">
-          {/* Energy orb — top-left, octagon */}
           <span className={cn(
             "shrink-0 w-6 h-6 flex items-center justify-center text-xs font-bold font-mono bg-gradient-to-br border mt-0.5",
             energy.bg, energy.text, energy.border, energy.glow
@@ -85,9 +66,7 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
           <div className="min-w-0 flex-1">
             <h3 className="font-display font-semibold text-base text-spire-text truncate">
               {card.name}
-              {card.is_upgraded && (
-                <span className="text-emerald-400 ml-0.5">+</span>
-              )}
+              {card.is_upgraded && <span className="text-emerald-400 ml-0.5">+</span>}
             </h3>
             <span className="text-[11px]">
               <span className={rarityColor}>{card.rarity}</span>
@@ -102,27 +81,15 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
           {card.description}
         </p>
 
-        {/* Evaluation — tier + recommendation */}
+        {/* Evaluation */}
         {evaluation && (
-          <div className="flex items-center gap-2 pt-3 border-t border-spire-border-subtle">
-            <TierBadge tier={evaluation.tier} size="md" glow={isTopPick} />
-            <span className={cn(
-              "rounded px-2 py-1 text-xs font-medium border",
-              isTopPick ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : chip + " border-transparent"
-            )}>
-              {label}
-            </span>
+          <div className="pt-3 border-t border-spire-border-subtle">
+            <EvalRow tier={evaluation.tier as TierLetter} recommendation={evaluation.recommendation} isTopPick={isTopPick} />
           </div>
         )}
 
-        {/* Reasoning */}
         {evaluation?.reasoning && (
-          <p className={cn(
-            "text-sm leading-relaxed line-clamp-2",
-            isTopPick ? "text-spire-text-secondary" : "text-spire-text-tertiary"
-          )}>
-            {evaluation.reasoning}
-          </p>
+          <Reasoning text={evaluation.reasoning} isTopPick={isTopPick} />
         )}
       </div>
     </div>
