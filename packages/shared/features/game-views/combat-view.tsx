@@ -153,10 +153,8 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
 
   return (
     <div
-      className="grid h-full min-h-0 gap-2"
-      style={{
-        gridTemplateRows: isBoss ? "auto auto minmax(0, 1fr) auto" : "auto auto auto",
-      }}
+      className={isBoss ? "grid h-full min-h-0 gap-2" : "flex flex-col gap-2"}
+      style={isBoss ? { gridTemplateRows: "auto auto minmax(0, 1fr) auto" } : undefined}
     >
       {/* Row 1: Header bar */}
       <div className="flex items-center justify-between">
