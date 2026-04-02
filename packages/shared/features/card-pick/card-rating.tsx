@@ -76,7 +76,7 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
         <div className="flex items-start gap-3">
           {/* Energy orb — top-left, octagon */}
           <span className={cn(
-            "shrink-0 w-8 h-8 flex items-center justify-center text-base font-bold font-mono bg-gradient-to-br border mt-0.5",
+            "shrink-0 w-6 h-6 flex items-center justify-center text-xs font-bold font-mono bg-gradient-to-br border mt-0.5",
             energy.bg, energy.text, energy.border, energy.glow
           )} style={{ clipPath: "polygon(30% 2%, 70% 2%, 98% 30%, 98% 70%, 70% 98%, 30% 98%, 2% 70%, 2% 30%)" }}>
             {card.cost}
