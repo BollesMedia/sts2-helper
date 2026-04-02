@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from "react";
 import { cn } from "../../lib/cn";
-import type { MapState } from "../../types/game-state";
+import type { MapState, MultiplayerFields } from "../../types/game-state";
 import type { TrackedPlayer } from "../connection/use-player-tracker";
 import type { CombatCard } from "../../types/game-state";
 import { NODE_TYPE_ICONS, NODE_SVG_LABELS } from "./map-scoring";
@@ -16,7 +16,7 @@ import { computeDeckMaturity, type DeckMaturityInput } from "../../evaluation/de
 import { detectArchetypes, hasScalingSources, getScalingSources } from "../../evaluation/archetype-detector";
 
 interface MapViewProps {
-  state: MapState;
+  state: MapState & MultiplayerFields;
   player: TrackedPlayer | null;
   deckCards: CombatCard[];
 }
@@ -154,8 +154,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
   );
 
   // Multiplayer voting state
-  const stateAny = state as unknown as Record<string, unknown>;
-  const isMultiplayer = stateAny.game_mode === "multiplayer";
+  const isMultiplayer = state.game_mode === "multiplayer";
   const mapData = state.map as unknown as Record<string, unknown>;
   const votes = mapData.votes as { player: string; is_local: boolean; voted: boolean }[] | undefined;
   const allVoted = mapData.all_voted as boolean | undefined;

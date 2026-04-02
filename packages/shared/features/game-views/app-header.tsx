@@ -15,10 +15,10 @@ interface AppHeaderProps {
 export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
   const label = STATE_LABELS[gameState.state_type] ?? gameState.state_type;
   const run = hasRun(gameState) ? gameState.run : null;
-  const stateAny = gameState as unknown as Record<string, unknown>;
-  const isMultiplayer = stateAny.game_mode === "multiplayer";
-  const players = stateAny.players as { character: string; hp: number; max_hp: number; is_local?: boolean }[] | undefined;
-  const partner = isMultiplayer && players ? players.find((p) => !p.is_local) : null;
+  const isMultiplayer = gameState.game_mode === "multiplayer";
+  const partner = isMultiplayer && gameState.players
+    ? gameState.players.find((p) => !p.is_local) ?? null
+    : null;
 
   return (
     <header className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/50 px-4 py-2 shadow-[0_1px_8px_rgba(0,0,0,0.3)]">

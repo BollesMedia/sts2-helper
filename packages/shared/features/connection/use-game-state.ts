@@ -43,6 +43,8 @@ async function fetcher(): Promise<GameState> {
       : STS2MCP_SINGLEPLAYER_URL;
     const retryRes = await fetch(retryUrl);
     if (!retryRes.ok) {
+      // Retry failed — reset to singleplayer as safe default (e.g., old mod without multiplayer)
+      activeMode = "singleplayer";
       throw new Error(`STS2MCP responded with ${retryRes.status}`);
     }
     const retryData = await retryRes.json();

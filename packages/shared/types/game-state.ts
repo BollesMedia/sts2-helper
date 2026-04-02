@@ -113,6 +113,15 @@ export interface RunInfo {
   ascension: number;
 }
 
+/** Optional multiplayer fields present on every state when in co-op */
+export interface MultiplayerFields {
+  game_mode?: "singleplayer" | "multiplayer";
+  player_count?: number;
+  local_player_slot?: number;
+  /** Summary of all players (always present in multiplayer) */
+  players?: { character: string; hp: number; max_hp: number; is_local?: boolean; gold?: number }[];
+}
+
 // ============================================
 // Map types
 // ============================================
@@ -151,10 +160,6 @@ export interface CombatState {
     enemies: Enemy[];
   };
   run: RunInfo;
-  /** Present in multiplayer responses */
-  game_mode?: "singleplayer" | "multiplayer";
-  player_count?: number;
-  local_player_slot?: number;
 }
 
 export interface CardRewardState {
@@ -302,9 +307,6 @@ export interface HandSelectState {
     enemies: Enemy[];
   };
   run: RunInfo;
-  game_mode?: "singleplayer" | "multiplayer";
-  player_count?: number;
-  local_player_slot?: number;
 }
 
 export interface RelicSelectState {
@@ -333,7 +335,7 @@ export interface MenuState {
   message: string;
 }
 
-export type GameState =
+export type GameState = (
   | CombatState
   | HandSelectState
   | CombatRewardsState
@@ -345,7 +347,8 @@ export type GameState =
   | CardSelectState
   | RelicSelectState
   | TreasureState
-  | MenuState;
+  | MenuState
+) & MultiplayerFields;
 
 // ============================================
 // Type guards
@@ -371,14 +374,14 @@ export function hasRun(
  * In multiplayer: finds the local player in battle.players[].
  */
 export function getLocalCombatPlayer(
-  state: CombatState | HandSelectState
+  state: (CombatState | HandSelectState) & MultiplayerFields
 ): BattlePlayer | undefined {
   const battle = state.battle;
   if (!battle) return undefined;
 
   // Multiplayer: find local player in array
   if (battle.players?.length) {
-    const localSlot = (state as { local_player_slot?: number }).local_player_slot;
+    const localSlot = state.local_player_slot;
     if (localSlot != null && battle.players[localSlot]) {
       return battle.players[localSlot];
     }

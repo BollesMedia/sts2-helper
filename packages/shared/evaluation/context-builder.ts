@@ -99,11 +99,9 @@ function extractPartnerInfo(state: GameState): {
   partnerHpPercent?: number;
   partnerRelics?: { name: string; description: string }[];
 } {
-  const stateAny = state as unknown as Record<string, unknown>;
-  const gameMode = stateAny.game_mode as string | undefined;
-  if (gameMode !== "multiplayer") return {};
+  if (state.game_mode !== "multiplayer") return {};
 
-  const players = stateAny.players as { character: string; hp: number; max_hp: number; is_local?: boolean; relics?: { name: string; description: string }[] }[] | undefined;
+  const players = state.players as ({ character: string; hp: number; max_hp: number; is_local?: boolean; relics?: { name: string; description: string }[] })[] | undefined;
   if (!players || players.length < 2) return { isMultiplayer: true };
 
   const partner = players.find((p) => !p.is_local) ?? players[1];

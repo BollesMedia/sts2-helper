@@ -49,8 +49,8 @@ export function CombatView({ state, deckCards }: { state: CombatState; deckCards
             <div className="flex items-center justify-between">
               <HpBar current={partnerPlayer.hp} max={partnerPlayer.max_hp} size="sm" />
               <div className="flex items-center gap-3 text-sm font-mono tabular-nums">
-                <span className="text-blue-400">{partnerPlayer.energy}/{partnerPlayer.max_energy} E</span>
-                <span className="text-cyan-400">{partnerPlayer.block} B</span>
+                <span className="text-blue-400">{partnerPlayer.energy ?? 0}/{partnerPlayer.max_energy ?? 0} E</span>
+                <span className="text-cyan-400">{partnerPlayer.block ?? 0} B</span>
               </div>
             </div>
             {partnerPlayer.status?.length > 0 && (
