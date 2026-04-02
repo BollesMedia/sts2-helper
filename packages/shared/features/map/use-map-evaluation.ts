@@ -10,6 +10,7 @@ import { buildCompactContext } from "../../evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "../../evaluation/run-narrative";
 import { registerLastEvaluation } from "../../evaluation/last-evaluation-registry";
 import { NODE_TYPE_ICONS } from "./map-scoring";
+import { traceRecommendedPath } from "./map-path-tracer";
 import { saveMapContext } from "./map-context-cache";
 import { getCached, setCache } from "../../lib/local-cache";
 import { useMapEvalState } from "./map-eval-context";
@@ -261,7 +262,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
       setEvaluation(parsed);
       setCache(CACHE_KEY, mapKey, parsed);
 
-      // Build recommendedNodes — ONLY the best option's path (not all options)
+      // Build recommendedNodes — the full traced path from best option to boss
       const mp = state.player ?? state.map?.player;
       const recommendedNodes = new Set<string>();
       const tierOrder = ["S", "A", "B", "C", "D", "F"];
@@ -273,12 +274,19 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
         });
         const bestOpt = options.find((_, i) => i + 1 === bestRanking.optionIndex);
         if (bestOpt) {
-          recommendedNodes.add(`${bestOpt.col},${bestOpt.row}`);
-          for (const lead of bestOpt.leads_to) {
-            recommendedNodes.add(`${lead.col},${lead.row}`);
+          // Trace the full path from best option to boss (same as map-view does for rendering)
+          const hpPct = mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1;
+          const fullPath = traceRecommendedPath(
+            bestOpt.col, bestOpt.row,
+            state.map?.nodes ?? [], state.map.boss,
+            hpPct, mp?.gold ?? 0, state.run?.act ?? 1, 0, 0, state.run?.floor ?? 1
+          );
+          for (const p of fullPath) {
+            recommendedNodes.add(`${p.col},${p.row}`);
           }
         }
       }
+      // Also include API's recommended path if provided
       for (const p of parsed.recommendedPath) {
         recommendedNodes.add(`${p.col},${p.row}`);
       }
