@@ -49,19 +49,21 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
       </div>
 
       {/* HP context — compact */}
-      <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 px-3 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <HpBar current={restPlayer.hp} max={restPlayer.max_hp} />
-          <span className="text-xs text-zinc-400">
-            {restPlayer.max_hp - restPlayer.hp > 0
-              ? `Missing ${restPlayer.max_hp - restPlayer.hp} HP`
-              : "Full health"}
+      {restPlayer && (
+        <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 px-3 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <HpBar current={restPlayer.hp} max={restPlayer.max_hp} />
+            <span className="text-xs text-zinc-400">
+              {restPlayer.max_hp - restPlayer.hp > 0
+                ? `Missing ${restPlayer.max_hp - restPlayer.hp} HP`
+                : "Full health"}
+            </span>
+          </div>
+          <span className="text-xs font-mono tabular-nums text-amber-400">
+            {restPlayer.gold}g
           </span>
         </div>
-        <span className="text-xs font-mono tabular-nums text-amber-400">
-          {restPlayer.gold}g
-        </span>
-      </div>
+      )}
 
       {error && <EvalError error={error} onRetry={retry} />}
 
