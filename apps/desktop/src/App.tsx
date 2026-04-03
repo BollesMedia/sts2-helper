@@ -4,6 +4,9 @@ import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracke
 import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
 import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
 import { useChoiceTracker } from "@sts2/shared/features/connection/use-choice-tracker";
+import { useAppSelector } from "./store/hooks";
+import { selectActiveDeck, selectActivePlayer } from "./features/run/runSelectors";
+import { selectActiveRunId } from "./features/run/runSlice";
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
@@ -94,10 +97,21 @@ export function App() {
 function AuthenticatedApp() {
   const { user, signOut } = useAuth();
   const { gameState, connectionStatus } = useGameState();
-  const deckCards = useDeckTracker(gameState);
-  const player = usePlayerTracker(gameState);
+
+  // Old hooks still run for backward compat + choice tracking
+  const oldDeckCards = useDeckTracker(gameState);
+  const oldPlayer = usePlayerTracker(gameState);
   const runState = useRunTracker(gameState, user?.id ?? null, connectionStatus === "disconnected");
-  useChoiceTracker(gameState, deckCards, runState.runId);
+  useChoiceTracker(gameState, oldDeckCards, runState.runId);
+
+  // Redux data (populated by listeners) — prefer when available
+  const reduxDeck = useAppSelector(selectActiveDeck);
+  const reduxPlayer = useAppSelector(selectActivePlayer);
+  const reduxRunId = useAppSelector(selectActiveRunId);
+
+  // Use Redux data when a run is active in the store, fall back to old hooks
+  const deckCards = reduxRunId && reduxDeck.length > 0 ? reduxDeck : oldDeckCards;
+  const player = reduxRunId && reduxPlayer ? reduxPlayer : oldPlayer;
 
   // Runtime mod version check — once per session after connecting
   const modCheckDone = useRef(false);
