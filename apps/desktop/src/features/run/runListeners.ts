@@ -16,8 +16,8 @@ import {
   type ShopState,
   type MapState,
 } from "@sts2/shared/types/game-state";
-import { filterPlayerCards } from "../../lib/card-filter";
-import { initValidCardNames } from "../../lib/card-filter";
+import { filterPlayerCards, initValidCardNames } from "../../lib/card-filter";
+import { logPoll } from "../../lib/poll-log";
 import { initStarterDecks, getStarterDeck } from "@sts2/shared/supabase/starter-decks";
 
 /**
@@ -48,6 +48,7 @@ export function setupGameStateUpdateListener() {
       }
 
       const gameState: GameState = action.payload;
+      logPoll(gameState);
       const currentDeck = state.run.runs[activeRunId]?.deck ?? [];
 
       // --- Update floor/act ---

@@ -27,7 +27,7 @@ export type EvalType =
 const BASE_PROMPT = `You are an STS2 deck-building coach. Evaluate decisions against the player's current deck needs, not individual card power.
 
 CORE RULES (priority order):
-1. DECK SIZE BY ASCENSION. At A0-A4: take good cards freely — 18-25 cards is healthy, skip only genuinely bad or off-archetype cards. At A5-A9: 15-20 cards, be more selective. At A10+: 14-18 cards, skip aggressively. A thin deck with no tools loses to encounters it can't answer.
+1. DECK SIZE BY ASCENSION. At Ascension 0-4: take good cards freely — 18-25 cards is healthy, skip only genuinely bad or off-archetype cards. At Ascension 5-9: 15-20 cards, be more selective. At Ascension 10+: 14-18 cards, skip aggressively. A thin deck with no tools loses to encounters it can't answer.
 2. ARCHETYPE FIRST. When locked, evaluate against the archetype. Off-archetype = skip unless it fills a critical gap (AoE, block, draw). No lock yet = evaluate for front-loaded combat value.
 3. ACT TIMING. Act 1: damage + AoE to survive fights — take most decent cards. Act 2: scaling for multi-enemy encounters. Act 3: complete engine for boss — be selective.
 4. ENERGY COST. 2-cost in 3-energy deck = 67% of your turn. Always weigh cost vs available energy.
@@ -41,6 +41,7 @@ GAME FACTS:
 - ENCHANTED CARDS: Ancient events transform deck cards into stronger versions (e.g., Bash → Break). Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
 - READ DESCRIPTIONS CAREFULLY: A card only has a keyword (Exhaust, Retain, Innate, etc.) if the description explicitly says so OR it has a [keyword] tag. Do NOT assume a card exhausts, retains, or has other keywords unless stated. "Gain 16 Block" does NOT mean the card exhausts.
 - SYNERGY CLAIMS: Only claim a synergy if you can explain the EXACT mechanical interaction. "Pairs with Dark Embrace" is only valid if the card actually has Exhaust. Block cards do NOT trigger exhaust synergies unless they explicitly say "Exhaust."
+- UNKNOWN ITEMS: STS2 has many items that did not exist in STS1. If you don't recognize a card, relic, or event option — evaluate ONLY based on the description provided. Do NOT invent mechanics or effects. If the description is insufficient to evaluate, set confidence below 40 and say "Unknown item — evaluating from description only" in your reasoning. NEVER fabricate what an item does.
 
 OUTPUT RULES:
 - Only name deck cards that DIRECTLY interact with the evaluated card. "Fuels Body Slam" is valid (Body Slam uses block). "Pairs with Dark Embrace" is ONLY valid if the card exhausts. Do NOT list deck cards just because they exist.
@@ -156,6 +157,44 @@ export function buildSystemPrompt(type: EvalType, isMultiplayer = false): string
   return `${BASE_PROMPT}${coopBase}${addendum}${coopAddendum}`;
 }
 
+// --- Mechanic Summary ---
+
+/**
+ * Scan deck card descriptions for key mechanics and build a summary line.
+ * Helps Haiku understand what the deck can do without reading every description.
+ */
+function buildMechanicSummary(
+  deckCards: { name: string; description: string }[]
+): string {
+  const vulnerableSources: string[] = [];
+  const weakSources: string[] = [];
+  const exhaustSources: string[] = [];
+  const blockSources: string[] = [];
+  const aoeCards: string[] = [];
+
+  const seen = new Set<string>();
+  for (const c of deckCards) {
+    if (seen.has(c.name)) continue;
+    seen.add(c.name);
+    const lower = c.description.toLowerCase();
+    if (lower.includes("vulnerable")) vulnerableSources.push(c.name);
+    if (lower.includes("weak") && !lower.includes("weakness")) weakSources.push(c.name);
+    if (lower.includes("exhaust")) exhaustSources.push(c.name);
+    if (lower.includes("all enemies") || lower.includes("all enemy")) aoeCards.push(c.name);
+    if (/gain \d+ block/i.test(c.description) || /\d+ block/i.test(c.description)) blockSources.push(c.name);
+  }
+
+  const parts: string[] = [];
+  if (vulnerableSources.length > 0) parts.push(`Vulnerable: ${vulnerableSources.join(", ")}`);
+  if (weakSources.length > 0) parts.push(`Weak: ${weakSources.join(", ")}`);
+  if (exhaustSources.length > 0) parts.push(`Exhaust: ${exhaustSources.join(", ")}`);
+  if (aoeCards.length > 0) parts.push(`AoE: ${aoeCards.join(", ")}`);
+
+  return parts.length > 0
+    ? `[Deck mechanics] ${parts.join(" | ")}`
+    : "[Deck mechanics] none detected";
+}
+
 // --- Compact Context Builder ---
 
 /**
@@ -165,8 +204,8 @@ export function buildSystemPrompt(type: EvalType, isMultiplayer = false): string
 export function buildCompactContext(ctx: EvaluationContext): string {
   const hpPct = Math.round(ctx.hpPercent * 100);
 
-  // Compact deck: group duplicates, abbreviate descriptions
-  const cardCounts = new Map<string, { count: number; desc: string; keywords: string[] }>();
+  // Compact deck: group duplicates, include type + keywords
+  const cardCounts = new Map<string, { count: number; desc: string; type?: string; keywords: string[] }>();
   for (const c of ctx.deckCards) {
     const existing = cardCounts.get(c.name);
     if (existing) {
@@ -179,14 +218,10 @@ export function buildCompactContext(ctx: EvaluationContext): string {
       if (kwNames.includes("retain")) tags.push("Retain");
       if (kwNames.includes("eternal")) tags.push("ETERNAL");
 
-      // Compress description: keep first 120 chars to preserve mechanical details
-      const shortDesc = c.description.length > 120
-        ? c.description.slice(0, 117) + "..."
-        : c.description;
-
       cardCounts.set(c.name, {
         count: 1,
-        desc: shortDesc,
+        desc: c.description,
+        type: "type" in c ? (c as { type: string }).type : undefined,
         keywords: tags,
       });
     }
@@ -196,12 +231,11 @@ export function buildCompactContext(ctx: EvaluationContext): string {
   const deckStr = [...cardCounts.entries()]
     .map(([name, info]) => {
       const prefix = info.count > 1 ? `${info.count}x ` : "";
-      const tags = info.keywords.length > 0 ? ` [${info.keywords.join(",")}]` : "";
-      // Include short description for non-starter cards so Claude knows what they do
+      const allTags = [...(info.type ? [info.type] : []), ...info.keywords];
+      const tags = allTags.length > 0 ? ` [${allTags.join(",")}]` : "";
+      // Include full description for non-starter cards so Claude knows what they do
       const isStarter = starterCards.has(name.toLowerCase());
-      const desc = !isStarter && info.desc
-        ? ` (${info.desc.slice(0, 60).trim()}${info.desc.length > 60 ? "..." : ""})`
-        : "";
+      const desc = !isStarter && info.desc ? ` (${info.desc})` : "";
       return `${prefix}${name}${desc}${tags}`;
     })
     .join(", ");
@@ -224,6 +258,7 @@ export function buildCompactContext(ctx: EvaluationContext): string {
     `[State] ${ctx.character} | Act ${ctx.act} F${ctx.floor} | HP ${hpPct}% | ${ctx.energy}E | ${ctx.gold}g`,
     `[Deck ${ctx.deckSize}] ${deckStr}`,
     `[Draw] ${ctx.drawSources.length > 0 ? ctx.drawSources.join(", ") : "none"} | [Scaling] ${ctx.scalingSources.length > 0 ? ctx.scalingSources.join(", ") : "none"} | [Curses] ${ctx.curseCount}`,
+    buildMechanicSummary(ctx.deckCards),
     `[Relics] ${relicStr}`,
     ...(ctx.potionNames.length > 0 ? [`[Potions] ${ctx.potionNames.join(", ")}`] : []),
     `[Archetype] ${archStr}`,
@@ -241,11 +276,11 @@ export function buildCompactContext(ctx: EvaluationContext): string {
   // Ascension note — brief, ascension-aware
   if (ctx.ascension > 0) {
     if (ctx.ascension <= 4) {
-      lines.push(`[A${ctx.ascension}] Be permissive — take more cards, fights are easier`);
+      lines.push(`[Ascension ${ctx.ascension}] Be permissive — take more cards, fights are easier`);
     } else if (ctx.ascension <= 7) {
-      lines.push(`[A${ctx.ascension}] Standard difficulty`);
+      lines.push(`[Ascension ${ctx.ascension}] Standard difficulty`);
     } else {
-      lines.push(`[A${ctx.ascension}] Be strict — deck purity critical, fights are brutal`);
+      lines.push(`[Ascension ${ctx.ascension}] Be strict — deck purity critical, fights are brutal`);
     }
   }
 
@@ -295,20 +330,18 @@ export function compactStrategy(fullStrategy: string | null): string | null {
 /**
  * Compress boss reference to ~30 tokens.
  */
+/**
+ * Compact boss reference for the evaluation prompt.
+ * Only includes the full reference for boss briefing evals —
+ * for card/shop/map evals, boss distance is already in the context
+ * and listing ALL boss names causes hallucinations (LLM references
+ * wrong boss for the current act).
+ */
 export function compactBossReference(fullReference: string | null): string | null {
-  if (!fullReference) return null;
-
-  // Already formatted as "BossName (HP): move1, move2..."
-  // Just take the boss names and key threat type
-  const lines = fullReference.split("\n").filter((l) => l.trim());
-  if (lines.length === 0) return null;
-
-  const compact = lines.map((line) => {
-    const nameMatch = line.match(/^(.+?)\s*\(/);
-    return nameMatch ? nameMatch[1].trim() : line.slice(0, 20);
-  });
-
-  return `[Bosses] ${compact.join(", ")}`;
+  // Don't include boss names in compact evals — causes hallucinations.
+  // Boss distance is already communicated via map context / floor info.
+  // Full boss data is only used by boss_briefing eval type.
+  return null;
 }
 
 // --- Tool Schemas for freeform eval types ---

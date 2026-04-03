@@ -13,6 +13,8 @@ import { useEvaluateEventMutation } from "../../services/evaluationApi";
 import { useAppSelector } from "../../store/hooks";
 import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
 import { selectActiveRunId } from "../../features/run/runSlice";
+import { initRelicLookup, getRelicDescription } from "../../lib/relic-lookup";
+import { getEnchantmentDescription } from "../../lib/enchantment-lookup";
 
 const CACHE_KEY = "sts2-event-eval-cache";
 
@@ -24,6 +26,7 @@ export function useEventEvaluation(
   const runId = useAppSelector(selectActiveRunId);
   const [trigger] = useEvaluateEventMutation();
 
+  initRelicLookup();
   const options = state.event.options.filter((o) => !o.is_proceed && !o.is_locked);
   const enabled = options.length > 1;
   const eventKey = enabled ? `${state.event.event_id}:${options.map((o) => o.index).join(",")}` : "disabled";
@@ -36,7 +39,21 @@ export function useEventEvaluation(
 
     const contextStr = buildCompactContext(ctx);
     const optionsStr = options
-      .map((o, i) => `${i + 1}. ${o.title}: ${o.relic_description ?? o.description}`)
+      .map((o, i) => {
+        let text = `${i + 1}. ${o.title}: ${o.description}`;
+        if (o.relic_name) {
+          const relicDesc = o.relic_description || getRelicDescription(o.relic_name);
+          text += ` [Relic: ${o.relic_name}`;
+          if (relicDesc) text += ` — ${relicDesc}`;
+          text += "]";
+        }
+        // Check for enchantment references in the description
+        const enchantDesc = getEnchantmentDescription(o.description);
+        if (enchantDesc) {
+          text += ` [Enchantment effect: ${enchantDesc}]`;
+        }
+        return text;
+      })
       .join("\n");
 
     const raw = await trigger({
@@ -45,7 +62,7 @@ export function useEventEvaluation(
       runNarrative: getPromptContext(),
       mapPrompt: `${contextStr}
 
-EVENT: ${state.event.event_name}
+EVENT: ${state.event.event_name}${state.event.is_ancient ? " (ANCIENT — this is an STS2-specific event. Do NOT assume you know what enchantments, relics, or effects do. Evaluate ONLY from the descriptions provided. If an option mentions an enchantment or effect you don't recognize, set confidence below 50.)" : ""}
 You must choose EXACTLY ONE option:
 ${optionsStr}
 

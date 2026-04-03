@@ -92,6 +92,7 @@ async function loadKeywordGlossary(): Promise<string> {
 // Incremental card data cache — only fetches cards not already cached
 interface CachedCard {
   description: string;
+  type: string;
   keywords: string[];
 }
 
@@ -107,13 +108,14 @@ async function enrichCards(
       const supabase = createServiceClient();
       const { data } = await supabase
         .from("cards")
-        .select("id, description, description_raw, keywords")
+        .select("id, description, description_raw, type, keywords")
         .in("id", missing);
 
       if (data) {
         for (const card of data) {
           cardCache.set(card.id, {
             description: card.description_raw ?? card.description,
+            type: card.type,
             keywords: (card.keywords as string[]) ?? [],
           });
         }
@@ -190,6 +192,42 @@ export async function POST(request: Request) {
       const cached = enrichedCards.get(item.id);
       if (cached) {
         item.description = cached.description;
+      }
+    }
+  }
+
+  // Enrich deck cards with type info from card cache (Attack/Skill/Power)
+  if (context?.deckCards) {
+    // Fetch any deck cards not already in cache
+    const deckCardNames = context.deckCards.map((c) => c.name.toLowerCase());
+    // Card cache is keyed by ID, but deck cards only have names.
+    // Build a name→type lookup from the cache.
+    const nameToType = new Map<string, string>();
+    for (const [, card] of enrichedCards) {
+      // We don't have name in cache key, but we can match via description
+    }
+    // Simpler: query by name for deck cards not yet typed
+    const untypedNames = context.deckCards
+      .filter((c) => !c.type)
+      .map((c) => c.name.replace(/\+$/, "")); // strip upgrade suffix for lookup
+    if (untypedNames.length > 0) {
+      try {
+        const supabase = createServiceClient();
+        const { data } = await supabase
+          .from("cards")
+          .select("name, type")
+          .in("name", [...new Set(untypedNames)]);
+        if (data) {
+          const typeMap = new Map(data.map((c) => [c.name.toLowerCase(), c.type]));
+          for (const card of context.deckCards) {
+            if (!card.type) {
+              const baseName = card.name.replace(/\+$/, "").toLowerCase();
+              card.type = typeMap.get(baseName);
+            }
+          }
+        }
+      } catch {
+        // Non-critical
       }
     }
   }
@@ -451,11 +489,19 @@ export async function POST(request: Request) {
 
   const goldBudget = isShop && body.goldBudget != null ? `\nGOLD BUDGET: ${body.goldBudget}g — only recommend items you can afford. All items listed below are affordable.\n` : "";
 
+  // Pre-computed budget summary for shop evals — placed AFTER items for Haiku recency bias
+  const budgetSummary = isShop && body.goldBudget != null
+    ? `\nBUDGET SUMMARY: ${body.goldBudget}g available. Exact costs: ${items.map((i) => `${i.name}=${i.cost}g`).join(", ")}. Use ONLY these exact costs in your spending_plan. Do NOT invent discounted prices.`
+    : "";
+
   const userPrompt = `${contextStr}
 ${goldBudget}
+CRITICAL: This is Slay the Spire 2. Many cards have DIFFERENT effects than STS1. Evaluate ONLY by the description shown after the dash (—). Do NOT assume what a card does from its name.
+
 ${type === "card_reward" ? "Offered cards" : "Shop items (affordable only)"}:
 ${itemsStr}
 ${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
+${budgetSummary}
 
 Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matching the order above.`;
 

@@ -22,6 +22,8 @@ export interface MapEvalState {
     deckSize: number;
     act: number;
   } | null;
+  /** Incremented by the listener when a new eval should fire */
+  evalRequestId: number;
 }
 
 export interface MapContext {
@@ -44,6 +46,12 @@ export interface RunData {
   mapContext: MapContext | null;
 }
 
+interface CompletedRun {
+  runId: string;
+  victory: boolean | null;
+  finalFloor: number;
+}
+
 interface RunState {
   activeRunId: string | null;
   runs: Record<string, RunData>;
@@ -52,12 +60,15 @@ interface RunState {
     inferred: boolean | null;
     finalFloor: number;
   } | null;
+  /** Last completed run — shown on menu for optional notes. Display-only. */
+  lastCompletedRun: CompletedRun | null;
 }
 
 const initialState: RunState = {
   activeRunId: null,
   runs: {},
   pendingOutcome: null,
+  lastCompletedRun: null,
 };
 
 export const runSlice = createSlice({
@@ -76,6 +87,7 @@ export const runSlice = createSlice({
       const { runId, character, ascension, gameMode } = action.payload;
       state.activeRunId = runId;
       state.pendingOutcome = null;
+      state.lastCompletedRun = null;
       state.runs[runId] = {
         character,
         ascension,
@@ -88,6 +100,7 @@ export const runSlice = createSlice({
           recommendedPath: [],
           recommendedNodes: [],
           lastEvalContext: null,
+          evalRequestId: 0,
         },
         mapContext: null,
       };
@@ -110,6 +123,12 @@ export const runSlice = createSlice({
       state,
       action: PayloadAction<{ runId: string; victory: boolean }>
     ) {
+      const floor = state.pendingOutcome?.finalFloor ?? state.runs[action.payload.runId]?.floor ?? 0;
+      state.lastCompletedRun = {
+        runId: action.payload.runId,
+        victory: action.payload.victory,
+        finalFloor: floor,
+      };
       state.pendingOutcome = null;
     },
 
@@ -156,6 +175,13 @@ export const runSlice = createSlice({
       }
     },
 
+    mapEvalRequested(state) {
+      const run = state.activeRunId ? state.runs[state.activeRunId] : null;
+      if (run) {
+        run.mapEval.evalRequestId++;
+      }
+    },
+
     mapContextUpdated(state, action: PayloadAction<MapContext>) {
       const run = state.activeRunId ? state.runs[state.activeRunId] : null;
       if (run) {
@@ -168,6 +194,7 @@ export const runSlice = createSlice({
     selectActiveRun: (state) =>
       state.activeRunId ? state.runs[state.activeRunId] ?? null : null,
     selectPendingOutcome: (state) => state.pendingOutcome,
+    selectLastCompletedRun: (state) => state.lastCompletedRun,
   },
 });
 
@@ -180,6 +207,7 @@ export const {
   playerUpdated,
   deckUpdated,
   mapEvalUpdated,
+  mapEvalRequested,
   mapContextUpdated,
 } = runSlice.actions;
 
@@ -187,4 +215,5 @@ export const {
   selectActiveRunId,
   selectActiveRun,
   selectPendingOutcome,
+  selectLastCompletedRun,
 } = runSlice.selectors;

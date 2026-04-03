@@ -90,6 +90,15 @@ describe("shouldEvaluateMap", () => {
     });
   });
 
+  describe("deviation after carry forward", () => {
+    it("returns true when deviated even if options unchanged", () => {
+      // Scenario: carry-forwarded at a fork, went through combat,
+      // returned to same fork but current position is off-path.
+      // mapKey is same (same options) but position changed.
+      expect(evaluate({ isOnRecommendedPath: false })).toBe(true);
+    });
+  });
+
   describe("carry forward (no evaluation needed)", () => {
     it("returns false when on path with stable context", () => {
       expect(evaluate({})).toBe(false);

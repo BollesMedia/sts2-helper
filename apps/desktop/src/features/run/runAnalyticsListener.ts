@@ -1,7 +1,7 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateApi } from "../../services/gameStateApi";
 import { evaluationApi } from "../../services/evaluationApi";
-import { runStarted, runEnded } from "./runSlice";
+import { runStarted, runEnded, outcomeConfirmed } from "./runSlice";
 import {
   isCombatState,
   getPlayer,
@@ -16,25 +16,10 @@ import {
 } from "@sts2/shared/evaluation/run-narrative";
 import { clearEvaluationRegistry } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
+import { inferRunOutcome } from "../../lib/infer-run-outcome";
 
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function inferOutcome(
-  lastStateType: string | null,
-  wasBoss: boolean,
-  lastHp: number,
-  enemiesAllDead: boolean
-): boolean | null {
-  if (wasBoss && enemiesAllDead) return true;
-  if (
-    lastHp <= 0 &&
-    lastStateType &&
-    ["monster", "elite", "boss"].includes(lastStateType)
-  )
-    return false;
-  return null;
 }
 
 /**
@@ -130,6 +115,50 @@ export function setupRunAnalyticsListener() {
         lastEnemiesAllDead = true;
       }
 
+      // --- Architect = victory ---
+      // Reaching the Architect event means the player won the run.
+      // --- Check for victory mid-run (Architect event, boss kill) ---
+      if (runActive && activeRunId) {
+        const eventData = currentType === "event" && "event" in gameState
+          ? (gameState as { event: { event_id?: string; event_name?: string } }).event
+          : null;
+
+        const victoryResult = inferRunOutcome({
+          currentStateType: currentType,
+          lastWasBoss,
+          lastEnemiesAllDead,
+          eventId: eventData?.event_id ?? null,
+          eventName: eventData?.event_name ?? null,
+        });
+
+        if (victoryResult === "victory") {
+          listenerApi.dispatch(
+            runEnded({ runId: activeRunId, inferred: true, finalFloor: lastFloor })
+          );
+          listenerApi.dispatch(
+            outcomeConfirmed({ runId: activeRunId, victory: true })
+          );
+          listenerApi.dispatch(
+            evaluationApi.endpoints.endRun.initiate({
+              runId: activeRunId,
+              victory: true,
+              finalFloor: lastFloor,
+              actReached: lastAct,
+              bossesFought: bossesFought.size > 0 ? [...bossesFought] : null,
+              finalDeck: lastDeckNames.length > 0 ? lastDeckNames : null,
+              finalRelics: lastRelicNames.length > 0 ? lastRelicNames : null,
+              finalDeckSize: lastDeckNames.length || null,
+              narrative: getNarrative(),
+            })
+          );
+
+          console.log("[RunAnalytics] Victory:", activeRunId, `floor ${lastFloor}`);
+          clearNarrative();
+          clearEvaluationRegistry();
+          runActive = false;
+        }
+      }
+
       // --- Detect new run ---
 
       const isInRun = currentType !== "menu";
@@ -201,12 +230,15 @@ export function setupRunAnalyticsListener() {
         prevStateType !== null &&
         runActive
       ) {
-        const victory = inferOutcome(
-          prevStateType,
+        // Menu transition: check if this was a victory we missed
+        const menuOutcome = inferRunOutcome({
+          currentStateType: "menu",
           lastWasBoss,
-          lastPlayerHp,
-          lastEnemiesAllDead
-        );
+          lastEnemiesAllDead,
+          eventId: null,
+          eventName: null,
+        });
+        const victory = menuOutcome === "victory" ? true : null;
         const endRunId = activeRunId;
 
         if (endRunId) {
@@ -218,14 +250,19 @@ export function setupRunAnalyticsListener() {
             })
           );
 
-          // Persist to API
+          if (victory === true) {
+            listenerApi.dispatch(
+              outcomeConfirmed({ runId: endRunId, victory: true })
+            );
+          }
+
           listenerApi.dispatch(
             evaluationApi.endpoints.endRun.initiate({
               runId: endRunId,
               victory: victory ?? undefined,
               finalFloor: lastFloor,
               actReached: lastAct,
-              causeOfDeath: victory === false ? lastCombatEnemyName : null,
+              causeOfDeath: null,
               bossesFought:
                 bossesFought.size > 0 ? [...bossesFought] : null,
               finalDeck:

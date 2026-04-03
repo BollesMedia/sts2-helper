@@ -16,10 +16,8 @@ import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evalua
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 import { getCached, setCache } from "@sts2/shared/lib/local-cache";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
-import { selectMapEvalContext, selectRecommendedNodesSet } from "../../features/run/runSelectors";
+import { selectMapEvalRequestId } from "../../features/run/runSelectors";
 import { useEvaluateMapMutation } from "../../services/evaluationApi";
-import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
-import { hasSignificantContextChange as hasSignificantCtxChange } from "../../lib/has-significant-context-change";
 
 const CACHE_KEY = "sts2-map-eval-cache";
 
@@ -70,48 +68,15 @@ export function useMapEvaluation(
   // Eval context from Redux — survives remounts and persists via listener
   const dispatch = useAppDispatch();
   const [triggerMapEval] = useEvaluateMapMutation();
-  const reduxEvalCtx = useAppSelector(selectMapEvalContext);
-  const reduxRecommendedNodes = useAppSelector(selectRecommendedNodesSet);
-  const lastEvalContext = useRef<{ hpPercent: number; deckSize: number; act: number; recommendedNodes: Set<string> } | null>(
-    reduxEvalCtx ? {
-      ...reduxEvalCtx,
-      recommendedNodes: reduxRecommendedNodes,
-    } : null
-  );
+  const evalRequestId = useAppSelector(selectMapEvalRequestId);
 
   cachedRef.current = mapKey;
 
   // Map context (boss distance, next nodes) is updated by gameStateUpdateListener
   // in runListeners.ts — no dispatch needed here.
 
-  // ─── Decision: should we evaluate? ───
-
-  function checkShouldEvaluate(): boolean {
-    const prev = lastEvalContext.current;
-    const currentPos = state.map?.current_position;
-    const mapPlayer = state.player ?? state.map?.player;
-    const currentHpPercent = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
-
-    const isOnRecommendedPath = prev && currentPos
-      ? prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
-      : false;
-
-    return shouldEvaluateMap({
-      optionCount: options.length,
-      hasPrevContext: !!prev,
-      actChanged: prev ? prev.act !== (state.run?.act ?? 0) : false,
-      currentPosition: currentPos ?? null,
-      isOnRecommendedPath,
-      hasSignificantContextChange: prev
-        ? hasSignificantCtxChange({
-            prevHpPercent: prev.hpPercent,
-            currentHpPercent,
-            prevDeckSize: prev.deckSize,
-            currentDeckSize: deckCards.length,
-          })
-        : false,
-    });
-  }
+  // Decision logic lives in mapListeners.ts — it dispatches mapEvalRequested
+  // which increments evalRequestId. We just watch that.
 
   // ─── Carry forward: keep existing path without re-evaluating ───
 
@@ -291,23 +256,14 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
         recommendedNodes.add(`${p.col},${p.row}`);
       }
 
-      // Persist context for cross-remount access
-      const evalCtx = {
-        hpPercent: hpPct,
-        deckSize: deckCards.length,
-        act,
-        recommendedNodes,
-      };
-      lastEvalContext.current = evalCtx;
-
-      // Persist to Redux (survives remounts, persisted via listener middleware)
+      // Persist to Redux — listener reads this for shouldEvaluate decisions
       dispatch(mapEvalUpdated({
         recommendedPath: tracedPath,
         recommendedNodes: [...recommendedNodes],
         lastEvalContext: {
-          hpPercent: evalCtx.hpPercent,
-          deckSize: evalCtx.deckSize,
-          act: evalCtx.act,
+          hpPercent: hpPct,
+          deckSize: deckCards.length,
+          act,
         },
       }));
 
@@ -335,18 +291,23 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
     setError(null);
   };
 
-  // ─── Trigger: evaluate or carry forward (in useEffect, not during render) ───
+  // ─── Trigger: listener dispatches mapEvalRequested → evalRequestId changes ───
+
+  const lastRequestId = useRef(0);
 
   useEffect(() => {
-    if (mapKey !== evaluatedKey.current && !isLoading) {
-      if (checkShouldEvaluate()) {
-        evaluate();
-      } else {
-        carryForward();
-      }
+    if (isLoading) return;
+
+    if (evalRequestId > lastRequestId.current) {
+      // Listener says: evaluate now
+      lastRequestId.current = evalRequestId;
+      evaluatedKey.current = "";
+      evaluate();
+    } else if (mapKey !== evaluatedKey.current) {
+      // New map options but listener didn't request eval → carry forward
+      carryForward();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- shouldEvaluate/carryForward read refs, evaluate is stable via useCallback
-  }, [mapKey, isLoading, evaluate]);
+  }, [evalRequestId, mapKey, isLoading, evaluate]);
 
   return { evaluation, isLoading, error, retry };
 }

@@ -1,6 +1,6 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateApi } from "../../services/gameStateApi";
-import { selectActiveRun } from "../run/runSlice";
+import { selectActiveRun, mapEvalRequested } from "../run/runSlice";
 import { selectMapEvalContext, selectRecommendedNodesSet } from "../run/runSelectors";
 import type { MapState } from "@sts2/shared/types/game-state";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
@@ -64,8 +64,8 @@ export function setupMapEvalListener() {
 
       if (!shouldEval) return;
 
-      // TODO: Build eval context and dispatch evaluateMap.initiate()
-      // Currently the useMapEvaluation hook handles the actual API call.
+      // Signal the hook to fire the eval API call
+      listenerApi.dispatch(mapEvalRequested());
     },
   });
 }

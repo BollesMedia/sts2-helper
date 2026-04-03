@@ -58,7 +58,7 @@ interface ReasoningProps {
 export function Reasoning({ text, isTopPick }: ReasoningProps) {
   return (
     <p className={cn(
-      "text-sm leading-relaxed line-clamp-2",
+      "text-sm leading-relaxed",
       isTopPick ? "text-spire-text-secondary" : "text-spire-text-tertiary"
     )}>
       {text}

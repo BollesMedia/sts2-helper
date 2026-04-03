@@ -51,8 +51,8 @@ export function useShopEvaluation(
   const runId = useAppSelector(selectActiveRunId);
   const [trigger] = useEvaluateShopMutation();
 
-  const shopItems = state.shop.items.filter((i) => i.is_stocked);
-  const shopKey = shopItems.map((i) => getItemId(i)).sort().join(",");
+  // Stable key: ALL items + act/floor. Doesn't change when user buys (is_stocked toggles).
+  const shopKey = `${state.run.act}:${state.run.floor}:${state.shop.items.map((i) => getItemId(i)).sort().join(",")}`;
 
   const fetcher = useCallback(async (): Promise<CardRewardEvaluation> => {
     const ctx: EvaluationContext | null = buildEvaluationContext(state, deckCards, player);
@@ -64,7 +64,8 @@ export function useShopEvaluation(
     const gold = shopPlayer?.gold ?? 0;
     ctx.gold = gold;
 
-    const affordableItems = shopItems.filter((i) => i.can_afford);
+    // Only send affordable, stocked items to the LLM
+    const affordableItems = state.shop.items.filter((i) => i.is_stocked && i.can_afford);
     const items = affordableItems.map((item) => ({
       id: getItemId(item),
       name: getItemName(item),
@@ -99,7 +100,7 @@ export function useShopEvaluation(
     });
 
     return data;
-  }, [state, deckCards, player, shopItems, runId, trigger]);
+  }, [state, deckCards, player, runId, trigger]);
 
   return useEvaluation<CardRewardEvaluation>({
     cacheKey: CACHE_KEY,

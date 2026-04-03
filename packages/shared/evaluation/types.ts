@@ -19,7 +19,7 @@ export interface EvaluationContext {
   relicIds: string[];
   hasScaling: boolean;
   curseCount: number;
-  deckCards: { name: string; description: string; keywords?: { name: string }[] }[];
+  deckCards: { name: string; description: string; type?: string; keywords?: { name: string }[] }[];
   drawSources: string[];
   scalingSources: string[];
   curseNames: string[];
