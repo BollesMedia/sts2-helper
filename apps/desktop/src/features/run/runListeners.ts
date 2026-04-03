@@ -12,6 +12,7 @@ import {
   hasRun,
   type GameState,
   type BattlePlayer,
+  type ShopState,
 } from "@sts2/shared/types/game-state";
 
 /**
@@ -22,6 +23,7 @@ import {
  */
 export function setupGameStateUpdateListener() {
   let combatSynced = false;
+  let lastRunId: string | null = null;
 
   startAppListening({
     matcher: gameStateApi.endpoints.getGameState.matchFulfilled,
@@ -30,7 +32,13 @@ export function setupGameStateUpdateListener() {
       const activeRunId = state.run.activeRunId;
       if (!activeRunId) return;
 
-      const gameState = action.payload as GameState;
+      // Reset closure state when run changes
+      if (activeRunId !== lastRunId) {
+        lastRunId = activeRunId;
+        combatSynced = false;
+      }
+
+      const gameState: GameState = action.payload;
 
       // Update floor/act
       if (hasRun(gameState)) {
@@ -43,9 +51,9 @@ export function setupGameStateUpdateListener() {
       // Update player
       const p = getPlayer(gameState);
       if (p && gameState.state_type !== "menu") {
-        const energy = "max_energy" in p ? (p as BattlePlayer).max_energy ?? 3 : 3;
+        const energy = "max_energy" in p ? p.max_energy ?? 3 : 3;
         const relics = "relics" in p && Array.isArray(p.relics)
-          ? p.relics.map((r) => ({ id: "id" in r ? (r as { id: string }).id : "", name: r.name, description: r.description }))
+          ? p.relics.map((r) => ({ id: "id" in r ? r.id : "", name: r.name, description: r.description }))
           : [];
         const potions = "potions" in p && Array.isArray(p.potions)
           ? p.potions.map((pot) => ({ name: pot.name, description: pot.description }))
@@ -64,8 +72,8 @@ export function setupGameStateUpdateListener() {
 
         // Shop: extract removal cost
         if (gameState.state_type === "shop" && "shop" in gameState) {
-          const shopItems = (gameState as { shop: { items?: { category: string; cost: number }[] } }).shop?.items;
-          const removalItem = shopItems?.find((i) => i.category === "card_removal");
+          const shopState = gameState as ShopState;
+          const removalItem = shopState.shop?.items?.find((i) => i.category === "card_removal");
           if (removalItem) {
             tracked.cardRemovalCost = removalItem.cost;
           }

@@ -1,12 +1,8 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateApi } from "../../services/gameStateApi";
-import { evaluationApi } from "../../services/evaluationApi";
-import { mapEvalUpdated, type MapEvalState } from "../run/runSlice";
-import { selectActiveRun, selectActiveRunId } from "../run/runSlice";
+import { selectActiveRun } from "../run/runSlice";
 import { selectMapEvalContext, selectRecommendedNodesSet } from "../run/runSelectors";
 import type { GameState, MapState } from "@sts2/shared/types/game-state";
-import { getPlayer } from "@sts2/shared/types/game-state";
-import { traceRecommendedPath } from "@sts2/shared/features/map/map-path-tracer";
 
 /**
  * Map evaluation trigger listener.
@@ -54,14 +50,12 @@ export function setupMapEvalListener() {
       const shouldEval = shouldEvaluate(mapState, run, prevContext, recommendedNodes);
 
       if (!shouldEval) {
-        // Carry forward existing path — no API call
-        return;
+        return; // Carry forward existing path — no API call
       }
 
-      // TODO: Build context and dispatch evaluateMap mutation
-      // For now, this listener detects the trigger but doesn't dispatch yet
-      // (existing useMapEvaluation hook still handles the actual eval)
-      console.log("[MapEvalListener] shouldEvaluate = true, would dispatch eval");
+      // TODO: Build eval context and dispatch evaluateMap.initiate()
+      // Currently the existing useMapEvaluation hook still handles evals.
+      // This listener validates the trigger condition only.
     },
   });
 }
