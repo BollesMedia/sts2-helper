@@ -1,6 +1,5 @@
 @import "tailwindcss" source(none);
 @import "./styles/card-depth.css";
-@source "../../../packages/shared";
 @source ".";
 
 /* Outfit (display) + DM Sans (body) */
