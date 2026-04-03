@@ -7,6 +7,11 @@ import { evaluationApi } from "../services/evaluationApi";
 import { connectionSlice } from "../features/connection/connectionSlice";
 import { runSlice } from "../features/run/runSlice";
 
+// Import listeners for side-effect registration
+import { setupConnectionListeners } from "../features/connection/connectionListeners";
+import { setupGameStateUpdateListener } from "../features/run/runListeners";
+import { setupMapEvalListener } from "../features/map/mapListeners";
+
 const rootReducer = combineSlices(
   gameStateApi,
   evaluationApi,
@@ -25,7 +30,12 @@ export const store = configureStore({
 });
 
 setupListeners(store.dispatch);
+
+// Start all listeners
 setupPersistenceListener();
+setupConnectionListeners();
+setupGameStateUpdateListener();
+setupMapEvalListener();
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

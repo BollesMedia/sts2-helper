@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useGetGameStateQuery, gameStateApi } from "../services/gameStateApi";
 import { reportError } from "@sts2/shared/lib/error-reporter";
 import { STS2MCP_BASE_URL } from "@sts2/shared/lib/constants";
@@ -7,8 +7,7 @@ import {
   DEFAULT_INTERVAL,
   OFFLINE_INTERVAL,
 } from "@sts2/shared/features/connection/polling-config";
-import { useAppSelector, useAppDispatch } from "../store/hooks";
-import { statusChanged, gameModeDetected } from "../features/connection/connectionSlice";
+import { useAppSelector } from "../store/hooks";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
@@ -54,16 +53,7 @@ export function useGameState() {
     disconnectReported.current = false;
   }
 
-  // Sync connection status + game mode to Redux slices
-  const dispatch = useAppDispatch();
-  useEffect(() => {
-    dispatch(statusChanged(connectionStatus));
-  }, [connectionStatus, dispatch]);
-
-  useEffect(() => {
-    const mode = data?.game_mode;
-    if (mode) dispatch(gameModeDetected(mode));
-  }, [data?.game_mode, dispatch]);
+  // Connection status + game mode synced via connectionListeners (no useEffect needed)
 
   return {
     gameState: data ?? null,
