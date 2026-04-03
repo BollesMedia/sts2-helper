@@ -12,6 +12,9 @@ import { statusChanged, gameModeDetected } from "../features/connection/connecti
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
+// Extracted selector — avoids creating new selector instance per render
+const selectGameStateResult = gameStateApi.endpoints.getGameState.select();
+
 /**
  * Game state hook powered by RTK Query.
  *
@@ -21,7 +24,7 @@ export type ConnectionStatus = "connected" | "connecting" | "disconnected";
 export function useGameState() {
   // Derive polling interval from last known state_type
   const lastStateType = useAppSelector(
-    (state) => gameStateApi.endpoints.getGameState.select()(state).data?.state_type
+    (state) => selectGameStateResult(state).data?.state_type
   );
   const interval = lastStateType
     ? (POLLING_INTERVALS[lastStateType] ?? DEFAULT_INTERVAL)
