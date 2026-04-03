@@ -2,19 +2,17 @@
 
 import { cn } from "@sts2/shared/lib/cn";
 import type { ShopState, ShopItem } from "@sts2/shared/types/game-state";
-import type { CardEvaluation } from "@sts2/shared/evaluation/types";
-import {
-  useShopEvaluation,
-  getItemId,
-  getItemName,
-  getItemDescription,
-} from "./use-shop-evaluation";
+import type { CardEvaluation, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
+import { getItemId, getItemName, getItemDescription } from "../../lib/eval-inputs/shop";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
 import {
   RECOMMENDATION_CHIP,
   RECOMMENDATION_LABEL,
 } from "@sts2/shared/lib/recommendation-styles";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
 
 interface ShopViewProps {
   state: ShopState;
@@ -29,8 +27,15 @@ const TYPE_COLOR: Record<string, string> = {
   Service: "text-cyan-400",
 };
 
+const selectShopResult = selectEvalResult<CardRewardEvaluation>("shop");
+const selectShopLoading = selectEvalIsLoading("shop");
+const selectShopError = selectEvalError("shop");
+
 export function ShopView({ state }: ShopViewProps) {
-  const { evaluation, isLoading, error, retry } = useShopEvaluation(state);
+  const dispatch = useAppDispatch();
+  const evaluation = useAppSelector(selectShopResult);
+  const isLoading = useAppSelector(selectShopLoading);
+  const error = useAppSelector(selectShopError);
 
   const items = state.shop.items.filter((i) => i.is_stocked);
   const cards = items.filter((i) => i.category === "card");
@@ -77,7 +82,7 @@ export function ShopView({ state }: ShopViewProps) {
         </div>
       )}
 
-      {error && <EvalError error={error} onRetry={retry} />}
+      {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("shop"))} />}
 
       {/* Items — two columns */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-x-3 gap-y-2 content-start overflow-y-auto">

@@ -2,18 +2,28 @@
 
 import { cn } from "@sts2/shared/lib/cn";
 import type { EventState } from "@sts2/shared/types/game-state";
+import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
-import { useEventEvaluation } from "./use-event-evaluation";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
 import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "../../components/eval-card";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
+
+const selectEventResult = selectEvalResult<CardRewardEvaluation>("event");
+const selectEventLoading = selectEvalIsLoading("event");
+const selectEventError = selectEvalError("event");
 
 interface EventViewProps {
   state: EventState;
 }
 
 export function EventView({ state }: EventViewProps) {
-  const { evaluation, isLoading, error, retry } = useEventEvaluation(state);
+  const dispatch = useAppDispatch();
+  const evaluation = useAppSelector(selectEventResult);
+  const isLoading = useAppSelector(selectEventLoading);
+  const error = useAppSelector(selectEventError);
   const options = state.event.options.filter((o) => !o.is_proceed && !o.is_locked);
   const topPick = evaluation?.rankings ? findTopPick(evaluation.rankings) : null;
 
@@ -36,7 +46,7 @@ export function EventView({ state }: EventViewProps) {
         </p>
       )}
 
-      {error && <EvalError error={error} onRetry={retry} />}
+      {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("event"))} />}
 
       {options.length === 0 && (
         <p className="text-sm text-spire-text-tertiary">Waiting for game state to update...</p>

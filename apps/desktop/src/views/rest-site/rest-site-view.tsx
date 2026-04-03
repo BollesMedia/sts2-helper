@@ -4,10 +4,17 @@ import { cn } from "@sts2/shared/lib/cn";
 import { HpBar } from "../../components/hp-bar";
 import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "../../components/eval-card";
 import type { RestSiteState } from "@sts2/shared/types/game-state";
+import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
-import { useRestEvaluation } from "./use-rest-evaluation";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
+
+const selectRestResult = selectEvalResult<CardRewardEvaluation>("rest_site");
+const selectRestLoading = selectEvalIsLoading("rest_site");
+const selectRestError = selectEvalError("rest_site");
 
 const OPTION_ICONS: Record<string, string> = {
   HEAL: "\u2764\ufe0f",
@@ -26,7 +33,10 @@ interface RestSiteViewProps {
 }
 
 export function RestSiteView({ state }: RestSiteViewProps) {
-  const { evaluation, isLoading, error, retry } = useRestEvaluation(state);
+  const dispatch = useAppDispatch();
+  const evaluation = useAppSelector(selectRestResult);
+  const isLoading = useAppSelector(selectRestLoading);
+  const error = useAppSelector(selectRestError);
   const restPlayer = state.player ?? state.rest_site?.player;
   const options = state.rest_site.options;
   const topPick = evaluation?.rankings ? findTopPick(evaluation.rankings) : null;
@@ -58,7 +68,7 @@ export function RestSiteView({ state }: RestSiteViewProps) {
         </div>
       )}
 
-      {error && <EvalError error={error} onRetry={retry} />}
+      {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("rest_site"))} />}
 
       <div className="grid grid-cols-2 gap-2">
         {isLoading && !evaluation ? (

@@ -1,4 +1,7 @@
 import { setupCardRewardEvalListener } from "./cardRewardEvalListener";
+import { setupShopEvalListener } from "./shopEvalListener";
+import { setupEventEvalListener } from "./eventEvalListener";
+import { setupRestSiteEvalListener } from "./restSiteEvalListener";
 
 /**
  * Register all evaluation listeners.
@@ -7,9 +10,9 @@ import { setupCardRewardEvalListener } from "./cardRewardEvalListener";
  */
 export function setupEvaluationListeners() {
   setupCardRewardEvalListener();
-  // Phase 2: setupShopEvalListener();
-  // Phase 2: setupEventEvalListener();
-  // Phase 2: setupRestSiteEvalListener();
+  setupShopEvalListener();
+  setupEventEvalListener();
+  setupRestSiteEvalListener();
   // Phase 3: setupCardRemovalEvalListener();
   // Phase 3: setupCardUpgradeEvalListener();
   // Phase 3: setupCardSelectEvalListener();
