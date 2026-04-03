@@ -179,9 +179,9 @@ export function buildCompactContext(ctx: EvaluationContext): string {
       if (kwNames.includes("retain")) tags.push("Retain");
       if (kwNames.includes("eternal")) tags.push("ETERNAL");
 
-      // Compress description: keep first 80 chars, preserve numbers and keywords
-      const shortDesc = c.description.length > 80
-        ? c.description.slice(0, 77) + "..."
+      // Compress description: keep first 120 chars to preserve mechanical details
+      const shortDesc = c.description.length > 120
+        ? c.description.slice(0, 117) + "..."
         : c.description;
 
       cardCounts.set(c.name, {
@@ -200,7 +200,7 @@ export function buildCompactContext(ctx: EvaluationContext): string {
       // Include short description for non-starter cards so Claude knows what they do
       const isStarter = starterCards.has(name.toLowerCase());
       const desc = !isStarter && info.desc
-        ? ` (${info.desc.slice(0, 30).trim()}${info.desc.length > 30 ? "..." : ""})`
+        ? ` (${info.desc.slice(0, 60).trim()}${info.desc.length > 60 ? "..." : ""})`
         : "";
       return `${prefix}${name}${desc}${tags}`;
     })
@@ -209,8 +209,8 @@ export function buildCompactContext(ctx: EvaluationContext): string {
   const relicStr = ctx.relics.length > 0
     ? ctx.relics.map((r) => {
         // Compress relic description to key effect
-        const short = r.description.length > 40
-          ? r.description.slice(0, 37) + "..."
+        const short = r.description.length > 80
+          ? r.description.slice(0, 77) + "..."
           : r.description;
         return `${r.name} (${short})`;
       }).join(", ")

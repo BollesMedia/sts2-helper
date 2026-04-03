@@ -53,8 +53,18 @@ describe("shouldEvaluateMap", () => {
   });
 
   describe("position null", () => {
-    it("returns true when current position is null", () => {
-      expect(evaluate({ currentPosition: null })).toBe(true);
+    it("returns true when position null and no prev context (fresh start)", () => {
+      expect(evaluate({ currentPosition: null, hasPrevContext: false })).toBe(true);
+    });
+
+    it("returns true when position null and act changed", () => {
+      expect(evaluate({ currentPosition: null, actChanged: true })).toBe(true);
+    });
+
+    it("returns false when position null but has prev context and no act change", () => {
+      // Transitional state — game briefly reports null position during node
+      // transition. Prev context exists so we have a valid path. Don't re-eval.
+      expect(evaluate({ currentPosition: null })).toBe(false);
     });
   });
 
@@ -69,8 +79,14 @@ describe("shouldEvaluateMap", () => {
   });
 
   describe("significant context change", () => {
-    it("returns true when context changed significantly", () => {
-      expect(evaluate({ hasSignificantContextChange: true })).toBe(true);
+    it("returns true when context changed AND deviated from path", () => {
+      expect(evaluate({ hasSignificantContextChange: true, isOnRecommendedPath: false })).toBe(true);
+    });
+
+    it("returns false when context changed but still on recommended path", () => {
+      // User followed the recommended path, went through combat (HP dropped),
+      // returned to map. Path is still valid — don't re-eval.
+      expect(evaluate({ hasSignificantContextChange: true, isOnRecommendedPath: true })).toBe(false);
     });
   });
 

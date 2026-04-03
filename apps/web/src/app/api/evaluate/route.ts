@@ -27,7 +27,9 @@ import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies
 
 const anthropic = new Anthropic();
 
-// Compact boss reference for Claude — loaded once, shared via Promise
+// ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
+
+// Boss reference
 let bossReferencePromise: Promise<string> | null = null;
 
 function getBossReference(): Promise<string> {
@@ -58,6 +60,70 @@ async function loadBossReference(): Promise<string> {
   } catch {
     return "";
   }
+}
+
+// Keyword + status effect glossary
+let keywordGlossaryPromise: Promise<string> | null = null;
+
+function getKeywordGlossary(): Promise<string> {
+  if (!keywordGlossaryPromise) {
+    keywordGlossaryPromise = loadKeywordGlossary();
+  }
+  return keywordGlossaryPromise;
+}
+
+async function loadKeywordGlossary(): Promise<string> {
+  try {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("keywords")
+      .select("name, description")
+      .order("name");
+
+    if (!data || data.length === 0) return "";
+
+    const lines = data.map((k) => `- ${k.name}: ${k.description}`);
+    return `\nGAME KEYWORD & STATUS EFFECT REFERENCE (use these definitions when evaluating):\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
+// Incremental card data cache — only fetches cards not already cached
+interface CachedCard {
+  description: string;
+  keywords: string[];
+}
+
+const cardCache = new Map<string, CachedCard>();
+
+async function enrichCards(
+  ids: string[]
+): Promise<Map<string, CachedCard>> {
+  const missing = ids.filter((id) => !cardCache.has(id));
+
+  if (missing.length > 0) {
+    try {
+      const supabase = createServiceClient();
+      const { data } = await supabase
+        .from("cards")
+        .select("id, description, description_raw, keywords")
+        .in("id", missing);
+
+      if (data) {
+        for (const card of data) {
+          cardCache.set(card.id, {
+            description: card.description_raw ?? card.description,
+            keywords: (card.keywords as string[]) ?? [],
+          });
+        }
+      }
+    } catch {
+      // Non-critical — fall back to mod-provided descriptions
+    }
+  }
+
+  return cardCache;
 }
 
 // System prompt is now built by prompt-builder.ts with type-specific addenda.
@@ -103,19 +169,30 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // Load contextual data
-  const bosses = await getBossReference();
-  const runHistory = await getRunHistoryContext();
-  const characterStrategy = body.context
-    ? await getCharacterStrategy(body.context.character)
-    : null;
+  // Load contextual data (in parallel)
+  const itemIds = items?.map((i) => i.id) ?? [];
+  const [bosses, runHistory, characterStrategy, keywordGlossary, enrichedCards] = await Promise.all([
+    getBossReference(),
+    getRunHistoryContext(),
+    body.context ? getCharacterStrategy(body.context.character) : null,
+    getKeywordGlossary(),
+    itemIds.length > 0 ? enrichCards(itemIds) : cardCache,
+  ]);
 
   // Determine eval type for the prompt builder
-  // Hooks can specify evalType explicitly (rest_site, event, etc.)
-  // Otherwise fall back to the request type
   const evalType: EvalType = (body.evalType as EvalType) ?? (type === "map" && body.mapPrompt ? "map" : type as EvalType);
   const isMultiplayer = context?.isMultiplayer === true;
-  const systemPrompt = buildSystemPrompt(evalType, isMultiplayer);
+  const systemPrompt = buildSystemPrompt(evalType, isMultiplayer) + keywordGlossary;
+
+  // Enrich offered items with authoritative Supabase descriptions
+  if (items) {
+    for (const item of items) {
+      const cached = enrichedCards.get(item.id);
+      if (cached) {
+        item.description = cached.description;
+      }
+    }
+  }
   console.log("[Evaluate] evalType:", evalType, "system prompt length:", systemPrompt.length);
 
   // ─── MAP/EVENT/REST/ETC EVALUATION (via mapPrompt) ───

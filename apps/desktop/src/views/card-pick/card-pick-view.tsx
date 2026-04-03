@@ -6,6 +6,7 @@ import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
+import { findTopPick } from "../../components/eval-card";
 import { useAppSelector } from "../../store/hooks";
 import { selectActivePlayer } from "../../features/run/runSelectors";
 
@@ -55,12 +56,11 @@ export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
           </>
         ) : (
           (() => {
-            // Derive the recommended card from pick_summary when available,
-            // fall back to the strong_pick/good_pick ranking
-            const summaryLower = evaluation?.pickSummary?.toLowerCase() ?? "";
-            const strongPick = evaluation?.rankings.find(
-              (r) => r.recommendation === "strong_pick" || r.recommendation === "good_pick"
-            );
+            // Derive the recommended card — use findTopPick (highest tier)
+            // as the single source of truth
+            const topPick = evaluation?.rankings
+              ? findTopPick(evaluation.rankings)
+              : null;
 
             return cards.map((card, cardIndex) => {
               const cardEval = evaluation?.rankings.find(
@@ -70,12 +70,9 @@ export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
                   r.itemName.toLowerCase() === card.name.toLowerCase()
               );
 
-              // Match from pick_summary text, then strong_pick recommendation, then rank
-              const matchesSummary = summaryLower.includes(card.name.toLowerCase());
-              const isStrongPick = cardEval && cardEval === strongPick;
-              const isTopPick = !evaluation?.skipRecommended && (
-                matchesSummary || (!summaryLower && isStrongPick) || (!summaryLower && !strongPick && cardEval?.rank === 1)
-              );
+              const isTopPick = !evaluation?.skipRecommended &&
+                cardEval != null &&
+                cardEval === topPick;
 
               return (
                 <CardRating

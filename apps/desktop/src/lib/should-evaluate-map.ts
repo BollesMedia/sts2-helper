@@ -41,14 +41,13 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   // Act changed — always re-evaluate for new map layout
   if (actChanged) return true;
 
-  // Current position unknown — evaluate to establish path
-  if (!currentPosition) return true;
+  // Current position unknown with no prior context is handled above.
+  // With prior context, null position is a transitional state (clicking a
+  // node briefly clears position before the game transitions). Don't re-eval.
 
-  // Deviated from recommended path — re-evaluate (even with 1 option)
-  if (!isOnRecommendedPath) return true;
-
-  // Significant context change at this fork — re-evaluate
-  if (hasSignificantContextChange) return true;
+  // Deviated from recommended path — re-evaluate (even with 1 option).
+  // If position is null, we can't check deviation — treat as on-path.
+  if (currentPosition && !isOnRecommendedPath) return true;
 
   // On recommended path with stable context — carry forward
   return false;

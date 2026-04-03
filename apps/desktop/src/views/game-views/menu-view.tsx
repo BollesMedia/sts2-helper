@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
-import { selectPendingOutcome, outcomeConfirmed } from "../../features/run/runSlice";
+import { selectPendingOutcome, outcomeConfirmed, saveAndQuitDismissed } from "../../features/run/runSlice";
 import { apiFetch } from "@sts2/shared/lib/api-client";
 
 interface MenuViewProps {
@@ -50,29 +50,38 @@ export function MenuView({ footer }: MenuViewProps) {
         {pendingOutcome ? (
           <>
             <h2 className="text-2xl font-display font-semibold text-spire-text">
-              Run ended on floor {pendingOutcome.finalFloor}
+              Run paused on floor {pendingOutcome.finalFloor}
             </h2>
-            <p className="text-sm text-spire-text-tertiary">How did it go?</p>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="What went wrong? What would you do differently? Any card picks you regret?"
-              className="w-full rounded-lg border border-spire-border bg-spire-surface px-4 py-3 text-sm text-spire-text placeholder-spire-text-muted focus:outline-none focus:border-spire-border-emphasis resize-none"
-              rows={3}
-            />
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={() => handleOutcome(true)}
-                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-6 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-              >
-                Victory
-              </button>
-              <button
-                onClick={() => handleOutcome(false)}
-                className="rounded-lg border border-red-500/40 bg-red-500/10 px-6 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-              >
-                Defeat
-              </button>
+            <p className="text-sm text-spire-text-tertiary">Did the run end, or just saving for later?</p>
+            <button
+              onClick={() => dispatch(saveAndQuitDismissed())}
+              className="w-full rounded-lg border border-spire-border bg-spire-surface px-6 py-2.5 text-sm font-medium text-spire-text hover:bg-spire-elevated transition-colors"
+            >
+              Save & Quit — I'll be back
+            </button>
+            <div className="border-t border-spire-border pt-4 space-y-3">
+              <p className="text-xs text-spire-text-muted">Run over? Record the outcome:</p>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Optional: What went wrong? Any card picks you regret?"
+                className="w-full rounded-lg border border-spire-border bg-spire-surface px-4 py-3 text-sm text-spire-text placeholder-spire-text-muted focus:outline-none focus:border-spire-border-emphasis resize-none"
+                rows={2}
+              />
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => handleOutcome(true)}
+                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-6 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                >
+                  Victory
+                </button>
+                <button
+                  onClick={() => handleOutcome(false)}
+                  className="rounded-lg border border-red-500/40 bg-red-500/10 px-6 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
+                >
+                  Defeat
+                </button>
+              </div>
             </div>
           </>
         ) : (

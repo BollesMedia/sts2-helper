@@ -101,7 +101,14 @@ export const runSlice = createSlice({
       action: PayloadAction<{ runId: string; victory: boolean }>
     ) {
       state.pendingOutcome = null;
-      // Run data stays in runs Record for history (cleaned up later if needed)
+    },
+
+    saveAndQuitDismissed(state) {
+      if (state.pendingOutcome) {
+        // Restore the run — player just saved & quit, run is still active
+        state.activeRunId = state.pendingOutcome.runId;
+        state.pendingOutcome = null;
+      }
     },
 
     floorUpdated(
@@ -151,6 +158,7 @@ export const {
   runStarted,
   runEnded,
   outcomeConfirmed,
+  saveAndQuitDismissed,
   floorUpdated,
   playerUpdated,
   deckUpdated,

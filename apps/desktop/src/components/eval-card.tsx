@@ -80,12 +80,17 @@ export function evalBorderClass(recommendation?: string, isTopPick?: boolean): s
 
 // --- Top pick detection (by highest tier) ---
 
-export function findTopPick<T extends { tier: string }>(rankings: T[]): T | null {
+export function findTopPick<T extends { tier: string; recommendation?: string }>(rankings: T[]): T | null {
   if (!rankings.length) return null;
   const tierOrder = ["S", "A", "B", "C", "D", "F"];
+  const recOrder = ["strong_pick", "good_pick", "situational", "skip"];
   return rankings.reduce((best, r) => {
     const bestTier = tierOrder.indexOf(best.tier);
     const rTier = tierOrder.indexOf(r.tier);
-    return rTier < bestTier ? r : best;
+    if (rTier !== bestTier) return rTier < bestTier ? r : best;
+    // Tie-break: stronger recommendation wins
+    const bestRec = recOrder.indexOf(best.recommendation ?? "situational");
+    const rRec = recOrder.indexOf(r.recommendation ?? "situational");
+    return rRec < bestRec ? r : best;
   });
 }
