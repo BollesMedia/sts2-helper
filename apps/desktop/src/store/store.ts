@@ -3,11 +3,13 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 import { listenerMiddleware } from "./listenerMiddleware";
 import { loadPersistedState, setupPersistenceListener } from "./persistence";
 import { gameStateApi } from "../services/gameStateApi";
+import { evaluationApi } from "../services/evaluationApi";
 import { connectionSlice } from "../features/connection/connectionSlice";
 import { runSlice } from "../features/run/runSlice";
 
 const rootReducer = combineSlices(
   gameStateApi,
+  evaluationApi,
   connectionSlice,
   runSlice,
 );
@@ -18,7 +20,8 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
       .prepend(listenerMiddleware.middleware)
-      .concat(gameStateApi.middleware),
+      .concat(gameStateApi.middleware)
+      .concat(evaluationApi.middleware),
 });
 
 setupListeners(store.dispatch);
