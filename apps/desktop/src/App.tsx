@@ -4,9 +4,10 @@ import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracke
 import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
 import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
 import { useChoiceTracker } from "@sts2/shared/features/connection/use-choice-tracker";
-import { useAppSelector } from "./store/hooks";
+import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { selectActiveDeck, selectActivePlayer } from "./features/run/runSelectors";
 import { selectActiveRunId } from "./features/run/runSlice";
+import { evaluationApi } from "./services/evaluationApi";
 import { AppHeader } from "@sts2/shared/features/game-views/app-header";
 import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
@@ -97,6 +98,7 @@ export function App() {
 function AuthenticatedApp() {
   const { user, signOut } = useAuth();
   const { gameState, connectionStatus } = useGameState();
+  const dispatch = useAppDispatch();
 
   // Old hooks still run for backward compat + choice tracking
   const oldDeckCards = useDeckTracker(gameState);
@@ -204,11 +206,14 @@ function AuthenticatedApp() {
           <div className="flex gap-3">
             <button
               onClick={() => {
+                // Clear old eval caches (still used by legacy hooks)
                 localStorage.removeItem("sts2-eval-cache");
                 localStorage.removeItem("sts2-shop-eval-cache");
                 localStorage.removeItem("sts2-map-eval-cache");
                 localStorage.removeItem("sts2-event-eval-cache");
                 localStorage.removeItem("sts2-rest-eval-cache");
+                // Clear RTK Query mutation cache
+                dispatch(evaluationApi.util.resetApiState());
                 window.location.reload();
               }}
               className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"
