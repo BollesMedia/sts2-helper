@@ -1,8 +1,7 @@
 "use client";
 
 import { cn } from "@sts2/shared/lib/cn";
-import type { EventState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { EventState } from "@sts2/shared/types/game-state";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { useEventEvaluation } from "./use-event-evaluation";
 import { CardSkeleton } from "../../components/loading-skeleton";
@@ -11,15 +10,10 @@ import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "..
 
 interface EventViewProps {
   state: EventState;
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
-  runId: string | null;
 }
 
-export function EventView({ state, deckCards, player, runId }: EventViewProps) {
-  const { evaluation, isLoading, error, retry } = useEventEvaluation(
-    state, deckCards, player, runId
-  );
+export function EventView({ state }: EventViewProps) {
+  const { evaluation, isLoading, error, retry } = useEventEvaluation(state);
   const options = state.event.options.filter((o) => !o.is_proceed && !o.is_locked);
   const topPick = evaluation?.rankings ? findTopPick(evaluation.rankings) : null;
 
@@ -82,7 +76,7 @@ export function EventView({ state, deckCards, player, runId }: EventViewProps) {
                   {/* Evaluation */}
                   {evalData && (
                     <div className="pt-3 border-t border-spire-border-subtle">
-                      <EvalRow tier={evalData.tier as TierLetter} recommendation={evalData.recommendation} isTopPick={isTopPick} />
+                      <EvalRow tier={evalData.tier} recommendation={evalData.recommendation} isTopPick={isTopPick} />
                     </div>
                   )}
 

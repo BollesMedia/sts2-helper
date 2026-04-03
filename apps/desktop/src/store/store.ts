@@ -11,7 +11,7 @@ import { runSlice } from "../features/run/runSlice";
 import { setupConnectionListeners } from "../features/connection/connectionListeners";
 import { setupGameStateUpdateListener } from "../features/run/runListeners";
 import { setupRunAnalyticsListener } from "../features/run/runAnalyticsListener";
-import { setupRunApiListener } from "../features/run/runApiListener";
+import { setupChoiceTrackingListener } from "../features/choice/choiceTrackingListener";
 import { setupMapEvalListener } from "../features/map/mapListeners";
 
 const rootReducer = combineSlices(
@@ -38,7 +38,7 @@ setupPersistenceListener();
 setupConnectionListeners();
 setupGameStateUpdateListener();
 setupRunAnalyticsListener();
-setupRunApiListener();
+setupChoiceTrackingListener(); // Must be AFTER gameStateUpdate so deck is current
 setupMapEvalListener();
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -1,23 +1,22 @@
 "use client";
 
 import { cn } from "@sts2/shared/lib/cn";
-import type { CardRewardState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { CardRewardState } from "@sts2/shared/types/game-state";
 import { useCardEvaluation } from "./use-card-evaluation";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
+import { useAppSelector } from "../../store/hooks";
+import { selectActivePlayer } from "../../features/run/runSelectors";
 
 interface CardPickViewProps {
   state: CardRewardState;
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
-  runId: string | null;
   exclusive?: boolean;
 }
 
-export function CardPickView({ state, deckCards, player, runId, exclusive = true }: CardPickViewProps) {
-  const { evaluation, isLoading, error, retry } = useCardEvaluation(state, deckCards, player, runId, exclusive);
+export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
+  const player = useAppSelector(selectActivePlayer);
+  const { evaluation, isLoading, error, retry } = useCardEvaluation(state, exclusive);
   const cards = state.card_reward.cards;
 
   return (

@@ -1,10 +1,11 @@
 "use client";
-import { apiFetch } from "@sts2/shared/lib/api-client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MapState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { TrackedPlayer } from "../../features/run/runSlice";
+import { mapEvalUpdated } from "../../features/run/runSlice";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
+import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
@@ -12,8 +13,14 @@ import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-
 import { NODE_TYPE_ICONS } from "./map-scoring";
 import { traceRecommendedPath } from "./map-path-tracer";
 import { saveMapContext } from "./map-context-cache";
+import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
+import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 import { getCached, setCache } from "@sts2/shared/lib/local-cache";
-import { useMapEvalState } from "./map-eval-context";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectMapEvalContext, selectRecommendedNodesSet } from "../../features/run/runSelectors";
+import { useEvaluateMapMutation } from "../../services/evaluationApi";
+import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
+import { hasSignificantContextChange as hasSignificantCtxChange } from "../../lib/has-significant-context-change";
 
 const CACHE_KEY = "sts2-map-eval-cache";
 
@@ -21,7 +28,7 @@ export interface MapPathEvaluation {
   rankings: {
     optionIndex: number;
     nodeType: string;
-    tier: string;
+    tier: TierLetter;
     confidence: number;
     recommendation: string;
     reasoning: string;
@@ -61,15 +68,15 @@ export function useMapEvaluation(
   const [error, setError] = useState<string | null>(null);
   const evaluatedKey = useRef<string>(initialEval ? mapKey : "");
 
-  // Eval context persists across remounts via React context (backed by localStorage)
-  const mapEvalState = useMapEvalState();
-  const savedCtx = mapEvalState.getEvalContext();
+  // Eval context from Redux — survives remounts and persists via listener
+  const dispatch = useAppDispatch();
+  const [triggerMapEval] = useEvaluateMapMutation();
+  const reduxEvalCtx = useAppSelector(selectMapEvalContext);
+  const reduxRecommendedNodes = useAppSelector(selectRecommendedNodesSet);
   const lastEvalContext = useRef<{ hpPercent: number; deckSize: number; act: number; recommendedNodes: Set<string> } | null>(
-    savedCtx ? {
-      hpPercent: savedCtx.hpPercent,
-      deckSize: savedCtx.deckSize,
-      act: savedCtx.act,
-      recommendedNodes: new Set(savedCtx.recommendedNodesList),
+    reduxEvalCtx ? {
+      ...reduxEvalCtx,
+      recommendedNodes: reduxRecommendedNodes,
     } : null
   );
 
@@ -77,36 +84,31 @@ export function useMapEvaluation(
 
   // ─── Decision: should we evaluate? ───
 
-  function shouldEvaluate(): boolean {
-    // Gate: only 1 option → never evaluate (no decision to make)
-    if (options.length <= 1) return false;
-
+  function checkShouldEvaluate(): boolean {
     const prev = lastEvalContext.current;
-
-    // Rule 1: No evaluation has EVER been done this act → evaluate
-    // Check: do we have context from a previous eval? If not, this is a fresh start.
-    if (!prev) return true;
-
-    // Act changed → always re-evaluate
-    if (prev.act !== (state.run?.act ?? 0)) return true;
-
-    // Current position null (act start, reconnection) → re-evaluate
     const currentPos = state.map?.current_position;
-    if (!currentPos) return true;
-
-    // Rule 2: User deviated from recommended path → evaluate
-    const onPath = prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`);
-    if (!onPath) return true;
-
-    // Rule 3: Significant context change AT A FORK → evaluate
     const mapPlayer = state.player ?? state.map?.player;
-    const hpPercent = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
-    const hpDrop = prev.hpPercent - hpPercent;
-    const deckGrew = deckCards.length - prev.deckSize;
-    if (hpDrop > 0.15 || deckGrew > 1) return true;
+    const currentHpPercent = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
 
-    // On recommended path, context similar → don't evaluate
-    return false;
+    const isOnRecommendedPath = prev && currentPos
+      ? prev.recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
+      : false;
+
+    return shouldEvaluateMap({
+      optionCount: options.length,
+      hasPrevContext: !!prev,
+      actChanged: prev ? prev.act !== (state.run?.act ?? 0) : false,
+      currentPosition: currentPos ?? null,
+      isOnRecommendedPath,
+      hasSignificantContextChange: prev
+        ? hasSignificantCtxChange({
+            prevHpPercent: prev.hpPercent,
+            currentHpPercent,
+            prevDeckSize: prev.deckSize,
+            currentDeckSize: deckCards.length,
+          })
+        : false,
+    });
   }
 
   // ─── Carry forward: keep existing path without re-evaluating ───
@@ -213,13 +215,10 @@ export function useMapEvaluation(
     const mapOverview = Object.entries(typeCounts).map(([t, c]) => `${t}: ${c}`).join(", ");
 
     try {
-      const res = await apiFetch("/api/evaluate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "map",
-          context: ctx,
-          runNarrative: getPromptContext(),
-          mapPrompt: `${contextStr}
+      const parsed = await triggerMapEval({
+        context: ctx,
+        runNarrative: getPromptContext(),
+        mapPrompt: `${contextStr}
 
 HP: ${mapPlayer?.hp ?? 0}/${mapPlayer?.max_hp ?? 0} (${Math.round(((mapPlayer?.hp ?? 0) / Math.max(1, mapPlayer?.max_hp ?? 1)) * 100)}%) | Gold: ${mapPlayer?.gold ?? 0}g | Removal cost: ${player?.cardRemovalCost ?? "?"}g
 Map: ${mapOverview} | Boss in ${state.map.boss.row - currentRow} floors
@@ -228,79 +227,99 @@ Paths (each line = node in order, ├─ = branch point):
 ${optionsStr}
 
 Return EXACTLY ${options.length} rankings — ONE per path option (${options.map((o, i) => `${i + 1}=${o.type}`).join(", ")}). Evaluate the WHOLE path, not individual nodes.`,
-          runId: null,
-          gameVersion: null,
-        }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
-      }
+        runId: null,
+        gameVersion: null,
+      }).unwrap();
 
       // Guard against stale responses
       if (evaluatedKey.current !== targetKey) return;
 
-      const data = await res.json();
-      const parsed: MapPathEvaluation = {
-        rankings: (data.rankings ?? []).map((r: { option_index: number; node_type: string; tier: string; confidence: number; recommendation: string; reasoning: string }) => ({
-          optionIndex: r.option_index,
-          nodeType: r.node_type,
-          tier: r.tier,
-          confidence: r.confidence,
-          recommendation: r.recommendation,
-          reasoning: r.reasoning,
-        })),
-        overallAdvice: data.overall_advice ?? null,
-        recommendedPath: Array.isArray(data.recommended_path)
-          ? data.recommended_path.map((p: { col: number; row: number }) => ({ col: p.col, row: p.row }))
-          : [],
-      };
-
       setEvaluation(parsed);
       setCache(CACHE_KEY, mapKey, parsed);
 
-      // Build recommendedNodes — trace path from EVERY evaluated option
-      // Picking any evaluated option is "on plan" — deviation is picking
-      // a node that wasn't one of the evaluated options at all.
+      // Build path tracing context
       const mp = state.player ?? state.map?.player;
-      const recommendedNodes = new Set<string>();
       const hpPct = mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1;
       const allNodes = state.map?.nodes ?? [];
       const bossPos = state.map.boss;
+      const act = state.run?.act ?? 1;
+      const floor = state.run?.floor ?? 1;
 
+      const relics = player?.relics ?? [];
+      const archetypes = detectArchetypes(deckCards, relics);
+      const maturityCtx: DeckMaturityInput = {
+        archetypes,
+        deckSize: deckCards.length,
+        deckCards: deckCards.map((c) => ({ name: c.name })),
+        hasScaling: hasScalingSources(deckCards),
+        scalingSources: getScalingSources(deckCards),
+        upgradeCount: deckCards.filter((c) => c.name.includes("+")).length,
+      };
+      const deckMaturity = computeDeckMaturity(maturityCtx);
+      const relicCount = relics.length;
+
+      // Find best option from rankings for primary path trace
+      const tierOrder = ["S", "A", "B", "C", "D", "F"];
+      const bestRanking = parsed.rankings.length > 0
+        ? parsed.rankings.reduce((a, b) => {
+            const aTier = tierOrder.indexOf(a.tier);
+            const bTier = tierOrder.indexOf(b.tier);
+            if (aTier !== bTier) return aTier < bTier ? a : b;
+            return (a.confidence ?? 0) >= (b.confidence ?? 0) ? a : b;
+          })
+        : null;
+      const bestOpt = bestRanking
+        ? options.find((_, i) => i + 1 === bestRanking.optionIndex)
+        : null;
+
+      // Trace recommended path from best option with full context
+      const tracedPath = bestOpt
+        ? traceRecommendedPath(
+            bestOpt.col, bestOpt.row, allNodes, bossPos,
+            hpPct, mp?.gold ?? 0, act, deckMaturity, relicCount, floor
+          )
+        : parsed.recommendedPath;
+
+      // Build recommendedNodes — trace from EVERY evaluated option
+      // so picking any option is "on plan" (deviation = unevaluated node)
+      const recommendedNodes = new Set<string>();
       for (const opt of options) {
         recommendedNodes.add(`${opt.col},${opt.row}`);
-        // Trace full path from each option to boss
         const fullPath = traceRecommendedPath(
           opt.col, opt.row, allNodes, bossPos,
-          hpPct, mp?.gold ?? 0, state.run?.act ?? 1, 0, 0, state.run?.floor ?? 1
+          hpPct, mp?.gold ?? 0, act, deckMaturity, relicCount, floor
         );
         for (const p of fullPath) {
           recommendedNodes.add(`${p.col},${p.row}`);
         }
       }
-      // Also include API's recommended path if provided
+      // Also include API's recommended path + traced path
       for (const p of parsed.recommendedPath) {
+        recommendedNodes.add(`${p.col},${p.row}`);
+      }
+      for (const p of tracedPath) {
         recommendedNodes.add(`${p.col},${p.row}`);
       }
 
       // Persist context for cross-remount access
       const evalCtx = {
-        hpPercent: mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1,
+        hpPercent: hpPct,
         deckSize: deckCards.length,
-        act: state.run?.act ?? 1,
+        act,
         recommendedNodes,
       };
       lastEvalContext.current = evalCtx;
 
-      // Persist via context (survives remounts, backed by localStorage)
-      mapEvalState.setEvalContext({
-        hpPercent: evalCtx.hpPercent,
-        deckSize: evalCtx.deckSize,
-        act: evalCtx.act,
-        recommendedNodesList: [...recommendedNodes],
-      });
+      // Persist to Redux (survives remounts, persisted via listener middleware)
+      dispatch(mapEvalUpdated({
+        recommendedPath: tracedPath,
+        recommendedNodes: [...recommendedNodes],
+        lastEvalContext: {
+          hpPercent: evalCtx.hpPercent,
+          deckSize: evalCtx.deckSize,
+          act: evalCtx.act,
+        },
+      }));
 
       registerLastEvaluation("map", {
         recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
@@ -319,7 +338,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
     } finally {
       setIsLoading(false);
     }
-  }, [state, deckCards, player, options, mapKey]);
+  }, [state, deckCards, player, options, mapKey, triggerMapEval]);
 
   const retry = () => {
     evaluatedKey.current = "";
@@ -330,7 +349,7 @@ Return EXACTLY ${options.length} rankings — ONE per path option (${options.map
 
   useEffect(() => {
     if (mapKey !== evaluatedKey.current && !isLoading) {
-      if (shouldEvaluate()) {
+      if (checkShouldEvaluate()) {
         evaluate();
       } else {
         carryForward();

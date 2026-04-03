@@ -4,8 +4,10 @@ import { HpBar } from "../../components/hp-bar";
 import { PlayerHand } from "../../components/player-hand";
 import { BossBriefing } from "../combat/boss-briefing";
 import { cn } from "@sts2/shared/lib/cn";
-import type { CombatState, CombatCard, BattlePlayer, GameState } from "@sts2/shared/types/game-state";
+import type { CombatState, BattlePlayer, GameState } from "@sts2/shared/types/game-state";
 import { getPlayer } from "@sts2/shared/types/game-state";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck } from "../../features/run/runSelectors";
 import { STATE_LABELS } from "./state-labels";
 
 // --- Intent styling ---
@@ -127,7 +129,8 @@ function EnemyRow({ enemy }: { enemy: CombatState["battle"]["enemies"][number] }
 
 // --- Main component ---
 
-export function CombatView({ state, deckCards }: { state: CombatState; deckCards: CombatCard[] }) {
+export function CombatView({ state }: { state: CombatState }) {
+  const deckCards = useAppSelector(selectActiveDeck);
   const player = getPlayer(state);
   if (!player || !state.battle) {
     return (

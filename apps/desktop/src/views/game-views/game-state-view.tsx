@@ -1,10 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { GameState, CombatCard } from "@sts2/shared/types/game-state";
+import type { GameState } from "@sts2/shared/types/game-state";
 import { isCombatState, hasRun } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
-import type { RunState } from "../connection/use-run-tracker";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck } from "../../features/run/runSelectors";
 import { CardPickView } from "../card-pick/card-pick-view";
 import { CardRemovalView } from "../shop/card-removal-view";
 import { CardUpgradeView } from "../rest-site/card-upgrade-view";
@@ -21,45 +21,36 @@ import { STATE_LABELS } from "./state-labels";
 
 interface GameStateViewProps {
   state: GameState;
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
-  runId: string | null;
-  runState: RunState;
   menuFooter?: ReactNode;
 }
 
-export function GameStateView({
-  state,
-  deckCards,
-  player,
-  runId,
-  runState,
-  menuFooter,
-}: GameStateViewProps) {
+export function GameStateView({ state, menuFooter }: GameStateViewProps) {
+  const deckCards = useAppSelector(selectActiveDeck);
+
   if (isCombatState(state)) {
     if (!state.battle) return <PlaceholderView title="Combat" state={state} />;
-    return <CombatView state={state} deckCards={deckCards} />;
+    return <CombatView state={state} />;
   }
 
   switch (state.state_type) {
     case "card_reward":
       if (!state.card_reward) return <PlaceholderView title="Card Reward" state={state} />;
-      return <CardPickView state={state} deckCards={deckCards} player={player} runId={runId} />;
+      return <CardPickView state={state} />;
     case "shop":
       if (!state.shop) return <PlaceholderView title="Shop" state={state} />;
-      return <ShopView state={state} deckCards={deckCards} player={player} runId={runId} />;
+      return <ShopView state={state} />;
     case "map":
       if (!state.map) return <PlaceholderView title="Map" state={state} />;
-      return <MapView state={state} player={player} deckCards={deckCards} />;
+      return <MapView state={state} />;
     case "event":
       if (!state.event) return <PlaceholderView title="Event" state={state} />;
-      return <EventView state={state} deckCards={deckCards} player={player} runId={runId} />;
+      return <EventView state={state} />;
     case "rest_site":
       if (!state.rest_site) return <PlaceholderView title="Rest Site" state={state} />;
-      return <RestSiteView state={state} deckCards={deckCards} player={player} runId={runId} />;
+      return <RestSiteView state={state} />;
     case "relic_select":
       if (!state.relic_select) return <PlaceholderView title="Relic Select" state={state} />;
-      return <RelicSelectView state={state} deckCards={deckCards} player={player} />;
+      return <RelicSelectView state={state} />;
     case "card_select": {
       if (!state.card_select) return <PlaceholderView title="Card Select" state={state} />;
       const screenType = state.card_select.screen_type;
@@ -68,11 +59,11 @@ export function GameStateView({
       const isUpgrade = promptLower.includes("upgrade") || promptLower.includes("smith") || promptLower.includes("enhance");
 
       if (isRemoval) {
-        return <CardRemovalView state={state} deckCards={deckCards} player={player} />;
+        return <CardRemovalView state={state} />;
       }
 
       if (isUpgrade) {
-        return <CardUpgradeView state={state} deckCards={deckCards} player={player} />;
+        return <CardUpgradeView state={state} />;
       }
 
       // Detect if cards are from the player's deck (buff/enchant/transform)
@@ -84,8 +75,7 @@ export function GameStateView({
       const isFromDeck = offeredCards.length > 0 && fromDeckCount / offeredCards.length > 0.5;
 
       if (isFromDeck) {
-        // Enchant, imbue, transform, etc. — pick from your deck
-        return <CardSelectEvalView state={state} deckCards={deckCards} player={player} />;
+        return <CardSelectEvalView state={state} />;
       }
 
       // New cards being offered (reward-style)
@@ -103,7 +93,7 @@ export function GameStateView({
           {state.card_select.prompt && (
             <p className="text-xs text-spire-text-tertiary">{state.card_select.prompt}</p>
           )}
-          <CardPickView state={asCardReward} deckCards={deckCards} player={player} runId={runId} exclusive={!isMultiSelect} />
+          <CardPickView state={asCardReward} exclusive={!isMultiSelect} />
         </div>
       );
     }
@@ -111,7 +101,7 @@ export function GameStateView({
       if (!state.rewards) return <PlaceholderView title="Rewards" state={state} />;
       return <CombatRewardsView state={state} />;
     case "menu":
-      return <MenuView runState={runState} footer={menuFooter} />;
+      return <MenuView footer={menuFooter} />;
     default:
       return <PlaceholderView title={STATE_LABELS[state.state_type] ?? state.state_type} state={state} />;
   }

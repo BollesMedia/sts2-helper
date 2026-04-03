@@ -1,6 +1,7 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import { apiFetch } from "@sts2/shared/lib/api-client";
 import type { CardRewardEvaluation, EvaluationContext } from "@sts2/shared/evaluation/types";
+import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import type { MapPathEvaluation } from "../views/map/use-map-evaluation";
 
 // --- Request types ---
@@ -10,6 +11,7 @@ interface EvalRequestBase {
   runNarrative?: string | null;
   runId?: string | null;
   gameVersion?: string | null;
+  userId?: string | null;
 }
 
 interface CardRewardRequest extends EvalRequestBase {
@@ -41,6 +43,22 @@ interface ShopRequest extends EvalRequestBase {
 interface MapPromptRequest extends EvalRequestBase {
   evalType?: string;
   mapPrompt: string;
+}
+
+/** Raw response from map-style eval endpoints (event, rest_site) — snake_case */
+interface MapEvalRawResponse {
+  rankings: {
+    item_id: string;
+    rank: number;
+    tier: string;
+    synergy_score: number;
+    confidence: number;
+    recommendation: string;
+    reasoning: string;
+  }[];
+  pick_summary?: string | null;
+  skip_recommended?: boolean;
+  skip_reasoning?: string | null;
 }
 
 // --- Shared fetch helper ---
@@ -77,6 +95,7 @@ export const evaluationApi = createApi({
             exclusive: args.exclusive ?? true,
             runId: args.runId,
             goldBudget: args.goldBudget,
+            userId: args.userId,
             gameVersion: args.gameVersion,
           });
           return { data };
@@ -97,6 +116,7 @@ export const evaluationApi = createApi({
             items: args.items,
             goldBudget: args.goldBudget,
             runId: args.runId,
+            userId: args.userId,
             gameVersion: args.gameVersion,
           });
           return { data };
@@ -106,11 +126,11 @@ export const evaluationApi = createApi({
       },
     }),
 
-    // Event evaluation
-    evaluateEvent: build.mutation<CardRewardEvaluation, MapPromptRequest>({
+    // Event evaluation — returns raw map-style response (snake_case rankings)
+    evaluateEvent: build.mutation<MapEvalRawResponse, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const data = await evalFetch<CardRewardEvaluation>({
+          const data = await evalFetch<MapEvalRawResponse>({
             type: "map",
             evalType: args.evalType ?? "event",
             context: args.context,
@@ -126,11 +146,11 @@ export const evaluationApi = createApi({
       },
     }),
 
-    // Rest site evaluation
-    evaluateRestSite: build.mutation<CardRewardEvaluation, MapPromptRequest>({
+    // Rest site evaluation — returns raw map-style response (snake_case rankings)
+    evaluateRestSite: build.mutation<MapEvalRawResponse, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const data = await evalFetch<CardRewardEvaluation>({
+          const data = await evalFetch<MapEvalRawResponse>({
             type: "map",
             evalType: args.evalType ?? "rest_site",
             context: args.context,
@@ -146,11 +166,11 @@ export const evaluationApi = createApi({
       },
     }),
 
-    // Map path evaluation
+    // Map path evaluation — transforms snake_case API response to camelCase
     evaluateMap: build.mutation<MapPathEvaluation, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const data = await evalFetch<MapPathEvaluation>({
+          const raw = await evalFetch<Record<string, unknown>>({
             type: "map",
             evalType: "map",
             context: args.context,
@@ -159,6 +179,20 @@ export const evaluationApi = createApi({
             runId: args.runId,
             gameVersion: args.gameVersion,
           });
+          const data: MapPathEvaluation = {
+            rankings: ((raw.rankings as Array<Record<string, unknown>>) ?? []).map((r) => ({
+              optionIndex: r.option_index as number,
+              nodeType: r.node_type as string,
+              tier: (r.tier as string).toUpperCase() as TierLetter,
+              confidence: r.confidence as number,
+              recommendation: r.recommendation as string,
+              reasoning: r.reasoning as string,
+            })),
+            overallAdvice: (raw.overall_advice as string) ?? null,
+            recommendedPath: Array.isArray(raw.recommended_path)
+              ? (raw.recommended_path as Array<{ col: number; row: number }>).map((p) => ({ col: p.col, row: p.row }))
+              : [],
+          };
           return { data };
         } catch (err) {
           return { error: { status: "CUSTOM_ERROR", data: err instanceof Error ? err.message : "Eval failed" } };
@@ -230,7 +264,7 @@ export const evaluationApi = createApi({
       finalDeck?: string[] | null;
       finalRelics?: string[] | null;
       finalDeckSize?: number | null;
-      narrative?: string | null;
+      narrative?: unknown;
       notes?: string;
     }>({
       async queryFn(args) {
@@ -247,7 +281,19 @@ export const evaluationApi = createApi({
     }),
 
     // Choice logging
-    logChoice: build.mutation<void, { runId: string; choiceType: string; floor: number; offeredItemIds: string[]; chosenItemId: string | null; recommendedItemId: string | null }>({
+    logChoice: build.mutation<void, {
+      runId: string | null;
+      choiceType: string;
+      floor: number;
+      act?: number;
+      offeredItemIds: string[];
+      chosenItemId: string | null;
+      recommendedItemId?: string | null;
+      recommendedTier?: string | null;
+      wasFollowed?: boolean;
+      rankingsSnapshot?: unknown;
+      userId?: string | null;
+    }>({
       async queryFn(args) {
         try {
           await apiFetch("/api/choice", {

@@ -214,6 +214,9 @@ export interface MapState {
     next_options: MapNextOption[];
     nodes: MapNode[];
     boss: { col: number; row: number };
+    /** Multiplayer voting state */
+    votes?: { player: string; is_local: boolean; voted: boolean }[];
+    all_voted?: boolean;
   };
   run: RunInfo;
 }
@@ -411,6 +414,9 @@ export function hasRun(
  */
 export function getPlayer(state: CombatState): BattlePlayer | undefined;
 export function getPlayer(state: HandSelectState): BattlePlayer | undefined;
+export function getPlayer(state: ShopState): PlayerSummary | undefined;
+export function getPlayer(state: RestSiteState): PlayerSummary | undefined;
+export function getPlayer(state: MapState): PlayerSummary | undefined;
 export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined;
 export function getPlayer(state: GameState): (BattlePlayer | PlayerSummary) | undefined {
   // v0.3.2 singleplayer: top-level player

@@ -1,8 +1,7 @@
 "use client";
 
 import { cn } from "@sts2/shared/lib/cn";
-import type { ShopState, ShopItem, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { ShopState, ShopItem } from "@sts2/shared/types/game-state";
 import type { CardEvaluation } from "@sts2/shared/evaluation/types";
 import {
   useShopEvaluation,
@@ -19,9 +18,6 @@ import {
 
 interface ShopViewProps {
   state: ShopState;
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
-  runId: string | null;
 }
 
 const TYPE_COLOR: Record<string, string> = {
@@ -33,10 +29,8 @@ const TYPE_COLOR: Record<string, string> = {
   Service: "text-cyan-400",
 };
 
-export function ShopView({ state, deckCards, player, runId }: ShopViewProps) {
-  const { evaluation, isLoading, error, retry } = useShopEvaluation(
-    state, deckCards, player, runId
-  );
+export function ShopView({ state }: ShopViewProps) {
+  const { evaluation, isLoading, error, retry } = useShopEvaluation(state);
 
   const items = state.shop.items.filter((i) => i.is_stocked);
   const cards = items.filter((i) => i.category === "card");

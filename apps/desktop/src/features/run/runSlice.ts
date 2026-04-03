@@ -41,6 +41,7 @@ interface RunState {
   pendingOutcome: {
     runId: string;
     inferred: boolean | null;
+    finalFloor: number;
   } | null;
 }
 
@@ -84,11 +85,13 @@ export const runSlice = createSlice({
 
     runEnded(
       state,
-      action: PayloadAction<{ runId: string; inferred: boolean | null }>
+      action: PayloadAction<{ runId: string; inferred: boolean | null; finalFloor?: number }>
     ) {
+      const run = state.runs[action.payload.runId];
       state.pendingOutcome = {
         runId: action.payload.runId,
         inferred: action.payload.inferred,
+        finalFloor: action.payload.finalFloor ?? run?.floor ?? 0,
       };
       state.activeRunId = null;
     },

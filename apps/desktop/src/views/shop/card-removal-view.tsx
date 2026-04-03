@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@sts2/shared/lib/cn";
-import type { CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
@@ -13,8 +13,6 @@ import type { GameState } from "@sts2/shared/types/game-state";
 
 interface CardRemovalViewProps {
   state: GameState & { state_type: "card_select" };
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
 }
 
 interface RemovalRecommendation {
@@ -22,7 +20,9 @@ interface RemovalRecommendation {
   reasoning: string;
 }
 
-export function CardRemovalView({ state, deckCards, player }: CardRemovalViewProps) {
+export function CardRemovalView({ state }: CardRemovalViewProps) {
+  const deckCards = useAppSelector(selectActiveDeck);
+  const player = useAppSelector(selectActivePlayer);
   const [recommendation, setRecommendation] = useState<RemovalRecommendation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const evaluatedKey = useRef("");

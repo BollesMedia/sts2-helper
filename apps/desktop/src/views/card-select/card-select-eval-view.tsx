@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@sts2/shared/lib/cn";
-import type { CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
@@ -13,8 +13,6 @@ import type { GameState } from "@sts2/shared/types/game-state";
 
 interface CardSelectEvalViewProps {
   state: GameState & { state_type: "card_select" };
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
 }
 
 interface SelectRecommendation {
@@ -27,7 +25,9 @@ interface SelectRecommendation {
  * a reward, removal, or upgrade. Passes the game's prompt text through
  * to Claude so it understands the context (enchant, transform, etc.).
  */
-export function CardSelectEvalView({ state, deckCards, player }: CardSelectEvalViewProps) {
+export function CardSelectEvalView({ state }: CardSelectEvalViewProps) {
+  const deckCards = useAppSelector(selectActiveDeck);
+  const player = useAppSelector(selectActivePlayer);
   const [recommendation, setRecommendation] = useState<SelectRecommendation | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const evaluatedKey = useRef("");

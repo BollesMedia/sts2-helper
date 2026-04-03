@@ -1,24 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { cn } from "@sts2/shared/lib/cn";
 import type { MapState, MultiplayerFields } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
-import type { CombatCard } from "@sts2/shared/types/game-state";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck, selectActivePlayer, selectRecommendedPath } from "../../features/run/runSelectors";
 import { NODE_TYPE_ICONS, NODE_SVG_LABELS } from "./map-scoring";
-import { traceRecommendedPath } from "./map-path-tracer";
 import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
-import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
-import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
-import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
-import { useMapEvalState } from "./map-eval-context";
+
 
 interface MapViewProps {
   state: MapState & MultiplayerFields;
-  player: TrackedPlayer | null;
-  deckCards: CombatCard[];
 }
 
 // --- SVG Constants ---
@@ -68,7 +62,9 @@ const REC_BORDER: Record<string, string> = {
 
 // --- Component ---
 
-export function MapView({ state, player, deckCards }: MapViewProps) {
+export function MapView({ state }: MapViewProps) {
+  const deckCards = useAppSelector(selectActiveDeck);
+  const player = useAppSelector(selectActivePlayer);
   const { nodes, current_position, visited, next_options, boss } = state.map;
   const { evaluation, isLoading, error, retry } = useMapEvaluation(state, deckCards, player);
 
@@ -111,59 +107,8 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
     return opt ? `${opt.col},${opt.row}` : null;
   }, [bestOptionIndex, next_options]);
 
-  // Path tracer context
-  const pathCtx = useMemo(() => {
-    const act = state.run?.act ?? 1;
-    const floor = state.run?.floor ?? 1;
-    const relicCount = player?.relics.length ?? 0;
-    const mapPlayer = state.player ?? state.map?.player;
-    const hpPct = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
-    const upgradeCount = deckCards.filter((c) => c.name.includes("+")).length;
-    const relics = player?.relics ?? [];
-    const archetypes = detectArchetypes(deckCards, relics);
-    const maturityCtx: DeckMaturityInput = {
-      archetypes,
-      deckSize: deckCards.length,
-      deckCards: deckCards.map((c) => ({ name: c.name })),
-      hasScaling: hasScalingSources(deckCards),
-      scalingSources: getScalingSources(deckCards),
-      upgradeCount,
-    };
-    const deckMaturity = computeDeckMaturity(maturityCtx);
-    return { hpPct, gold: mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor };
-  }, [state, player, deckCards]);
-
-  // Recommended path — persisted via React context (survives remounts)
-  const mapEvalState = useMapEvalState();
-
-  // Pure computation — no side effects
-  const recommendedPath = useMemo(() => {
-    // 1. Best case: rankings exist, trace from best option
-    if (bestOptionIndex != null) {
-      const bestOpt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-      if (bestOpt) {
-        return traceRecommendedPath(
-          bestOpt.col, bestOpt.row, nodes, boss,
-          pathCtx.hpPct, pathCtx.gold, pathCtx.act, pathCtx.deckMaturity, pathCtx.relicCount, pathCtx.floor
-        );
-      }
-    }
-    // 2. Evaluation has a cached path (carry-forward or API response)
-    if (evaluation?.recommendedPath?.length) {
-      return evaluation.recommendedPath;
-    }
-    // 3. Last resort: read from context (survives remount)
-    const stored = mapEvalState.getPath();
-    if (stored.length) return stored;
-    return [];
-  }, [bestOptionIndex, next_options, nodes, boss, pathCtx, evaluation, mapEvalState]);
-
-  // Persist path to context (side effect, separate from computation)
-  useEffect(() => {
-    if (recommendedPath.length) {
-      mapEvalState.setPath(recommendedPath);
-    }
-  }, [recommendedPath, mapEvalState]);
+  // Recommended path from Redux — computed and persisted by useMapEvaluation hook
+  const recommendedPath = useAppSelector(selectRecommendedPath);
 
   const recommendedPathEdges = useMemo(() => {
     const edges = new Set<string>();
@@ -180,9 +125,8 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
 
   // Multiplayer voting
   const isMultiplayer = state.game_mode === "multiplayer";
-  const mapData = state.map as unknown as Record<string, unknown>;
-  const votes = mapData.votes as { player: string; is_local: boolean; voted: boolean }[] | undefined;
-  const allVoted = mapData.all_voted as boolean | undefined;
+  const votes = state.map.votes;
+  const allVoted = state.map.all_voted;
 
   return (
     <div className="flex gap-3 h-full min-h-0">
@@ -376,7 +320,7 @@ export function MapView({ state, player, deckCards }: MapViewProps) {
               {/* Header: tier + type + best badge */}
               <div className="flex items-center gap-1.5">
                 {evalData && (
-                  <TierBadge tier={evalData.tier as TierLetter} size="sm" glow={isBest} />
+                  <TierBadge tier={evalData.tier} size="sm" glow={isBest} />
                 )}
                 <span className="text-xs">{NODE_TYPE_ICONS[opt.type] ?? "•"}</span>
                 <span className={cn(

@@ -1,15 +1,17 @@
 "use client";
-import { apiFetch } from "@sts2/shared/lib/api-client";
 
 import { useCallback } from "react";
-import type { CardRewardState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { CardRewardState } from "@sts2/shared/types/game-state";
 import type { EvaluationContext, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
+import { selectActiveRunId } from "../../features/run/runSlice";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { useEvaluation, type UseEvaluationResult } from "@sts2/shared/evaluation/use-evaluation";
+import { useEvaluateCardRewardMutation } from "../../services/evaluationApi";
 
 const CACHE_KEY = "sts2-eval-cache";
 
@@ -19,13 +21,14 @@ const CACHE_KEY = "sts2-eval-cache";
  */
 export function useCardEvaluation(
   state: CardRewardState,
-  deckCards: CombatCard[],
-  player: TrackedPlayer | null,
-  runId: string | null = null,
   exclusive: boolean = true
 ): UseEvaluationResult<CardRewardEvaluation> {
+  const deckCards = useAppSelector(selectActiveDeck);
+  const player = useAppSelector(selectActivePlayer);
+  const runId = useAppSelector(selectActiveRunId);
   const cards = state.card_reward.cards;
   const cardKey = cards.map((c) => c.id).sort().join(",");
+  const [trigger] = useEvaluateCardRewardMutation();
 
   const fetcher = useCallback(async (): Promise<CardRewardEvaluation> => {
     const ctx: EvaluationContext | null = buildEvaluationContext(
@@ -40,33 +43,23 @@ export function useCardEvaluation(
 
     updateFromContext(ctx);
 
-    const res = await apiFetch("/api/evaluate", {
-      method: "POST",
-      body: JSON.stringify({
-        type: "card_reward",
-        exclusive,
-        userId: getUserId(),
-        context: ctx,
-        runNarrative: getPromptContext(),
-        items: cards.map((card) => ({
-          id: card.id,
-          name: card.name,
-          description: card.description,
-          cost: card.cost,
-          type: card.type,
-          rarity: card.rarity,
-        })),
-        runId,
-        gameVersion: null,
-      }),
-    });
+    const data = await trigger({
+      context: ctx,
+      runNarrative: getPromptContext(),
+      items: cards.map((card) => ({
+        id: card.id,
+        name: card.name,
+        description: card.description,
+        cost: typeof card.cost === "string" ? parseInt(card.cost, 10) || 0 : card.cost,
+        type: card.type,
+        rarity: card.rarity,
+      })),
+      exclusive,
+      runId,
+      userId: getUserId(),
+      gameVersion: null,
+    }).unwrap();
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.detail ?? `Evaluation failed: ${res.status}`);
-    }
-
-    const data: CardRewardEvaluation = await res.json();
     registerLastEvaluation("card_reward", {
       recommendedId: data.rankings?.[0]?.itemId ?? null,
       recommendedTier: data.rankings?.[0]?.tier ?? null,
@@ -81,7 +74,7 @@ export function useCardEvaluation(
     });
 
     return data;
-  }, [state, deckCards, player, cards, exclusive, runId]);
+  }, [state, deckCards, player, cards, exclusive, runId, trigger]);
 
   return useEvaluation<CardRewardEvaluation>({
     cacheKey: CACHE_KEY,

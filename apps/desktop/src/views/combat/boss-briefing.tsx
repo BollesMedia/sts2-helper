@@ -1,14 +1,8 @@
-"use client";
-import { apiFetch } from "@sts2/shared/lib/api-client";
-
 import { useRef, useState } from "react";
-import useSWR from "swr";
+import { useEvaluateBossBriefingMutation } from "../../services/evaluationApi";
 import { createClient } from "@sts2/shared/supabase/client";
 import type { Monster } from "@sts2/shared/supabase/helpers";
 import type { Enemy, CombatCard } from "@sts2/shared/types/game-state";
-
-// Client created lazily inside functions, not at module scope
-// (initSupabase must be called before createClient works)
 
 interface MoveInfo {
   name: string;
@@ -45,15 +39,12 @@ function formatMove(move: MoveInfo, ascension: number): string {
 }
 
 async function fetchBossData(enemyIds: string[]): Promise<Monster[]> {
-  // Strip numeric suffixes from entity IDs (KIN_PRIEST_0 -> KIN_PRIEST)
   const baseIds = [...new Set(enemyIds.map((id) => id.replace(/_\d+$/, "")))];
-
   const supabase = createClient();
   const { data } = await supabase
     .from("monsters")
     .select("*")
     .in("id", baseIds);
-
   return data ?? [];
 }
 
@@ -67,20 +58,27 @@ export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProp
   const enemyIds = enemies.map((e) => e.entity_id);
   const cacheKey = enemyIds.sort().join(",");
 
-  const { data: bossData } = useSWR(
-    `boss-briefing:${cacheKey}`,
-    () => fetchBossData(enemyIds),
-    { revalidateOnFocus: false, dedupingInterval: 1000 * 60 * 60 }
-  );
+  const [bossData, setBossData] = useState<Monster[] | null>(null);
+  const fetchedKey = useRef<string | null>(null);
 
-  const [strategy, setStrategy] = useState<string | null>(null);
-  const [strategyLoading, setStrategyLoading] = useState(false);
-  const strategyFetched = useRef(false);
+  // One-shot Supabase fetch — keyed by boss combo
+  if (fetchedKey.current !== cacheKey) {
+    fetchedKey.current = cacheKey;
+    fetchBossData(enemyIds).then(setBossData).catch(() => setBossData(null));
+  }
 
-  // Fetch strategy from Claude grounded in real move data
-  if (bossData && bossData.length > 0 && !strategyFetched.current && !strategyLoading && deckCards.length > 0) {
-    strategyFetched.current = true;
-    setStrategyLoading(true);
+  const [evaluateStrategy, { data: strategyResult, isLoading: strategyLoading }] =
+    useEvaluateBossBriefingMutation();
+  const strategyRequested = useRef(false);
+
+  // Request strategy once we have boss data + deck
+  if (
+    bossData &&
+    bossData.length > 0 &&
+    deckCards.length > 0 &&
+    !strategyRequested.current
+  ) {
+    strategyRequested.current = true;
 
     const bossMoveSummary = bossData
       .map((b) => {
@@ -94,13 +92,9 @@ export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProp
 
     const deckSummary = deckCards.map((c) => c.name).join(", ");
 
-    apiFetch("/api/evaluate", {
-      method: "POST",
-      body: JSON.stringify({
-        type: "map",
-        evalType: "boss_briefing",
-        context: null,
-        mapPrompt: `You are fighting this boss in Slay the Spire 2. Based ONLY on the move data below and the player's deck, provide a concise 2-3 sentence strategy. Do NOT invent moves or mechanics not listed.
+    evaluateStrategy({
+      context: null as never,
+      mapPrompt: `You are fighting this boss in Slay the Spire 2. Based ONLY on the move data below and the player's deck, provide a concise 2-3 sentence strategy. Do NOT invent moves or mechanics not listed.
 
 Boss moves:
 ${bossMoveSummary}
@@ -109,17 +103,14 @@ Player deck: ${deckSummary}
 
 Respond as JSON:
 {"strategy": "2-3 sentences of grounded tactical advice based on the actual moves listed above"}`,
-        runId: null,
-        gameVersion: null,
-      }),
-    })
-      .then((r) => r.json())
-      .then((d) => setStrategy(d.strategy ?? null))
-      .catch(() => setStrategy(null))
-      .finally(() => setStrategyLoading(false));
+      runId: null,
+      gameVersion: null,
+    });
   }
 
   if (!bossData || bossData.length === 0) return null;
+
+  const strategy = strategyResult?.strategy ?? null;
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
@@ -150,7 +141,6 @@ Respond as JSON:
         );
       })}
 
-      {/* Strategy */}
       {strategyLoading && (
         <p className="text-xs text-zinc-500 animate-pulse">Analyzing strategy...</p>
       )}

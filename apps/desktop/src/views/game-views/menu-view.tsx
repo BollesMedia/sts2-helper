@@ -1,31 +1,34 @@
-"use client";
-
 import { useState, type ReactNode } from "react";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectPendingOutcome, outcomeConfirmed } from "../../features/run/runSlice";
 import { apiFetch } from "@sts2/shared/lib/api-client";
-import type { RunState } from "../connection/use-run-tracker";
 
 interface MenuViewProps {
-  runState: RunState;
   footer?: ReactNode;
 }
 
-export function MenuView({ runState, footer }: MenuViewProps) {
+export function MenuView({ footer }: MenuViewProps) {
+  const dispatch = useAppDispatch();
+  const pendingOutcome = useAppSelector(selectPendingOutcome);
   const [notes, setNotes] = useState("");
   const [lastConfirmed, setLastConfirmed] = useState<{ runId: string; victory: boolean } | null>(null);
 
   const handleOutcome = (victory: boolean) => {
-    if (notes.trim() && runState.endedRunId) {
+    if (!pendingOutcome) return;
+
+    if (notes.trim()) {
       apiFetch("/api/run", {
         method: "POST",
         body: JSON.stringify({
           action: "end",
-          runId: runState.endedRunId,
+          runId: pendingOutcome.runId,
           notes: notes.trim(),
         }),
       }).catch(console.error);
     }
-    setLastConfirmed({ runId: runState.endedRunId!, victory });
-    runState.confirmOutcome(victory);
+
+    setLastConfirmed({ runId: pendingOutcome.runId, victory });
+    dispatch(outcomeConfirmed({ runId: pendingOutcome.runId, victory }));
   };
 
   const handleCorrectOutcome = (victory: boolean) => {
@@ -44,10 +47,10 @@ export function MenuView({ runState, footer }: MenuViewProps) {
   return (
     <div className="flex flex-1 items-center justify-center">
       <div className="text-center space-y-4 max-w-md w-full">
-        {runState.pendingOutcome ? (
+        {pendingOutcome ? (
           <>
             <h2 className="text-2xl font-display font-semibold text-spire-text">
-              Run ended on floor {runState.finalFloor}
+              Run ended on floor {pendingOutcome.finalFloor}
             </h2>
             <p className="text-sm text-spire-text-tertiary">How did it go?</p>
             <textarea

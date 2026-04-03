@@ -84,7 +84,7 @@ export function CardRating({ card, evaluation, isTopPick, character }: CardRatin
         {/* Evaluation */}
         {evaluation && (
           <div className="pt-3 border-t border-spire-border-subtle">
-            <EvalRow tier={evaluation.tier as TierLetter} recommendation={evaluation.recommendation} isTopPick={isTopPick} />
+            <EvalRow tier={evaluation.tier} recommendation={evaluation.recommendation} isTopPick={isTopPick} />
           </div>
         )}
 

@@ -3,16 +3,17 @@
 import { HpBar } from "../../components/hp-bar";
 import type { GameState } from "@sts2/shared/types/game-state";
 import { hasRun } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import { useAppSelector } from "../../store/hooks";
+import { selectActivePlayer } from "../../features/run/runSelectors";
 import { STATE_LABELS } from "./state-labels";
 
 interface AppHeaderProps {
   gameState: GameState;
-  player: TrackedPlayer | null;
   onSignOut?: () => void;
 }
 
-export function AppHeader({ gameState, player, onSignOut }: AppHeaderProps) {
+export function AppHeader({ gameState, onSignOut }: AppHeaderProps) {
+  const player = useAppSelector(selectActivePlayer);
   const label = STATE_LABELS[gameState.state_type] ?? gameState.state_type;
   const run = hasRun(gameState) ? gameState.run : null;
   const isMultiplayer = gameState.game_mode === "multiplayer";

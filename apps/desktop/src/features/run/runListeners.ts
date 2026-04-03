@@ -14,6 +14,9 @@ import {
   type BattlePlayer,
   type ShopState,
 } from "@sts2/shared/types/game-state";
+import { filterPlayerCards } from "../../lib/card-filter";
+import { initValidCardNames } from "../../lib/card-filter";
+import { initStarterDecks, getStarterDeck } from "@sts2/shared/supabase/starter-decks";
 
 /**
  * Watches game state changes and updates the active run's
@@ -24,6 +27,10 @@ import {
 export function setupGameStateUpdateListener() {
   let combatSynced = false;
   let lastRunId: string | null = null;
+
+  // Kick off async card validation + starter deck loading
+  initValidCardNames();
+  initStarterDecks();
 
   startAppListening({
     matcher: gameStateApi.endpoints.getGameState.matchFulfilled,
@@ -39,25 +46,42 @@ export function setupGameStateUpdateListener() {
       }
 
       const gameState: GameState = action.payload;
+      const currentDeck = state.run.runs[activeRunId]?.deck ?? [];
 
-      // Update floor/act
+      // --- Update floor/act ---
+
       if (hasRun(gameState)) {
         const run = state.run.runs[activeRunId];
-        if (run && (run.act !== gameState.run.act || run.floor !== gameState.run.floor)) {
-          listenerApi.dispatch(floorUpdated({ act: gameState.run.act, floor: gameState.run.floor }));
+        if (
+          run &&
+          (run.act !== gameState.run.act || run.floor !== gameState.run.floor)
+        ) {
+          listenerApi.dispatch(
+            floorUpdated({ act: gameState.run.act, floor: gameState.run.floor })
+          );
         }
       }
 
-      // Update player
+      // --- Update player ---
+
       const p = getPlayer(gameState);
       if (p && gameState.state_type !== "menu") {
         const energy = "max_energy" in p ? p.max_energy ?? 3 : 3;
-        const relics = "relics" in p && Array.isArray(p.relics)
-          ? p.relics.map((r) => ({ id: "id" in r ? r.id : "", name: r.name, description: r.description }))
-          : [];
-        const potions = "potions" in p && Array.isArray(p.potions)
-          ? p.potions.map((pot) => ({ name: pot.name, description: pot.description }))
-          : [];
+        const relics =
+          "relics" in p && Array.isArray(p.relics)
+            ? p.relics.map((r) => ({
+                id: "id" in r ? r.id : "",
+                name: r.name,
+                description: r.description,
+              }))
+            : [];
+        const potions =
+          "potions" in p && Array.isArray(p.potions)
+            ? p.potions.map((pot) => ({
+                name: pot.name,
+                description: pot.description,
+              }))
+            : [];
 
         const tracked: TrackedPlayer = {
           character: p.character,
@@ -67,13 +91,16 @@ export function setupGameStateUpdateListener() {
           maxEnergy: energy,
           relics,
           potions,
-          cardRemovalCost: state.run.runs[activeRunId]?.player?.cardRemovalCost ?? null,
+          cardRemovalCost:
+            state.run.runs[activeRunId]?.player?.cardRemovalCost ?? null,
         };
 
         // Shop: extract removal cost
         if (gameState.state_type === "shop" && "shop" in gameState) {
           const shopState = gameState as ShopState;
-          const removalItem = shopState.shop?.items?.find((i) => i.category === "card_removal");
+          const removalItem = shopState.shop?.items?.find(
+            (i) => i.category === "card_removal"
+          );
           if (removalItem) {
             tracked.cardRemovalCost = removalItem.cost;
           }
@@ -82,12 +109,20 @@ export function setupGameStateUpdateListener() {
         listenerApi.dispatch(playerUpdated(tracked));
       }
 
-      // Deck sync: once per combat entry at round 1
+      // --- Deck sync ---
+
+      // Reset combatSynced when leaving combat
       if (!isCombatState(gameState)) {
         combatSynced = false;
       }
-      if (isCombatState(gameState) && !combatSynced && gameState.battle?.round <= 1) {
-        const bp = getPlayer(gameState) as BattlePlayer | undefined;
+
+      // Primary: combat round 1 — cleanest snapshot (no exhaust, no enemy cards yet)
+      if (
+        isCombatState(gameState) &&
+        !combatSynced &&
+        gameState.battle?.round <= 1
+      ) {
+        const bp = getPlayer(gameState);
         if (bp) {
           const allPiles = [
             ...(bp.hand ?? []),
@@ -95,9 +130,58 @@ export function setupGameStateUpdateListener() {
             ...(bp.discard_pile ?? []),
             ...(bp.exhaust_pile ?? []),
           ];
-          if (allPiles.length > 0) {
+          const filtered = filterPlayerCards(allPiles);
+          if (filtered.length > 0) {
             combatSynced = true;
-            listenerApi.dispatch(deckUpdated(allPiles));
+            listenerApi.dispatch(deckUpdated(filtered));
+          }
+        }
+      }
+
+      // Fallback: any combat round if deck is empty (app started mid-run)
+      if (currentDeck.length === 0 && isCombatState(gameState)) {
+        const bp = getPlayer(gameState);
+        if (bp) {
+          const allPiles = [
+            ...(bp.hand ?? []),
+            ...(bp.draw_pile ?? []),
+            ...(bp.discard_pile ?? []),
+            ...(bp.exhaust_pile ?? []),
+          ];
+          const filtered = filterPlayerCards(allPiles);
+          if (filtered.length > 0) {
+            combatSynced = true;
+            listenerApi.dispatch(deckUpdated(filtered));
+          }
+        }
+      }
+
+      // card_select: can show real deck cards (enchant, upgrade, transform screens)
+      if (
+        gameState.state_type === "card_select" &&
+        "card_select" in gameState
+      ) {
+        const selectCards = gameState.card_select.cards;
+        if (selectCards.length > currentDeck.length) {
+          const mapped = selectCards.map((c) => ({
+            name: c.name,
+            description: c.description,
+            keywords: c.keywords,
+          }));
+          listenerApi.dispatch(deckUpdated(mapped));
+        }
+      }
+
+      // Starter deck injection: new run, no deck yet, act 1 floor ≤ 1
+      if (currentDeck.length === 0 && hasRun(gameState)) {
+        const { act, floor } = gameState.run;
+        if (act === 1 && floor <= 1) {
+          const character = getPlayer(gameState)?.character;
+          if (character) {
+            const starter = getStarterDeck(character);
+            if (starter.length > 0) {
+              listenerApi.dispatch(deckUpdated(starter));
+            }
           }
         }
       }

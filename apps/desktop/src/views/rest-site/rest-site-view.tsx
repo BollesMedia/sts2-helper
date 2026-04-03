@@ -3,8 +3,7 @@
 import { cn } from "@sts2/shared/lib/cn";
 import { HpBar } from "../../components/hp-bar";
 import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "../../components/eval-card";
-import type { RestSiteState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { RestSiteState } from "@sts2/shared/types/game-state";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { useRestEvaluation } from "./use-rest-evaluation";
 import { CardSkeleton } from "../../components/loading-skeleton";
@@ -24,15 +23,10 @@ const OPTION_ICONS: Record<string, string> = {
 
 interface RestSiteViewProps {
   state: RestSiteState;
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
-  runId: string | null;
 }
 
-export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewProps) {
-  const { evaluation, isLoading, error, retry } = useRestEvaluation(
-    state, deckCards, player, runId
-  );
+export function RestSiteView({ state }: RestSiteViewProps) {
+  const { evaluation, isLoading, error, retry } = useRestEvaluation(state);
   const restPlayer = state.player ?? state.rest_site?.player;
   const options = state.rest_site.options;
   const topPick = evaluation?.rankings ? findTopPick(evaluation.rankings) : null;
@@ -105,7 +99,7 @@ export function RestSiteView({ state, deckCards, player, runId }: RestSiteViewPr
                   {/* Evaluation */}
                   {evalData && (
                     <div className="pt-3 border-t border-spire-border-subtle">
-                      <EvalRow tier={evalData.tier as TierLetter} recommendation={evalData.recommendation} isTopPick={isTopPick} />
+                      <EvalRow tier={evalData.tier} recommendation={evalData.recommendation} isTopPick={isTopPick} />
                     </div>
                   )}
 

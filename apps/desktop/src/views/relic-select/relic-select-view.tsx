@@ -2,8 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@sts2/shared/lib/cn";
-import type { RelicSelectState, CombatCard } from "@sts2/shared/types/game-state";
-import type { TrackedPlayer } from "../connection/use-player-tracker";
+import type { RelicSelectState } from "@sts2/shared/types/game-state";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
 import type { EvaluationContext, CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
@@ -16,8 +17,6 @@ import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 
 interface RelicSelectViewProps {
   state: RelicSelectState;
-  deckCards: CombatCard[];
-  player: TrackedPlayer | null;
 }
 
 interface RelicRanking {
@@ -35,7 +34,9 @@ interface RelicEvaluation {
   rankings: RelicRanking[];
 }
 
-export function RelicSelectView({ state, deckCards, player }: RelicSelectViewProps) {
+export function RelicSelectView({ state }: RelicSelectViewProps) {
+  const deckCards = useAppSelector(selectActiveDeck);
+  const player = useAppSelector(selectActivePlayer);
   const relics = state.relic_select.relics;
   const relicKey = relics.map((r) => r.id).sort().join(",");
 

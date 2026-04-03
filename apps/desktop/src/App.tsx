@@ -1,10 +1,8 @@
 import { ConnectionBanner } from "./views/connection";
 import { useGameState } from "./hooks/useGameState";
-import { useDeckTracker } from "./views/connection/use-deck-tracker";
-import { useRunTracker } from "./views/connection/use-run-tracker";
-import { useChoiceTracker } from "./views/connection/use-choice-tracker";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
-import { selectActiveDeck, selectActivePlayer } from "./features/run/runSelectors";
+import { selectActivePlayer } from "./features/run/runSelectors";
+import { selectModMismatch, modMismatchCleared } from "./features/connection/connectionSlice";
 import { evaluationApi } from "./services/evaluationApi";
 import { AppHeader } from "./views/game-views/app-header";
 import { GameStateView } from "./views/game-views/game-state-view";
@@ -15,10 +13,8 @@ import { reportFeedback, reportInfo } from "@sts2/shared/lib/error-reporter";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { ModVersionBanner } from "./mod-version-banner";
-// MapEvalProvider kept for now — map-view.tsx + use-map-evaluation.ts still use it
-import { MapEvalProvider } from "./views/map/map-eval-context";
 
 // Check for updates on app launch
 check().then(async (update) => {
@@ -99,45 +95,8 @@ function AuthenticatedApp() {
   const { gameState, connectionStatus } = useGameState();
   const dispatch = useAppDispatch();
 
-  // Run tracker + choice tracker still use old hooks (pending full migration)
-  const oldDeckCards = useDeckTracker(gameState);
-  const runState = useRunTracker(gameState, user?.id ?? null, connectionStatus === "disconnected");
-  useChoiceTracker(gameState, oldDeckCards, runState.runId);
-
-  // Deck + player from Redux (populated by gameStateUpdateListener)
-  const deckCards = useAppSelector(selectActiveDeck);
   const player = useAppSelector(selectActivePlayer);
-
-  // Fall back to old deck tracker if Redux has no data yet
-  const effectiveDeck = deckCards.length > 0 ? deckCards : oldDeckCards;
-
-  // Runtime mod version check — once per session after connecting
-  const modCheckDone = useRef(false);
-  const [modMismatch, setModMismatch] = useState<{
-    installed: string;
-    required: string;
-    gameRunning: boolean;
-  } | null>(null);
-
-  useEffect(() => {
-    if (connectionStatus !== "connected" || modCheckDone.current) return;
-    modCheckDone.current = true;
-
-    invoke<ModStatus>("get_mod_status")
-      .then((status) => {
-        const sts2mcp = status.required_mods.find((m) => m.id === "STS2_MCP");
-        if (sts2mcp && sts2mcp.needs_update && sts2mcp.installed_version) {
-          setModMismatch({
-            installed: sts2mcp.installed_version,
-            required: sts2mcp.required_version,
-            gameRunning: status.game_running,
-          });
-        }
-      })
-      .catch(() => {
-        // Silent — mod check is best-effort at runtime
-      });
-  }, [connectionStatus]);
+  const modMismatch = useAppSelector(selectModMismatch);
 
   // When mod mismatch is detected, keep the update UI visible even if the game
   // disconnects (user closed it to update). Otherwise show the normal connection banner.
@@ -152,26 +111,19 @@ function AuthenticatedApp() {
   }
 
   return (
-    <MapEvalProvider>
     <div className="flex flex-1 flex-col h-screen overflow-hidden">
-      {gameState && <AppHeader gameState={gameState} player={player} onSignOut={signOut} />}
+      {gameState && <AppHeader gameState={gameState} onSignOut={signOut} />}
       {modMismatch && (
         <ModVersionBanner
           installed={modMismatch.installed}
           required={modMismatch.required}
           gameRunning={modMismatch.gameRunning}
-          onUpdated={() => setModMismatch(null)}
+          onUpdated={() => dispatch(modMismatchCleared())}
         />
       )}
       <main className="flex-1 min-h-0 p-4">
         {gameState ? (
-          <GameStateView
-            state={gameState}
-            deckCards={effectiveDeck}
-            player={player}
-            runId={runState.runId}
-            runState={runState}
-          />
+          <GameStateView state={gameState} />
         ) : (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-spire-text-tertiary">
@@ -229,6 +181,5 @@ function AuthenticatedApp() {
         </footer>
       )}
     </div>
-    </MapEvalProvider>
   );
 }
