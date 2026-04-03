@@ -147,16 +147,22 @@ export function setupRunAnalyticsListener() {
         if (endRunId) {
           listenerApi.dispatch(runEnded({ runId: endRunId, inferred: victory }));
 
-          // Fire end-run API call
-          listenerApi.dispatch(
-            evaluationApi.endpoints.endRun.initiate({
-              runId: endRunId,
-              victory: victory ?? undefined,
-              floor: lastFloor,
-              deck: lastDeckNames.length > 0 ? lastDeckNames : undefined,
-              relics: lastRelicNames.length > 0 ? lastRelicNames : undefined,
-            })
-          );
+          // NOTE: API calls for run end are handled by the OLD useRunTracker
+          // hook during the parallel-running period. When Phase 6 removes the
+          // old hooks, uncomment and complete the dispatch below:
+          //
+          // listenerApi.dispatch(evaluationApi.endpoints.endRun.initiate({
+          //   runId: endRunId,
+          //   finalFloor: lastFloor,
+          //   actReached: lastAct,
+          //   victory: victory ?? undefined,
+          //   causeOfDeath: lastCombatEnemyName,
+          //   bossesFought: [...bossesFought],
+          //   finalDeck: lastDeckNames,
+          //   finalRelics: lastRelicNames,
+          //   finalDeckSize: lastDeckNames.length,
+          //   narrative: null, // TODO: migrate narrative to run slice
+          // }));
         }
 
         runActive = false;

@@ -1,30 +1,26 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { evaluationApi } from "../../services/evaluationApi";
 import { runStarted } from "./runSlice";
 
 /**
- * Fires API calls when runs start.
- * Run end API calls are handled by runAnalyticsListener
- * (it has the closure-scoped data needed for the end payload).
+ * Fires API calls when runs start/end.
+ *
+ * NOTE: During the parallel-running period (Phase 0-5), the OLD
+ * useRunTracker hook still handles API calls. This listener is
+ * scaffolded but does NOT dispatch API calls yet to avoid double
+ * API calls. Uncomment in Phase 6 when old hooks are removed.
  */
 export function setupRunApiListener() {
   startAppListening({
     actionCreator: runStarted,
-    effect: (action, listenerApi) => {
-      const { runId, character, ascension, gameMode } = action.payload;
-
-      // TODO: Get userId from auth state when available
-      const userId: string | null = null;
-
-      listenerApi.dispatch(
-        evaluationApi.endpoints.startRun.initiate({
-          runId,
-          character,
-          ascension,
-          gameMode,
-          userId,
-        })
-      );
+    effect: (_action, _listenerApi) => {
+      // const { runId, character, ascension, gameMode } = action.payload;
+      //
+      // Phase 6: uncomment to fire start-run API call
+      // listenerApi.dispatch(
+      //   evaluationApi.endpoints.startRun.initiate({
+      //     runId, character, ascension, gameMode, userId: null,
+      //   })
+      // );
     },
   });
 }

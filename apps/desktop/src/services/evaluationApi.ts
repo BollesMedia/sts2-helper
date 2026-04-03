@@ -147,10 +147,10 @@ export const evaluationApi = createApi({
     }),
 
     // Map path evaluation
-    evaluateMap: build.mutation<CardRewardEvaluation, MapPromptRequest>({
+    evaluateMap: build.mutation<MapPathEvaluation, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const data = await evalFetch<CardRewardEvaluation>({
+          const data = await evalFetch<MapPathEvaluation>({
             type: "map",
             evalType: "map",
             context: args.context,
@@ -220,7 +220,19 @@ export const evaluationApi = createApi({
       },
     }),
 
-    endRun: build.mutation<void, { runId: string; victory?: boolean; floor?: number; notes?: string; deck?: string[]; relics?: string[]; narrative?: string }>({
+    endRun: build.mutation<void, {
+      runId: string;
+      victory?: boolean;
+      finalFloor?: number;
+      actReached?: number;
+      causeOfDeath?: string | null;
+      bossesFought?: string[] | null;
+      finalDeck?: string[] | null;
+      finalRelics?: string[] | null;
+      finalDeckSize?: number | null;
+      narrative?: string | null;
+      notes?: string;
+    }>({
       async queryFn(args) {
         try {
           await apiFetch("/api/run", {
@@ -235,7 +247,7 @@ export const evaluationApi = createApi({
     }),
 
     // Choice logging
-    logChoice: build.mutation<void, { runId: string; choiceType: string; floor: number; offeredItems: string[]; chosen: string | null; recommended: string | null }>({
+    logChoice: build.mutation<void, { runId: string; choiceType: string; floor: number; offeredItemIds: string[]; chosenItemId: string | null; recommendedItemId: string | null }>({
       async queryFn(args) {
         try {
           await apiFetch("/api/choice", {
