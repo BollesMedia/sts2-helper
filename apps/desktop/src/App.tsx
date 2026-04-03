@@ -1,4 +1,5 @@
-import { useGameState, ConnectionBanner } from "@sts2/shared/features/connection";
+import { ConnectionBanner } from "@sts2/shared/features/connection";
+import { useGameState } from "./hooks/useGameState";
 import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracker";
 import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
 import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
