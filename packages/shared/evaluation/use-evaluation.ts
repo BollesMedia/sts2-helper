@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getCached, setCache } from "../lib/local-cache";
 import { reportError } from "../lib/error-reporter";
 
@@ -33,7 +33,7 @@ interface UseEvaluationResult<T> {
  * - Deduplication via evalKey ref
  * - Loading/error state management
  * - Optional preEval short-circuit before fetch
- * - Auto-trigger on evalKey change (render-time, not useEffect)
+ * - Auto-trigger on evalKey change via useEffect
  * - Retry support (resets state to allow re-evaluation)
  */
 function useEvaluation<T>(config: UseEvaluationConfig<T>): UseEvaluationResult<T> {
@@ -97,10 +97,13 @@ function useEvaluation<T>(config: UseEvaluationConfig<T>): UseEvaluationResult<T
     setEvaluation(null);
   };
 
-  // Trigger evaluation (not in useEffect -- runs during render check)
-  if (enabled && evalKey !== evaluatedKey.current && !isLoading) {
-    evaluate();
-  }
+  // Trigger evaluation — this is a true side effect (API call),
+  // so useEffect is the correct pattern here.
+  useEffect(() => {
+    if (enabled && evalKey !== evaluatedKey.current && !isLoading) {
+      evaluate();
+    }
+  }, [enabled, evalKey, isLoading, evaluate]);
 
   return { evaluation, isLoading, error, retry };
 }

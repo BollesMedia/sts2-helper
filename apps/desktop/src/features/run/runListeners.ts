@@ -4,6 +4,7 @@ import {
   floorUpdated,
   playerUpdated,
   deckUpdated,
+  mapContextUpdated,
   type TrackedPlayer,
 } from "./runSlice";
 import {
@@ -13,6 +14,7 @@ import {
   type GameState,
   type BattlePlayer,
   type ShopState,
+  type MapState,
 } from "@sts2/shared/types/game-state";
 import { filterPlayerCards } from "../../lib/card-filter";
 import { initValidCardNames } from "../../lib/card-filter";
@@ -184,6 +186,22 @@ export function setupGameStateUpdateListener() {
             }
           }
         }
+      }
+
+      // --- Update map context (boss distance, next nodes) ---
+      // Other evals (rest site, events) read this from Redux
+      if (gameState.state_type === "map" && "map" in gameState) {
+        const mapState = gameState as MapState;
+        const currentRow = mapState.map.current_position?.row ?? 0;
+        const bossRow = mapState.map.boss.row;
+        const nextNodeTypes = mapState.map.next_options.map((o) => o.type);
+        listenerApi.dispatch(mapContextUpdated({
+          floorsToNextBoss: bossRow - currentRow,
+          nextNodeTypes,
+          hasEliteAhead: nextNodeTypes.includes("Elite"),
+          hasRestAhead: nextNodeTypes.includes("RestSite"),
+          hasShopAhead: nextNodeTypes.includes("Shop"),
+        }));
       }
     },
   });
