@@ -24,6 +24,14 @@ export interface MapEvalState {
   } | null;
 }
 
+export interface MapContext {
+  floorsToNextBoss: number;
+  nextNodeTypes: string[];
+  hasEliteAhead: boolean;
+  hasRestAhead: boolean;
+  hasShopAhead: boolean;
+}
+
 export interface RunData {
   character: string;
   ascension: number;
@@ -33,6 +41,7 @@ export interface RunData {
   deck: CombatCard[];
   player: TrackedPlayer | null;
   mapEval: MapEvalState;
+  mapContext: MapContext | null;
 }
 
 interface RunState {
@@ -80,6 +89,7 @@ export const runSlice = createSlice({
           recommendedNodes: [],
           lastEvalContext: null,
         },
+        mapContext: null,
       };
     },
 
@@ -145,6 +155,13 @@ export const runSlice = createSlice({
         Object.assign(run.mapEval, action.payload);
       }
     },
+
+    mapContextUpdated(state, action: PayloadAction<MapContext>) {
+      const run = state.activeRunId ? state.runs[state.activeRunId] : null;
+      if (run) {
+        run.mapContext = action.payload;
+      }
+    },
   },
   selectors: {
     selectActiveRunId: (state) => state.activeRunId,
@@ -163,6 +180,7 @@ export const {
   playerUpdated,
   deckUpdated,
   mapEvalUpdated,
+  mapContextUpdated,
 } = runSlice.actions;
 
 export const {

@@ -10,6 +10,7 @@ import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { apiFetch } from "@sts2/shared/lib/api-client";
 import { RefineInput } from "../../components/refine-input";
+import { matchRecommendation } from "../../lib/match-recommendation";
 import type { GameState } from "@sts2/shared/types/game-state";
 
 interface CardUpgradeViewProps {
@@ -46,6 +47,9 @@ export function CardUpgradeView({ state }: CardUpgradeViewProps) {
     const contextStr = buildCompactContext(ctx);
     const narrative = getPromptContext();
     const cardList = cards.map((c) => `- ${c.name}: ${c.description}`).join("\n");
+    const alreadyUpgraded = state.card_select.cards
+      .filter((c) => c.name.endsWith("+"))
+      .map((c) => c.name);
 
     try {
       const res = await apiFetch("/api/evaluate", {
@@ -57,11 +61,14 @@ export function CardUpgradeView({ state }: CardUpgradeViewProps) {
           runNarrative: narrative,
           mapPrompt: `${contextStr}
 
-CARD UPGRADE: Choose ONE card to upgrade from this list ONLY:
-${cardList}
+CARD UPGRADE: Choose ONE card to upgrade.
 
-Prioritize: key engine card > most-played card > scaling card.
-Cards with + cannot be upgraded again.`,
+ELIGIBLE (you MUST choose from this list):
+${cardList}
+${alreadyUpgraded.length > 0 ? `\nNOT ELIGIBLE (already upgraded, DO NOT recommend these): ${alreadyUpgraded.join(", ")}` : ""}
+
+Prioritize: key engine card > most-played card > scaling card > AoE.
+Your card_name response MUST exactly match one of the ELIGIBLE names above.`,
           runId: null,
           gameVersion: null,
         }),
@@ -71,10 +78,12 @@ Cards with + cannot be upgraded again.`,
 
       const data = await res.json();
       if (data.card_name) {
-        setRecommendation({
-          cardName: data.card_name,
-          reasoning: data.reasoning ?? "",
-        });
+        // Strict validation — only accept exact matches from eligible list
+        const eligibleNames = cards.map((c) => c.name);
+        const matched = matchRecommendation(data.card_name, eligibleNames);
+        if (matched) {
+          setRecommendation({ cardName: matched, reasoning: data.reasoning ?? "" });
+        }
       }
     } catch {
       // Silent fail

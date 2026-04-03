@@ -9,6 +9,7 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { apiFetch } from "@sts2/shared/lib/api-client";
+import { matchRecommendation } from "../../lib/match-recommendation";
 import type { GameState } from "@sts2/shared/types/game-state";
 
 interface CardRemovalViewProps {
@@ -69,10 +70,14 @@ Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards 
 
       const data = await res.json();
       if (data.card_name) {
-        setRecommendation({
-          cardName: data.card_name,
-          reasoning: data.reasoning ?? "",
-        });
+        const eligibleNames = cards.map((c) => c.name);
+        const matched = matchRecommendation(data.card_name, eligibleNames);
+        if (matched) {
+          setRecommendation({
+            cardName: matched,
+            reasoning: data.reasoning ?? "",
+          });
+        }
       }
     } catch {
       // Silent fail — removal still works without recommendation

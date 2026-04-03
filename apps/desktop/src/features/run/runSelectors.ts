@@ -38,3 +38,9 @@ export const selectMapEvalContext = createSelector(
   selectActiveRun,
   (run) => run?.mapEval.lastEvalContext ?? null
 );
+
+/** Map context (boss distance, elite ahead, etc.) for rest/event evals */
+export const selectMapContext = createSelector(
+  selectActiveRun,
+  (run) => run?.mapContext ?? null
+);

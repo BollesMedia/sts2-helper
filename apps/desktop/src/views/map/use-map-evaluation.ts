@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MapState, CombatCard } from "@sts2/shared/types/game-state";
 import type { TrackedPlayer } from "../../features/run/runSlice";
-import { mapEvalUpdated } from "../../features/run/runSlice";
+import { mapEvalUpdated, mapContextUpdated } from "../../features/run/runSlice";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
@@ -12,7 +12,6 @@ import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { NODE_TYPE_ICONS } from "./map-scoring";
 import { traceRecommendedPath } from "./map-path-tracer";
-import { saveMapContext } from "./map-context-cache";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 import { getCached, setCache } from "@sts2/shared/lib/local-cache";
@@ -81,6 +80,21 @@ export function useMapEvaluation(
   );
 
   cachedRef.current = mapKey;
+
+  // Always update map context in Redux — rest site, events, etc. read this.
+  // Must run every render, not just when eval fires.
+  const currentRow = state.map.current_position?.row ?? 0;
+  const bossRow = state.map.boss.row;
+  const nextNodeTypes = options.map((o) => o.type);
+  const latestMapContext = {
+    floorsToNextBoss: bossRow - currentRow,
+    nextNodeTypes,
+    hasEliteAhead: nextNodeTypes.includes("Elite"),
+    hasRestAhead: nextNodeTypes.includes("RestSite"),
+    hasShopAhead: nextNodeTypes.includes("Shop"),
+  };
+  // Dispatch is safe during render — Redux handles it synchronously
+  dispatch(mapContextUpdated(latestMapContext));
 
   // ─── Decision: should we evaluate? ───
 
@@ -194,18 +208,6 @@ export function useMapEvaluation(
     }).join("\n\n");
 
     const currentRow = state.map.current_position?.row ?? 0;
-
-    // Cache map context for other evaluations (rest site, etc.)
-    const nextNodeTypes = options.map((o) => o.type);
-    const allFutureNodeTypes = allNodes.filter((n) => n.row > currentRow).map((n) => n.type);
-    saveMapContext({
-      floor: state.run.floor,
-      nextNodeTypes,
-      floorsToNextBoss: Math.min(...[17, 34, 51].filter((bf) => bf > state.run.floor).map((bf) => bf - state.run.floor)),
-      hasEliteAhead: allFutureNodeTypes.includes("Elite"),
-      hasRestAhead: allFutureNodeTypes.includes("RestSite"),
-      hasShopAhead: allFutureNodeTypes.includes("Shop"),
-    });
 
     const futureNodes = allNodes.filter((n) => n.row > currentRow);
     const typeCounts: Record<string, number> = {};

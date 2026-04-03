@@ -9,13 +9,14 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
-import { loadMapContext } from "../map/map-context-cache";
+import { selectMapContext } from "../../features/run/runSelectors";
 import { preEvalRestWeights, applyRestWeights } from "@sts2/shared/evaluation/post-eval-weights";
 import { useEvaluation, type UseEvaluationResult } from "@sts2/shared/evaluation/use-evaluation";
 import { useEvaluateRestSiteMutation } from "../../services/evaluationApi";
 import { useAppSelector } from "../../store/hooks";
 import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
 import { selectActiveRunId } from "../../features/run/runSlice";
+import { buildRestContext, buildRestPromptSection } from "../../lib/build-rest-context";
 
 const CACHE_KEY = "sts2-rest-eval-cache";
 
@@ -26,6 +27,7 @@ export function useRestEvaluation(
   const player = useAppSelector(selectActivePlayer);
   const runId = useAppSelector(selectActiveRunId);
   const [trigger] = useEvaluateRestSiteMutation();
+  const mapCtx = useAppSelector(selectMapContext);
 
   const options = state.rest_site.options.filter((o) => o.is_enabled);
   const enabled = options.length > 1;
@@ -35,22 +37,27 @@ export function useRestEvaluation(
     const restPlayer = getPlayer(state);
     if (!restPlayer) return null;
 
-    const hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
-    const missing = restPlayer.max_hp - restPlayer.hp;
-    const mapCtx = loadMapContext();
-    const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
     const currentFloor = state.run.floor;
     const bossDistance = mapCtx?.floorsToNextBoss ?? Math.min(
       ...[17, 34, 51].filter((bf) => bf > currentFloor).map((bf) => bf - currentFloor)
     );
-    const hasBossNear = bossDistance <= 3;
+
+    const restCtx = buildRestContext({
+      hp: restPlayer.hp,
+      maxHp: restPlayer.max_hp,
+      floorsToNextBoss: bossDistance,
+      hasEliteAhead: mapCtx?.hasEliteAhead ?? false,
+      hasRestAhead: mapCtx?.hasRestAhead ?? false,
+      relicDescriptions: [],
+      upgradeCandidates: [],
+    });
 
     const preResult = preEvalRestWeights(
-      hpPercent,
-      missing,
+      restCtx.hpPercent,
+      restCtx.missing,
       restPlayer.max_hp,
-      hasEliteAhead,
-      hasBossNear,
+      restCtx.hasEliteAhead,
+      restCtx.isBossSoon,
       options.map((o) => ({ id: o.id, name: o.name }))
     );
 
@@ -61,21 +68,29 @@ export function useRestEvaluation(
     const restPlayer = getPlayer(state);
     if (!restPlayer) throw new Error("Player data unavailable");
 
-    const hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
-    const missing = restPlayer.max_hp - restPlayer.hp;
-    const mapCtx = loadMapContext();
-    const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
-    const currentFloor = state.run.floor;
-    const bossDistance = mapCtx?.floorsToNextBoss ?? Math.min(
-      ...[17, 34, 51].filter((bf) => bf > currentFloor).map((bf) => bf - currentFloor)
-    );
-    const hasBossNear = bossDistance <= 3;
-
     const ctx: EvaluationContext | null = buildEvaluationContext(state, deckCards, player);
     if (!ctx) throw new Error("Could not build evaluation context");
 
     updateFromContext(ctx);
-    ctx.hpPercent = hpPercent;
+
+    const currentFloor = state.run.floor;
+    const bossDistance = mapCtx?.floorsToNextBoss ?? Math.min(
+      ...[17, 34, 51].filter((bf) => bf > currentFloor).map((bf) => bf - currentFloor)
+    );
+
+    const restCtx = buildRestContext({
+      hp: restPlayer.hp,
+      maxHp: restPlayer.max_hp,
+      floorsToNextBoss: bossDistance,
+      hasEliteAhead: mapCtx?.hasEliteAhead ?? false,
+      hasRestAhead: mapCtx?.hasRestAhead ?? false,
+      relicDescriptions: (ctx.relics ?? []).map((r) => `${r.name}: ${r.description}`),
+      upgradeCandidates: (ctx.deckCards ?? [])
+        .filter((c) => !c.name.includes("+"))
+        .map((c) => c.name),
+    });
+
+    ctx.hpPercent = restCtx.hpPercent;
     ctx.gold = restPlayer.gold;
 
     const contextStr = buildCompactContext(ctx);
@@ -83,33 +98,7 @@ export function useRestEvaluation(
       .map((o, i) => `${i + 1}. ${o.name} (${o.id}): ${o.description}`)
       .join("\n");
 
-    // Compute passive healing from relics
-    const relicDescs = (ctx.relics ?? []).map((r) => `${r.name}: ${r.description}`.toLowerCase());
-    let passiveHealPerCombat = 0;
-    for (const desc of relicDescs) {
-      const healMatch = desc.match(/(?:end of combat|after combat|heal)\D*(\d+)\s*hp/);
-      if (healMatch) passiveHealPerCombat += parseInt(healMatch[1], 10);
-      if (desc.includes("meat on the bone")) passiveHealPerCombat += 6;
-    }
-
-    const missingPercent = Math.round((missing / Math.max(1, restPlayer.max_hp)) * 100);
-    const floor = state.run.floor;
-    const hasRestAhead = mapCtx?.hasRestAhead ?? false;
-    const floorsToNextBoss = bossDistance;
-    const isBossNext = floorsToNextBoss <= 1;
-    const isBossSoon = floorsToNextBoss <= 3;
-
-    const effectivePassiveHeal = isBossNext ? 0 : passiveHealPerCombat;
-    const effectiveMissing = Math.max(0, missing - effectivePassiveHeal);
-    const effectiveHpPercent = Math.round(((restPlayer.max_hp - effectiveMissing) / Math.max(1, restPlayer.max_hp)) * 100);
-
-    const upgradeCandidates = (ctx.deckCards ?? [])
-      .filter((c) => !c.name.includes("+"))
-      .map((c) => c.name);
-    const uniqueCandidates = [...new Set(upgradeCandidates)];
-    const upgradeNote = uniqueCandidates.length > 0
-      ? `UPGRADEABLE (only these can be upgraded): ${uniqueCandidates.join(", ")}\nCards with + are ALREADY upgraded and CANNOT be upgraded again. Do NOT recommend upgrading any card with + in its name.`
-      : "No upgradeable cards remaining — all cards have been upgraded.";
+    const restPromptSection = buildRestPromptSection(restCtx, restPlayer.hp, restPlayer.max_hp);
 
     const raw = await trigger({
       evalType: "rest_site",
@@ -117,17 +106,10 @@ export function useRestEvaluation(
       runNarrative: getPromptContext(),
       mapPrompt: `${contextStr}
 
-HP: ${restPlayer.hp}/${restPlayer.max_hp} (${Math.round((restPlayer.hp / Math.max(1, restPlayer.max_hp)) * 100)}%) | Missing: ${missing} HP | Rest heals: ${Math.min(missing, Math.floor(restPlayer.max_hp * 0.3))} HP (capped at missing)
-${isBossNext ? `⚠ BOSS IS NEXT FLOOR. Passive healing will NOT apply. Current HP is your boss HP.` : `Passive healing per combat: ${passiveHealPerCombat} HP | Effective missing: ${effectiveMissing} | Effective HP: ${effectiveHpPercent}%`}
-${hasEliteAhead && !isBossNext ? `⚠ ELITE FIGHT AHEAD on the current path. Factor elite damage (~20-30 HP) into heal decision.` : ""}
-${!isBossNext && isBossSoon ? `Boss in ${floorsToNextBoss} floors.` : ""}
-${!hasRestAhead && !isBossNext ? `No rest site ahead before boss — this is the last chance to heal.` : ""}
-${upgradeNote}
+${restPromptSection}
 
 REST SITE — choose ONE:
 ${optionsStr}
-
-CONTEXT: Missing ${missingPercent}% HP. Effective HP after passive healing: ${effectiveHpPercent}%. Consider whether upgrading a key card provides more long-term value than healing chip damage.
 
 Respond as JSON:
 {
@@ -178,7 +160,7 @@ Respond as JSON:
       skipReasoning: raw.skip_reasoning ?? null,
     };
 
-    applyRestWeights(evaluation, hpPercent, hasEliteAhead, hasBossNear, ctx?.deckMaturity);
+    applyRestWeights(evaluation, restCtx.hpPercent, restCtx.hasEliteAhead, restCtx.isBossSoon, ctx?.deckMaturity);
 
     registerLastEvaluation("rest_site", {
       recommendedId: rankings?.[0]?.itemId ?? null,
