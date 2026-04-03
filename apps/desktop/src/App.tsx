@@ -1,12 +1,10 @@
 import { ConnectionBanner } from "./views/connection";
 import { useGameState } from "./hooks/useGameState";
 import { useDeckTracker } from "./views/connection/use-deck-tracker";
-import { usePlayerTracker } from "./views/connection/use-player-tracker";
 import { useRunTracker } from "./views/connection/use-run-tracker";
 import { useChoiceTracker } from "./views/connection/use-choice-tracker";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { selectActiveDeck, selectActivePlayer } from "./features/run/runSelectors";
-import { selectActiveRunId } from "./features/run/runSlice";
 import { evaluationApi } from "./services/evaluationApi";
 import { AppHeader } from "./views/game-views/app-header";
 import { GameStateView } from "./views/game-views/game-state-view";
@@ -19,6 +17,7 @@ import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
 import { useState, useRef, useEffect } from "react";
 import { ModVersionBanner } from "./mod-version-banner";
+// MapEvalProvider kept for now — map-view.tsx + use-map-evaluation.ts still use it
 import { MapEvalProvider } from "./views/map/map-eval-context";
 
 // Check for updates on app launch
@@ -100,20 +99,17 @@ function AuthenticatedApp() {
   const { gameState, connectionStatus } = useGameState();
   const dispatch = useAppDispatch();
 
-  // Old hooks still run for backward compat + choice tracking
+  // Run tracker + choice tracker still use old hooks (pending full migration)
   const oldDeckCards = useDeckTracker(gameState);
-  const oldPlayer = usePlayerTracker(gameState);
   const runState = useRunTracker(gameState, user?.id ?? null, connectionStatus === "disconnected");
   useChoiceTracker(gameState, oldDeckCards, runState.runId);
 
-  // Redux data (populated by listeners) — prefer when available
-  const reduxDeck = useAppSelector(selectActiveDeck);
-  const reduxPlayer = useAppSelector(selectActivePlayer);
-  const reduxRunId = useAppSelector(selectActiveRunId);
+  // Deck + player from Redux (populated by gameStateUpdateListener)
+  const deckCards = useAppSelector(selectActiveDeck);
+  const player = useAppSelector(selectActivePlayer);
 
-  // Use Redux data when a run is active in the store, fall back to old hooks
-  const deckCards = reduxRunId && reduxDeck.length > 0 ? reduxDeck : oldDeckCards;
-  const player = reduxRunId && reduxPlayer ? reduxPlayer : oldPlayer;
+  // Fall back to old deck tracker if Redux has no data yet
+  const effectiveDeck = deckCards.length > 0 ? deckCards : oldDeckCards;
 
   // Runtime mod version check — once per session after connecting
   const modCheckDone = useRef(false);
@@ -171,7 +167,7 @@ function AuthenticatedApp() {
         {gameState ? (
           <GameStateView
             state={gameState}
-            deckCards={deckCards}
+            deckCards={effectiveDeck}
             player={player}
             runId={runState.runId}
             runState={runState}
