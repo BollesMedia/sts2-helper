@@ -6,6 +6,7 @@ import { gameStateApi } from "../services/gameStateApi";
 import { evaluationApi } from "../services/evaluationApi";
 import { connectionSlice } from "../features/connection/connectionSlice";
 import { runSlice } from "../features/run/runSlice";
+import { evaluationSlice } from "../features/evaluation/evaluationSlice";
 
 // Import listeners for side-effect registration
 import { setupConnectionListeners } from "../features/connection/connectionListeners";
@@ -13,12 +14,14 @@ import { setupGameStateUpdateListener } from "../features/run/runListeners";
 import { setupRunAnalyticsListener } from "../features/run/runAnalyticsListener";
 import { setupChoiceTrackingListener } from "../features/choice/choiceTrackingListener";
 import { setupMapEvalListener } from "../features/map/mapListeners";
+import { setupEvaluationListeners } from "../features/evaluation/evaluationListeners";
 
 const rootReducer = combineSlices(
   gameStateApi,
   evaluationApi,
   connectionSlice,
   runSlice,
+  evaluationSlice,
 );
 
 export const store = configureStore({
@@ -40,6 +43,7 @@ setupGameStateUpdateListener();
 setupRunAnalyticsListener();
 setupChoiceTrackingListener(); // Must be AFTER gameStateUpdate so deck is current
 setupMapEvalListener();
+setupEvaluationListeners();
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

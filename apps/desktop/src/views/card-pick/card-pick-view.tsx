@@ -2,22 +2,32 @@
 
 import { cn } from "@sts2/shared/lib/cn";
 import type { CardRewardState } from "@sts2/shared/types/game-state";
-import { useCardEvaluation } from "./use-card-evaluation";
+import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
 import { findTopPick } from "../../components/eval-card";
-import { useAppSelector } from "../../store/hooks";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { selectActivePlayer } from "../../features/run/runSelectors";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
 
 interface CardPickViewProps {
   state: CardRewardState;
   exclusive?: boolean;
 }
 
-export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
+// Pre-create selectors (stable references)
+const selectCardRewardResult = selectEvalResult<CardRewardEvaluation>("card_reward");
+const selectCardRewardLoading = selectEvalIsLoading("card_reward");
+const selectCardRewardError = selectEvalError("card_reward");
+
+export function CardPickView({ state }: CardPickViewProps) {
+  const dispatch = useAppDispatch();
   const player = useAppSelector(selectActivePlayer);
-  const { evaluation, isLoading, error, retry } = useCardEvaluation(state, exclusive);
+  const evaluation = useAppSelector(selectCardRewardResult);
+  const isLoading = useAppSelector(selectCardRewardLoading);
+  const error = useAppSelector(selectCardRewardError);
   const cards = state.card_reward.cards;
 
   return (
@@ -25,8 +35,7 @@ export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
       {/* Header row with inline summary */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-display font-bold text-spire-text shrink-0">Card Reward</h2>
-        
-        {/* Inline pick summary or skip message */}
+
         {evaluation?.pickSummary && !isLoading && (
           <p className={cn(
             "text-xs font-medium truncate flex-1 text-right",
@@ -40,7 +49,7 @@ export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
             Skip — {evaluation.skipReasoning ?? "none worth adding"}
           </p>
         )}
-        
+
         {isLoading && (
           <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 animate-pulse">
             Evaluating...
@@ -56,8 +65,6 @@ export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
           </>
         ) : (
           (() => {
-            // Derive the recommended card — use findTopPick (highest tier)
-            // as the single source of truth
             const topPick = evaluation?.rankings
               ? findTopPick(evaluation.rankings)
               : null;
@@ -89,8 +96,12 @@ export function CardPickView({ state, exclusive = true }: CardPickViewProps) {
         )}
       </div>
 
-      {error && <EvalError error={error} onRetry={retry} />}
-
+      {error && (
+        <EvalError
+          error={error}
+          onRetry={() => dispatch(evalRetryRequested("card_reward"))}
+        />
+      )}
     </div>
   );
 }
