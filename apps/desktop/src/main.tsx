@@ -7,7 +7,7 @@ import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import "./index.css";
 import { App } from "./App";
 import { AuthProvider } from "./auth-provider";
-import { ErrorBoundary } from "@sts2/shared/components/error-boundary";
+import { ErrorBoundary } from "./components/error-boundary";
 import { initSharedConfig } from "@sts2/shared/lib/init";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
 import { reportError, initErrorReporter } from "@sts2/shared/lib/error-reporter";

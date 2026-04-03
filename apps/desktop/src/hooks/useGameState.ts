@@ -6,7 +6,7 @@ import {
   POLLING_INTERVALS,
   DEFAULT_INTERVAL,
   OFFLINE_INTERVAL,
-} from "@sts2/shared/features/connection/polling-config";
+} from "../views/connection/polling-config";
 import { useAppSelector } from "../store/hooks";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";

@@ -1,15 +1,15 @@
-import { ConnectionBanner } from "@sts2/shared/features/connection";
+import { ConnectionBanner } from "./views/connection";
 import { useGameState } from "./hooks/useGameState";
-import { useDeckTracker } from "@sts2/shared/features/connection/use-deck-tracker";
-import { usePlayerTracker } from "@sts2/shared/features/connection/use-player-tracker";
-import { useRunTracker } from "@sts2/shared/features/connection/use-run-tracker";
-import { useChoiceTracker } from "@sts2/shared/features/connection/use-choice-tracker";
+import { useDeckTracker } from "./views/connection/use-deck-tracker";
+import { usePlayerTracker } from "./views/connection/use-player-tracker";
+import { useRunTracker } from "./views/connection/use-run-tracker";
+import { useChoiceTracker } from "./views/connection/use-choice-tracker";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { selectActiveDeck, selectActivePlayer } from "./features/run/runSelectors";
 import { selectActiveRunId } from "./features/run/runSlice";
 import { evaluationApi } from "./services/evaluationApi";
-import { AppHeader } from "@sts2/shared/features/game-views/app-header";
-import { GameStateView } from "@sts2/shared/features/game-views/game-state-view";
+import { AppHeader } from "./views/game-views/app-header";
+import { GameStateView } from "./views/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -19,7 +19,7 @@ import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
 import { useState, useRef, useEffect } from "react";
 import { ModVersionBanner } from "./mod-version-banner";
-import { MapEvalProvider } from "@sts2/shared/features/map/map-eval-context";
+import { MapEvalProvider } from "./views/map/map-eval-context";
 
 // Check for updates on app launch
 check().then(async (update) => {

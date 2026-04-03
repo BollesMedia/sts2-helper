@@ -1,6 +1,6 @@
 import type { GameState, CombatCard } from "../types/game-state";
 import { hasRun } from "../types/game-state";
-import type { TrackedPlayer } from "../features/connection/use-player-tracker";
+import type { TrackedPlayer } from "../types/tracked-player";
 import type { EvaluationContext } from "./types";
 import {
   detectArchetypes,

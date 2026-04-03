@@ -1,7 +1,7 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import { apiFetch } from "@sts2/shared/lib/api-client";
 import type { CardRewardEvaluation, EvaluationContext } from "@sts2/shared/evaluation/types";
-import type { MapPathEvaluation } from "@sts2/shared/features/map/use-map-evaluation";
+import type { MapPathEvaluation } from "../views/map/use-map-evaluation";
 
 // --- Request types ---
 
