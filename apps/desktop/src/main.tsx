@@ -1,5 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { Provider } from "react-redux";
+import { store } from "./store/store";
 import * as Sentry from "@sentry/react";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import "./index.css";
@@ -79,10 +81,12 @@ window.addEventListener("unhandledrejection", (e) => {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </ErrorBoundary>
+    <Provider store={store}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ErrorBoundary>
+    </Provider>
   </React.StrictMode>
 );
