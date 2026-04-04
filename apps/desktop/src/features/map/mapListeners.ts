@@ -45,8 +45,6 @@ export function setupMapEvalListener() {
     },
 
     effect: async (_action, listenerApi) => {
-      listenerApi.cancelActiveListeners();
-
       const state = listenerApi.getState();
       const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
       if (!gameState || gameState.state_type !== "map") return;
@@ -60,6 +58,8 @@ export function setupMapEvalListener() {
       const isRetry = evalRetryRequested.match(_action) && _action.payload === EVAL_TYPE;
 
       // --- Should we evaluate? ---
+      // Check BEFORE cancelling — don't cancel an in-flight eval
+      // just to decide we don't need a new one.
       if (!isRetry) {
         const prevContext = selectMapEvalContext(state);
         const recommendedNodes = selectRecommendedNodesSet(state);
@@ -78,12 +78,27 @@ export function setupMapEvalListener() {
         };
 
         const shouldEval = shouldEvaluateMap(input);
+
+        if (shouldEval) {
+          console.log("[MapEval] TRIGGERING re-eval. Reason:", JSON.stringify({
+            pos: currentPos ? `${currentPos.col},${currentPos.row}` : "null",
+            isOnPath,
+            hasPrevContext: !!prevContext,
+            actChanged: prevContext ? prevContext.act !== run.act : false,
+            recommendedNodesCount: recommendedNodes.size,
+            optionCount: options.length,
+          }));
+        }
+
         if (!shouldEval) return;
       }
 
       // --- Dedup ---
       const currentKey = selectEvalKey(EVAL_TYPE)(state);
       if (!isRetry && currentKey === evalKey) return;
+
+      // Cancel any in-flight eval NOW — we've decided to start a new one
+      listenerApi.cancelActiveListeners();
 
       // --- Build context ---
       const deckCards = selectActiveDeck(state);
