@@ -39,12 +39,6 @@ export const selectMapEvalContext = createSelector(
   (run) => run?.mapEval.lastEvalContext ?? null
 );
 
-/** Map eval request ID — incremented by listener when eval should trigger */
-export const selectMapEvalRequestId = createSelector(
-  selectActiveRun,
-  (run) => run?.mapEval.evalRequestId ?? 0
-);
-
 /** Map context (boss distance, elite ahead, etc.) for rest/event evals */
 export const selectMapContext = createSelector(
   selectActiveRun,

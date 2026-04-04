@@ -22,8 +22,6 @@ export interface MapEvalState {
     deckSize: number;
     act: number;
   } | null;
-  /** Incremented by the listener when a new eval should fire */
-  evalRequestId: number;
 }
 
 export interface MapContext {
@@ -100,7 +98,6 @@ export const runSlice = createSlice({
           recommendedPath: [],
           recommendedNodes: [],
           lastEvalContext: null,
-          evalRequestId: 0,
         },
         mapContext: null,
       };
@@ -175,13 +172,6 @@ export const runSlice = createSlice({
       }
     },
 
-    mapEvalRequested(state) {
-      const run = state.activeRunId ? state.runs[state.activeRunId] : null;
-      if (run) {
-        run.mapEval.evalRequestId++;
-      }
-    },
-
     mapContextUpdated(state, action: PayloadAction<MapContext>) {
       const run = state.activeRunId ? state.runs[state.activeRunId] : null;
       if (run) {
@@ -207,7 +197,6 @@ export const {
   playerUpdated,
   deckUpdated,
   mapEvalUpdated,
-  mapEvalRequested,
   mapContextUpdated,
 } = runSlice.actions;
 

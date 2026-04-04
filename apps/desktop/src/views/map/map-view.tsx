@@ -3,10 +3,12 @@
 import { useMemo } from "react";
 import { cn } from "@sts2/shared/lib/cn";
 import type { MapState, MultiplayerFields } from "@sts2/shared/types/game-state";
-import { useAppSelector } from "../../store/hooks";
-import { selectActiveDeck, selectActivePlayer, selectRecommendedPath } from "../../features/run/runSelectors";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectRecommendedPath } from "../../features/run/runSelectors";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
+import type { MapPathEvaluation } from "../../lib/eval-inputs/map";
 import { NODE_TYPE_ICONS, NODE_SVG_LABELS } from "./map-scoring";
-import { useMapEvaluation } from "./use-map-evaluation";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
 
@@ -62,11 +64,16 @@ const REC_BORDER: Record<string, string> = {
 
 // --- Component ---
 
+const selectMapResult = selectEvalResult<MapPathEvaluation>("map");
+const selectMapLoading = selectEvalIsLoading("map");
+const selectMapError = selectEvalError("map");
+
 export function MapView({ state }: MapViewProps) {
-  const deckCards = useAppSelector(selectActiveDeck);
-  const player = useAppSelector(selectActivePlayer);
+  const dispatch = useAppDispatch();
+  const evaluation = useAppSelector(selectMapResult);
+  const isLoading = useAppSelector(selectMapLoading);
+  const error = useAppSelector(selectMapError);
   const { nodes, current_position, visited, next_options, boss } = state.map;
-  const { evaluation, isLoading, error, retry } = useMapEvaluation(state, deckCards, player);
 
   const maxRow = useMemo(
     () => Math.max(...nodes.map((n) => n.row), boss.row),
@@ -294,7 +301,7 @@ export function MapView({ state }: MapViewProps) {
           </div>
         )}
 
-        {error && <EvalError error={error} onRetry={retry} />}
+        {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("map"))} />}
 
         {/* Path option cards */}
         {next_options.map((opt, i) => {
