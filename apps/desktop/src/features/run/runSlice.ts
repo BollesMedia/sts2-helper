@@ -22,6 +22,16 @@ export interface MapEvalState {
     hpPercent: number;
     deckSize: number;
     act: number;
+    gold: number;
+    ascension: number;
+  } | null;
+  nodePreferences: {
+    monster: number;
+    elite: number;
+    shop: number;
+    rest: number;
+    treasure: number;
+    event: number;
   } | null;
 }
 
@@ -101,6 +111,7 @@ export const runSlice = createSlice({
           recommendedNodes: [],
           bestPathNodes: [],
           lastEvalContext: null,
+          nodePreferences: null,
         },
         mapContext: null,
       };
@@ -182,6 +193,23 @@ export const runSlice = createSlice({
         run.mapContext = action.payload;
       }
     },
+
+    /** Tier 1 local re-trace: update path without touching nodePreferences or lastEvalContext */
+    mapPathRetraced(
+      state,
+      action: PayloadAction<{
+        recommendedPath: { col: number; row: number }[];
+        bestPathNodes: string[];
+        recommendedNodes: string[];
+      }>
+    ) {
+      const run = state.activeRunId ? state.runs[state.activeRunId] : null;
+      if (run) {
+        run.mapEval.recommendedPath = action.payload.recommendedPath;
+        run.mapEval.bestPathNodes = action.payload.bestPathNodes;
+        run.mapEval.recommendedNodes = action.payload.recommendedNodes;
+      }
+    },
   },
   selectors: {
     selectActiveRunId: (state) => state.activeRunId,
@@ -201,6 +229,7 @@ export const {
   playerUpdated,
   deckUpdated,
   mapEvalUpdated,
+  mapPathRetraced,
   mapContextUpdated,
 } = runSlice.actions;
 

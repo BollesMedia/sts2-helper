@@ -50,3 +50,9 @@ export const selectMapContext = createSelector(
   selectActiveRun,
   (run) => run?.mapContext ?? null
 );
+
+/** Stored LLM node-type preferences for local re-tracing */
+export const selectNodePreferences = createSelector(
+  selectActiveRun,
+  (run) => run?.mapEval.nodePreferences ?? null
+);
