@@ -6,9 +6,13 @@
  */
 
 import { readFileSync, writeFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const __dirname = typeof import.meta.dirname === "string"
+  ? import.meta.dirname
+  : dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(__dirname, "..");
 
 interface VersionFile {
   path: string;
