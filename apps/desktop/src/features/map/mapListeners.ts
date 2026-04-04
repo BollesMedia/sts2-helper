@@ -2,7 +2,7 @@ import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { selectActiveRun, mapEvalUpdated } from "../run/runSlice";
-import { selectMapEvalContext, selectRecommendedNodesSet } from "../run/runSelectors";
+import { selectMapEvalContext, selectRecommendedNodesSet, selectBestPathNodesSet } from "../run/runSelectors";
 import {
   evalStarted,
   evalSucceeded,
@@ -57,11 +57,14 @@ export function setupMapEvalListener() {
       // just to decide we don't need a new one.
       const prevContext = selectMapEvalContext(state);
       if (!isRetry) {
-        const recommendedNodes = selectRecommendedNodesSet(state);
+        const bestPathNodes = selectBestPathNodesSet(state);
         const currentPos = mapState.map?.current_position ?? null;
 
+        // Use bestPathNodes (recommended option's path only) for deviation detection,
+        // NOT recommendedNodes (all options' paths). This ensures re-eval fires when
+        // the user picks a different option than recommended.
         const isOnPath = currentPos
-          ? recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
+          ? bestPathNodes.has(`${currentPos.col},${currentPos.row}`)
           : false;
 
         const input = {
@@ -138,7 +141,9 @@ export function setupMapEvalListener() {
       // API call fails, shouldEvaluateMap still detects the act change and
       // retries. The post-API dispatch sets the correct act on success.
       preEval.lastEvalContext.act = prevContext?.act ?? 0;
-      listenerApi.dispatch(mapEvalUpdated(preEval));
+      // Pre-eval: set bestPathNodes to all options — can't know best until API completes.
+      // This prevents false deviation detection during the API window.
+      listenerApi.dispatch(mapEvalUpdated({ ...preEval, bestPathNodes: preEval.recommendedNodes }));
 
       try {
         const mapPrompt = buildMapPrompt({
@@ -181,7 +186,7 @@ export function setupMapEvalListener() {
             )
           : parsed.recommendedPath;
 
-        // Build recommendedNodes from ALL options
+        // Build recommendedNodes from ALL options (for UI highlighting)
         const recommendedNodes = new Set<string>();
         for (const opt of options) {
           recommendedNodes.add(`${opt.col},${opt.row}`);
@@ -200,10 +205,20 @@ export function setupMapEvalListener() {
           recommendedNodes.add(`${p.col},${p.row}`);
         }
 
+        // Build bestPathNodes from ONLY the best option's path (for deviation detection)
+        const bestPathNodes = new Set<string>();
+        for (const p of tracedPath) {
+          bestPathNodes.add(`${p.col},${p.row}`);
+        }
+        for (const p of parsed.recommendedPath) {
+          bestPathNodes.add(`${p.col},${p.row}`);
+        }
+
         // Persist path + context to Redux for shouldEvaluate + map view
         listenerApi.dispatch(mapEvalUpdated({
           recommendedPath: tracedPath,
           recommendedNodes: [...recommendedNodes],
+          bestPathNodes: [...bestPathNodes],
           lastEvalContext: {
             hpPercent: hpPct,
             deckSize: deckCards.length,
