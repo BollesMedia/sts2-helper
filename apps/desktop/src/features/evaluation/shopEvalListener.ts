@@ -59,6 +59,10 @@ export function setupShopEvalListener() {
       const gold = shopPlayer?.gold ?? 0;
       ctx.gold = gold;
 
+      // Skip if nothing is affordable
+      const affordableCount = shopState.shop.items.filter((i) => i.is_stocked && i.can_afford).length;
+      if (affordableCount === 0) return;
+
       updateFromContext(ctx);
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
 
