@@ -1,8 +1,10 @@
 /**
- * Incremental card upgrade data cache.
- * Fetches upgrade info from Spire Codex API only for cards
- * not already cached. Results persist in memory for the session.
+ * Card upgrade data cache.
+ * Fetches upgrade info from Supabase cards table for specific cards.
+ * Results persist in memory for the session.
  */
+
+import { createClient } from "@sts2/shared/supabase/client";
 
 interface UpgradeInfo {
   /** Human-readable upgrade delta, e.g. "damage +5" */
@@ -14,68 +16,61 @@ interface UpgradeInfo {
 const cache = new Map<string, UpgradeInfo | null>();
 
 /**
- * Fetch upgrade data for a list of card names.
+ * Fetch upgrade data for a list of card names from Supabase.
  * Only fetches cards not already in cache.
- * Returns the full cache for lookups.
  */
 export async function fetchUpgradeData(cardNames: string[]): Promise<void> {
-  const missing = cardNames.filter((n) => !cache.has(n.toLowerCase()));
+  const missing = cardNames.filter((n) => !cache.has(n.replace(/\+$/, "").toLowerCase()));
   if (missing.length === 0) return;
 
   try {
-    // Codex API doesn't support filtering by name, so we fetch all cards
-    // once and cache them. Subsequent calls are instant.
-    if (cache.size === 0) {
-      const res = await fetch("https://spire-codex.com/api/cards");
-      const cards: Array<{
-        name: string;
-        upgrade?: Record<string, string | number>;
-        upgrade_description?: string;
-      }> = await res.json();
+    const supabase = createClient();
+    // Strip "+" suffix for lookup
+    const baseNames = [...new Set(missing.map((n) => n.replace(/\+$/, "")))];
 
-      for (const card of cards) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- upgrade columns may not be in generated types yet
+    const { data } = await (supabase as any)
+      .from("cards")
+      .select("name, upgrade, upgrade_description")
+      .in("name", baseNames);
+
+    if (data) {
+      for (const card of data as Array<{ name: string; upgrade: Record<string, string | number> | null; upgrade_description: string | null }>) {
         const key = card.name.toLowerCase();
         if (!card.upgrade && !card.upgrade_description) {
           cache.set(key, null);
           continue;
         }
 
-        const delta = card.upgrade
-          ? formatUpgradeDelta(card.upgrade)
-          : null;
-
-        const desc = card.upgrade_description
-          ? stripMarkup(card.upgrade_description)
-          : null;
-
         cache.set(key, {
-          delta: delta ?? "improved",
-          upgradedDescription: desc,
+          delta: card.upgrade ? formatUpgradeDelta(card.upgrade) : "improved",
+          upgradedDescription: card.upgrade_description
+            ? stripMarkup(card.upgrade_description)
+            : null,
         });
       }
     }
 
-    // Mark any still-missing cards as null (not in Codex)
-    for (const name of missing) {
+    // Mark any still-missing cards as null
+    for (const name of baseNames) {
       if (!cache.has(name.toLowerCase())) {
         cache.set(name.toLowerCase(), null);
       }
     }
   } catch {
-    // Non-critical — upgrade info is optional
+    // Non-critical — upgrade info is optional enrichment
   }
 }
 
 /**
  * Get upgrade info for a card by name.
- * Returns null if card has no upgrade data or hasn't been fetched.
+ * Call fetchUpgradeData first to populate the cache.
  */
 export function getUpgradeInfo(cardName: string): UpgradeInfo | null {
   const baseName = cardName.replace(/\+$/, "").toLowerCase();
   return cache.get(baseName) ?? null;
 }
 
-/** Strip Codex markup tags from description text */
 function stripMarkup(text: string): string {
   return text
     .replace(/\[gold\]/g, "").replace(/\[\/gold\]/g, "")
@@ -87,9 +82,8 @@ function stripMarkup(text: string): string {
 }
 
 /**
- * Format the upgrade delta object into a human-readable string.
+ * Format upgrade delta object into human-readable string.
  * e.g. {"damage": "+5"} → "damage +5"
- *      {"add_innate": 1} → "gains Innate"
  */
 function formatUpgradeDelta(upgrade: Record<string, string | number>): string {
   const parts: string[] = [];

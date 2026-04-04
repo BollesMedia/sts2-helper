@@ -61,6 +61,8 @@ interface CodexCard {
   keywords_key?: string[] | null;
   tags: string[] | null;
   image_url?: string;
+  upgrade?: Record<string, string | number> | null;
+  upgrade_description?: string | null;
 }
 
 interface CodexRelic {
@@ -101,7 +103,8 @@ async function syncCards(version: string) {
   console.log("Syncing cards...");
   const cards = await fetchCodex<CodexCard[]>("/cards");
 
-  const rows: CardInsert[] = cards.map((c) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- upgrade columns may not be in generated types yet
+  const rows: any[] = cards.map((c) => ({
     id: c.id,
     name: c.name,
     description: c.description,
@@ -118,6 +121,8 @@ async function syncCards(version: string) {
     keywords: c.keywords,
     tags: c.tags,
     image_url: c.image_url ?? null,
+    upgrade: c.upgrade ?? null,
+    upgrade_description: c.upgrade_description ?? null,
     game_version: version,
   }));
 
