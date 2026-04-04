@@ -1,15 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
 import { cn } from "@sts2/shared/lib/cn";
-import { useAppSelector } from "../../store/hooks";
-import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
-import type { EvaluationContext } from "@sts2/shared/evaluation/types";
-import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
-import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
-import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
-import { apiFetch } from "@sts2/shared/lib/api-client";
 import type { GameState } from "@sts2/shared/types/game-state";
+import { useAppSelector } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading } from "../../features/evaluation/evaluationSelectors";
 
 interface CardSelectEvalViewProps {
   state: GameState & { state_type: "card_select" };
@@ -20,89 +14,14 @@ interface SelectRecommendation {
   reasoning: string;
 }
 
-/**
- * Generic card select evaluation for any card_select screen that isn't
- * a reward, removal, or upgrade. Passes the game's prompt text through
- * to Claude so it understands the context (enchant, transform, etc.).
- */
-export function CardSelectEvalView({ state }: CardSelectEvalViewProps) {
-  const deckCards = useAppSelector(selectActiveDeck);
-  const player = useAppSelector(selectActivePlayer);
-  const [recommendation, setRecommendation] = useState<SelectRecommendation | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const evaluatedKey = useRef("");
+const selectResult = selectEvalResult<SelectRecommendation | null>("card_select");
+const selectLoading = selectEvalIsLoading("card_select");
 
+export function CardSelectEvalView({ state }: CardSelectEvalViewProps) {
+  const recommendation = useAppSelector(selectResult);
+  const isLoading = useAppSelector(selectLoading);
   const prompt = state.card_select.prompt;
   const cards = state.card_select.cards;
-  const cardKey = `${prompt}:${cards.map((c) => c.name).sort().join(",")}`;
-
-  const evaluate = useCallback(async () => {
-    if (cardKey === evaluatedKey.current) return;
-    evaluatedKey.current = cardKey;
-    setIsLoading(true);
-
-    const ctx: EvaluationContext | null = buildEvaluationContext(state, deckCards, player);
-    if (!ctx) {
-      setIsLoading(false);
-      return;
-    }
-
-    updateFromContext(ctx);
-    const contextStr = buildCompactContext(ctx);
-    const narrative = getPromptContext();
-    const cardList = cards
-      .map((c) => `- ${c.name}: ${c.description}`)
-      .join("\n");
-
-    try {
-      const res = await apiFetch("/api/evaluate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "map",
-          evalType: "card_reward",
-          context: ctx,
-          runNarrative: narrative,
-          mapPrompt: `${contextStr}
-
-CARD SELECT: "${prompt}"
-You must choose ONE card from your deck for this effect.
-Cards available:
-${cardList}
-
-Choose the card that benefits MOST from this effect given the current archetype and win condition.
-Prioritize: key engine cards > most-played cards > highest-impact cards.
-
-Respond as JSON:
-{
-  "card_name": "exact card name",
-  "reasoning": "under 20 words",
-  "overall_advice": null,
-  "rankings": []
-}`,
-          runId: null,
-          gameVersion: null,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Eval failed");
-
-      const data = await res.json();
-      if (data.card_name) {
-        setRecommendation({
-          cardName: data.card_name,
-          reasoning: data.reasoning ?? "",
-        });
-      }
-    } catch {
-      // Silent fail
-    } finally {
-      setIsLoading(false);
-    }
-  }, [state, deckCards, player, cards, cardKey, prompt]);
-
-  if (cardKey !== evaluatedKey.current && !isLoading) {
-    evaluate();
-  }
 
   return (
     <div className="flex flex-col gap-3">
