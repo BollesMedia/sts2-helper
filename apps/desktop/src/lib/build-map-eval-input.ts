@@ -12,9 +12,17 @@ export interface MapEvalInputSources {
     hpPercent: number;
     deckSize: number;
     act: number;
+    gold: number;
+    ascension: number;
   } | null;
   /** Set of recommended node keys ("col,row") from Redux */
   recommendedNodes: Set<string>;
+  /** Current HP as a fraction (0–1) */
+  currentHpPercent: number;
+  /** Current gold */
+  currentGold: number;
+  /** Current deck size */
+  currentDeckSize: number;
 }
 
 /**
@@ -28,6 +36,9 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     act,
     prevContext,
     recommendedNodes,
+    currentHpPercent,
+    currentGold,
+    currentDeckSize,
   } = sources;
 
   const hasPrevContext = prevContext !== null;
@@ -40,11 +51,26 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     ? prevContext.act !== act
     : false;
 
+  const hpDropExceedsThreshold = hasPrevContext
+    ? (prevContext.hpPercent - currentHpPercent) > 0.20
+    : false;
+
+  const goldCrossedThreshold = hasPrevContext
+    ? (prevContext.gold >= 150 && currentGold < 150) || (prevContext.gold < 150 && currentGold >= 150)
+    : false;
+
+  const deckSizeChangedSignificantly = hasPrevContext
+    ? Math.abs(prevContext.deckSize - currentDeckSize) >= 1
+    : false;
+
   return {
     optionCount,
     hasPrevContext,
     actChanged,
     currentPosition,
     isOnRecommendedPath,
+    hpDropExceedsThreshold,
+    goldCrossedThreshold,
+    deckSizeChangedSignificantly,
   };
 }

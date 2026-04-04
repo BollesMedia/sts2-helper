@@ -1,8 +1,8 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
-import { selectActiveRun, mapEvalUpdated } from "../run/runSlice";
-import { selectMapEvalContext, selectRecommendedNodesSet, selectBestPathNodesSet } from "../run/runSelectors";
+import { selectActiveRun, mapEvalUpdated, mapPathRetraced } from "../run/runSlice";
+import { selectMapEvalContext, selectBestPathNodesSet, selectNodePreferences } from "../run/runSelectors";
 import {
   evalStarted,
   evalSucceeded,
@@ -18,7 +18,7 @@ import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
 import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
-import { traceRecommendedPath } from "../../views/map/map-path-tracer";
+import { traceConstraintAwarePath } from "../../views/map/constraint-aware-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 
@@ -30,6 +30,10 @@ const EVAL_TYPE = "map" as const;
  * Watches game state changes on the map. Decides whether to evaluate
  * (via shouldEvaluateMap), then owns the full eval pipeline: API call,
  * path tracing, recommended nodes, and Redux persistence.
+ *
+ * Tier 1 deviation (off-path, no material context change) re-traces
+ * locally using stored LLM nodePreferences — no API call needed.
+ * Tier 2 deviation (HP/gold/deck changed) triggers a full re-evaluation.
  */
 export function setupMapEvalListener() {
   startAppListening({
@@ -56,6 +60,9 @@ export function setupMapEvalListener() {
       // Check BEFORE cancelling — don't cancel an in-flight eval
       // just to decide we don't need a new one.
       const prevContext = selectMapEvalContext(state);
+      const storedPrefs = selectNodePreferences(state);
+      const mapPlayer = mapState.player ?? mapState.map?.player;
+
       if (!isRetry) {
         const bestPathNodes = selectBestPathNodesSet(state);
         const currentPos = mapState.map?.current_position ?? null;
@@ -67,16 +74,97 @@ export function setupMapEvalListener() {
           ? bestPathNodes.has(`${currentPos.col},${currentPos.row}`)
           : false;
 
+        // Compute Tier 2 context-change flags
+        const currentHp = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+        const currentGold = mapPlayer?.gold ?? 0;
+        const currentDeckSize = selectActiveDeck(state).length;
+
+        const hpDropExceedsThreshold = prevContext
+          ? (prevContext.hpPercent - currentHp) > 0.20
+          : false;
+        const goldCrossedThreshold = prevContext
+          ? (prevContext.gold >= 150 && currentGold < 150) || (prevContext.gold < 150 && currentGold >= 150)
+          : false;
+        const deckSizeChangedSignificantly = prevContext
+          ? Math.abs(prevContext.deckSize - currentDeckSize) >= 1
+          : false;
+
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
           actChanged: prevContext ? prevContext.act !== run.act : false,
           currentPosition: currentPos,
           isOnRecommendedPath: isOnPath,
+          hpDropExceedsThreshold,
+          goldCrossedThreshold,
+          deckSizeChangedSignificantly,
         };
 
         const shouldEval = shouldEvaluateMap(input);
         if (!shouldEval) return;
+
+        // Tier 1: If deviated but no material context change, just re-trace locally
+        if (
+          currentPos &&
+          !isOnPath &&
+          storedPrefs &&
+          !hpDropExceedsThreshold &&
+          !goldCrossedThreshold &&
+          !deckSizeChangedSignificantly &&
+          !input.actChanged
+        ) {
+          const allNodes = mapState.map?.nodes ?? [];
+          const bossPos = mapState.map.boss;
+          const player = selectActivePlayer(state);
+
+          const tracerInput = {
+            nodes: allNodes,
+            bossPos,
+            nodePreferences: storedPrefs,
+            hpPercent: currentHp,
+            gold: currentGold,
+            act: run.act,
+            ascension: run.ascension,
+            maxHp: mapPlayer?.max_hp ?? 80,
+            currentRemovalCost: player?.cardRemovalCost ?? 75,
+          };
+
+          // Re-trace from current position using stored weights
+          const retracedPath = traceConstraintAwarePath({
+            startCol: currentPos.col,
+            startRow: currentPos.row,
+            ...tracerInput,
+          });
+
+          // Build recommendedNodes from all options' traces
+          const recommendedNodes = new Set<string>();
+          for (const opt of options) {
+            recommendedNodes.add(`${opt.col},${opt.row}`);
+            const optPath = traceConstraintAwarePath({
+              startCol: opt.col,
+              startRow: opt.row,
+              ...tracerInput,
+            });
+            for (const p of optPath) {
+              recommendedNodes.add(`${p.col},${p.row}`);
+            }
+          }
+          for (const p of retracedPath) {
+            recommendedNodes.add(`${p.col},${p.row}`);
+          }
+
+          const bestPathNodes2 = new Set<string>();
+          for (const p of retracedPath) {
+            bestPathNodes2.add(`${p.col},${p.row}`);
+          }
+
+          listenerApi.dispatch(mapPathRetraced({
+            recommendedPath: retracedPath,
+            bestPathNodes: [...bestPathNodes2],
+            recommendedNodes: [...recommendedNodes],
+          }));
+          return;
+        }
       }
 
       // --- Dedup ---
@@ -95,7 +183,6 @@ export function setupMapEvalListener() {
         return;
       }
 
-      const mapPlayer = mapState.player ?? mapState.map?.player;
       if (mapPlayer) {
         ctx.gold = mapPlayer.gold;
         ctx.hpPercent = mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
@@ -136,6 +223,10 @@ export function setupMapEvalListener() {
         deckMaturity,
         relicCount,
         floor,
+        ascension: run.ascension,
+        maxHp: mapPlayer?.max_hp ?? 80,
+        currentRemovalCost: player?.cardRemovalCost ?? 75,
+        nodePreferences: storedPrefs,
       });
       // Preserve the PREVIOUS act in the pre-eval context so that if the
       // API call fails, shouldEvaluateMap still detects the act change and
@@ -179,21 +270,35 @@ export function setupMapEvalListener() {
           ? options.find((_, i) => i + 1 === bestRanking.optionIndex)
           : null;
 
+        const tracerInput = {
+          nodes: allNodes,
+          bossPos,
+          nodePreferences: parsed.nodePreferences,
+          hpPercent: hpPct,
+          gold: mapPlayer?.gold ?? 0,
+          act,
+          ascension: run.ascension,
+          maxHp: mapPlayer?.max_hp ?? 80,
+          currentRemovalCost: player?.cardRemovalCost ?? 75,
+        };
+
         const tracedPath = bestOpt
-          ? traceRecommendedPath(
-              bestOpt.col, bestOpt.row, allNodes, bossPos,
-              hpPct, mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor
-            )
+          ? traceConstraintAwarePath({
+              startCol: bestOpt.col,
+              startRow: bestOpt.row,
+              ...tracerInput,
+            })
           : parsed.recommendedPath;
 
         // Build recommendedNodes from ALL options (for UI highlighting)
         const recommendedNodes = new Set<string>();
         for (const opt of options) {
           recommendedNodes.add(`${opt.col},${opt.row}`);
-          const fullPath = traceRecommendedPath(
-            opt.col, opt.row, allNodes, bossPos,
-            hpPct, mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor
-          );
+          const fullPath = traceConstraintAwarePath({
+            startCol: opt.col,
+            startRow: opt.row,
+            ...tracerInput,
+          });
           for (const p of fullPath) {
             recommendedNodes.add(`${p.col},${p.row}`);
           }
@@ -214,7 +319,7 @@ export function setupMapEvalListener() {
           bestPathNodes.add(`${p.col},${p.row}`);
         }
 
-        // Persist path + context to Redux for shouldEvaluate + map view
+        // Persist path + context + nodePreferences to Redux
         listenerApi.dispatch(mapEvalUpdated({
           recommendedPath: tracedPath,
           recommendedNodes: [...recommendedNodes],
@@ -223,7 +328,10 @@ export function setupMapEvalListener() {
             hpPercent: hpPct,
             deckSize: deckCards.length,
             act,
+            gold: mapPlayer?.gold ?? 0,
+            ascension: run.ascension,
           },
+          nodePreferences: parsed.nodePreferences,
         }));
 
         registerLastEvaluation("map", {
