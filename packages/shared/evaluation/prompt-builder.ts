@@ -374,8 +374,21 @@ export function buildMapToolSchema(optionCount: number) {
           },
         },
         overall_advice: { type: "string", description: "Max 15 words overall pathing strategy." },
+        node_preferences: {
+          type: "object",
+          description: "Rate how desirable each node type is right now (0.0 = avoid, 1.0 = strongly seek). Consider HP, gold, deck needs, act, and ascension.",
+          properties: {
+            monster: { type: "number" },
+            elite: { type: "number" },
+            shop: { type: "number" },
+            rest: { type: "number" },
+            treasure: { type: "number" },
+            event: { type: "number" },
+          },
+          required: ["monster", "elite", "shop", "rest", "treasure", "event"],
+        },
       },
-      required: ["rankings", "overall_advice"],
+      required: ["rankings", "overall_advice", "node_preferences"],
     },
   };
 }
