@@ -80,13 +80,23 @@ export function syncVersion(version: string): void {
   }
 }
 
+/**
+ * Strip leading 'v' from a version tag.
+ * Handles both "v0.11.0" and "0.11.0" inputs.
+ */
+export function stripVersionPrefix(tag: string): string {
+  return tag.startsWith("v") ? tag.slice(1) : tag;
+}
+
 // CLI entrypoint
 if (process.argv[1]?.endsWith("sync-version.ts")) {
-  const version = process.argv[2];
-  if (!version) {
-    console.error("Usage: npx tsx scripts/sync-version.ts <version>");
+  const raw = process.argv[2];
+  if (!raw) {
+    console.error("Usage: npx tsx scripts/sync-version.ts <version|tag>");
+    console.error("  e.g.: npx tsx scripts/sync-version.ts v0.11.0");
     process.exit(1);
   }
+  const version = stripVersionPrefix(raw);
   console.log(`Syncing version ${version}...`);
   syncVersion(version);
   console.log("Done.");

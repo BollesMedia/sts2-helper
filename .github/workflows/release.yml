@@ -41,7 +41,7 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
 
       - name: Sync version from git tag
-        run: npx tsx scripts/sync-version.ts "${GITHUB_REF_NAME#v}"
+        run: npx tsx scripts/sync-version.ts ${{ github.ref_name }}
 
       - name: Install dependencies
         run: npm ci

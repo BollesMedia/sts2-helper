@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyVersion } from "../sync-version";
+import { applyVersion, stripVersionPrefix } from "../sync-version";
 
 describe("sync-version", () => {
   describe("tauri.conf.json", () => {
@@ -68,6 +68,20 @@ describe("sync-version", () => {
       const input = JSON.stringify({ name: "@sts2/desktop", version: "0.3.0" }, null, 2);
       const result = applyVersion(input, "0.11.0", updater);
       expect(JSON.parse(result).version).toBe("0.11.0");
+    });
+  });
+
+  describe("stripVersionPrefix", () => {
+    it("strips v prefix from tag", () => {
+      expect(stripVersionPrefix("v0.11.0")).toBe("0.11.0");
+    });
+
+    it("leaves bare version unchanged", () => {
+      expect(stripVersionPrefix("0.11.0")).toBe("0.11.0");
+    });
+
+    it("handles v1.0.0", () => {
+      expect(stripVersionPrefix("v1.0.0")).toBe("1.0.0");
     });
   });
 });
