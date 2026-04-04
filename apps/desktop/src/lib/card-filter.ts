@@ -1,8 +1,6 @@
 import type { CombatCard } from "@sts2/shared/types/game-state";
 import { createClient } from "@sts2/shared/supabase/client";
 
-const VALID_CARDS_KEY = "sts2-valid-cards";
-
 let validCardNames: Set<string> | null = null;
 let loading = false;
 
@@ -17,26 +15,13 @@ const KNOWN_STATUS = new Set([
 ]);
 
 /**
- * Load valid card names from localStorage (sync) and trigger
- * an async refresh from Supabase. Call once at app startup.
+ * Load valid card names from Supabase into in-memory cache.
+ * Call once at app startup. Uses KNOWN_STATUS as fallback
+ * until the async load completes.
  */
 export function initValidCardNames(): void {
   if (validCardNames || loading) return;
 
-  // Sync load from localStorage
-  if (typeof window !== "undefined") {
-    try {
-      const cached = localStorage.getItem(VALID_CARDS_KEY);
-      if (cached) {
-        validCardNames = new Set(JSON.parse(cached) as string[]);
-        return;
-      }
-    } catch {
-      // Fall through to async fetch
-    }
-  }
-
-  // Async load from Supabase
   loading = true;
   const supabase = createClient();
   supabase
@@ -47,20 +32,11 @@ export function initValidCardNames(): void {
       const names = new Set(
         (data ?? []).map((c) => c.name.toLowerCase())
       );
-      // Add upgraded variants
       for (const name of [...names]) {
         names.add(`${name}+`);
       }
       validCardNames = names;
       loading = false;
-
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(VALID_CARDS_KEY, JSON.stringify([...names]));
-        } catch {
-          // Non-critical
-        }
-      }
     });
 }
 
@@ -72,7 +48,6 @@ export function isPlayerCard(card: CombatCard): boolean {
   if (validCardNames) {
     return validCardNames.has(card.name.toLowerCase());
   }
-  // Fallback: reject known status cards
   return !KNOWN_STATUS.has(card.name.toLowerCase());
 }
 

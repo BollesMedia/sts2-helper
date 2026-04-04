@@ -3,6 +3,7 @@ import { useGameState } from "./hooks/useGameState";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { selectActivePlayer } from "./features/run/runSelectors";
 import { selectModMismatch, modMismatchCleared } from "./features/connection/connectionSlice";
+import { evalRetryRequested, type EvalType } from "./features/evaluation/evaluationSlice";
 import { AppHeader } from "./views/game-views/app-header";
 import { GameStateView } from "./views/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
@@ -12,7 +13,7 @@ import { reportFeedback, reportInfo } from "@sts2/shared/lib/error-reporter";
 import { useAuth } from "./auth-provider";
 import { LoginScreen } from "./login-screen";
 import { SetupWizard } from "./setup-wizard";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { ModVersionBanner } from "./mod-version-banner";
 
 // Check for updates on app launch
@@ -97,26 +98,15 @@ function AuthenticatedApp() {
   const player = useAppSelector(selectActivePlayer);
   const modMismatch = useAppSelector(selectModMismatch);
 
-  // Re-eval: incrementing the key forces the GameStateView to remount,
-  // which resets the eval hook's dedup ref → cache miss → re-fetches
-  const [evalKey, setEvalKey] = useState(0);
-
-  const CACHE_KEY_MAP: Record<string, string> = {
-    card_reward: "sts2-eval-cache",
-    shop: "sts2-shop-eval-cache",
-    map: "sts2-map-eval-cache",
-    event: "sts2-event-eval-cache",
-    rest_site: "sts2-rest-eval-cache",
+  // Map state_type to eval type for re-eval dispatch
+  const EVAL_TYPE_MAP: Partial<Record<string, EvalType>> = {
+    card_reward: "card_reward",
+    shop: "shop",
+    map: "map",
+    event: "event",
+    rest_site: "rest_site",
+    relic_select: "relic_select",
   };
-
-  const handleReEval = useCallback(() => {
-    if (!gameState) return;
-    const cacheKey = CACHE_KEY_MAP[gameState.state_type];
-    if (cacheKey) {
-      localStorage.removeItem(cacheKey);
-    }
-    setEvalKey((k) => k + 1);
-  }, [gameState]);
 
   // When mod mismatch is detected, keep the update UI visible even if the game
   // disconnects (user closed it to update). Otherwise show the normal connection banner.
@@ -143,7 +133,7 @@ function AuthenticatedApp() {
       )}
       <main className="flex-1 min-h-0 p-4">
         {gameState ? (
-          <GameStateView key={evalKey} state={gameState} />
+          <GameStateView state={gameState} />
         ) : (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-spire-text-tertiary">
@@ -173,19 +163,14 @@ function AuthenticatedApp() {
           </button>
           <div className="flex gap-3">
             <button
-              onClick={handleReEval}
-              className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"
-            >
-              Re-evaluate
-            </button>
-            <button
               onClick={() => {
-                localStorage.clear();
-                window.location.reload();
+                if (!gameState) return;
+                const evalType = EVAL_TYPE_MAP[gameState.state_type];
+                if (evalType) dispatch(evalRetryRequested(evalType));
               }}
               className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"
             >
-              Clear cache
+              Re-evaluate
             </button>
           </div>
         </footer>

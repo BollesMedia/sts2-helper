@@ -2,6 +2,7 @@ import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateApi } from "../../services/gameStateApi";
 import { evaluationApi } from "../../services/evaluationApi";
 import { runStarted, runEnded, outcomeConfirmed } from "./runSlice";
+import { allEvalsCleared } from "../evaluation/evaluationSlice";
 import {
   isCombatState,
   getPlayer,
@@ -195,17 +196,8 @@ export function setupRunAnalyticsListener() {
         initializeNarrative(newRunId, character, ascension);
         clearEvaluationRegistry();
 
-        // Clear stale caches
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("sts2-deck");
-          localStorage.removeItem("sts2-player");
-          localStorage.removeItem("sts2-eval-cache");
-          localStorage.removeItem("sts2-shop-eval-cache");
-          localStorage.removeItem("sts2-map-eval-cache");
-          localStorage.removeItem("sts2-map-eval-state");
-          localStorage.removeItem("sts2-event-eval-cache");
-          localStorage.removeItem("sts2-rest-eval-cache");
-        }
+        // Clear all evaluation state for the new run
+        listenerApi.dispatch(allEvalsCleared());
 
         // Reset closure tracking
         runActive = true;
