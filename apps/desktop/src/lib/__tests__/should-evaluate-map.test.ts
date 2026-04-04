@@ -8,6 +8,9 @@ const stable: ShouldEvaluateMapInput = {
   actChanged: false,
   currentPosition: { col: 2, row: 5 },
   isOnRecommendedPath: true,
+  hpDropExceedsThreshold: false,
+  goldCrossedThreshold: false,
+  deckSizeChangedSignificantly: false,
 };
 
 function evaluate(overrides: Partial<ShouldEvaluateMapInput>) {
@@ -100,6 +103,28 @@ describe("shouldEvaluateMap", () => {
 
     it("returns false with multiple options, on path, no changes", () => {
       expect(evaluate({ optionCount: 5 })).toBe(false);
+    });
+  });
+
+  describe("Tier 2: context change triggers", () => {
+    it("returns true when HP dropped significantly", () => {
+      expect(evaluate({ hpDropExceedsThreshold: true })).toBe(true);
+    });
+
+    it("returns true when gold crossed viability boundary", () => {
+      expect(evaluate({ goldCrossedThreshold: true })).toBe(true);
+    });
+
+    it("returns true when deck size changed significantly", () => {
+      expect(evaluate({ deckSizeChangedSignificantly: true })).toBe(true);
+    });
+
+    it("returns false when context changes are below thresholds", () => {
+      expect(evaluate({
+        hpDropExceedsThreshold: false,
+        goldCrossedThreshold: false,
+        deckSizeChangedSignificantly: false,
+      })).toBe(false);
     });
   });
 });

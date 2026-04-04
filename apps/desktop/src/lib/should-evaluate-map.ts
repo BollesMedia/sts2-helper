@@ -9,6 +9,12 @@ export interface ShouldEvaluateMapInput {
   currentPosition: { col: number; row: number } | null;
   /** Whether the current position is in the set of recommended nodes */
   isOnRecommendedPath: boolean;
+  /** Tier 2: HP dropped more than 20% since last eval */
+  hpDropExceedsThreshold: boolean;
+  /** Tier 2: Gold crossed a meaningful viability boundary */
+  goldCrossedThreshold: boolean;
+  /** Tier 2: Deck size changed significantly (card added or removed) */
+  deckSizeChangedSignificantly: boolean;
 }
 
 /**
@@ -24,6 +30,9 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     actChanged,
     currentPosition,
     isOnRecommendedPath,
+    hpDropExceedsThreshold,
+    goldCrossedThreshold,
+    deckSizeChangedSignificantly,
   } = input;
 
   // Hard gate: no options at all — nothing to evaluate
@@ -45,6 +54,11 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   // Deviated from recommended path — re-evaluate (even with 1 option).
   // If position is null, we can't check deviation — treat as on-path.
   if (currentPosition && !isOnRecommendedPath) return true;
+
+  // Tier 2: Material context changes — re-evaluate with fresh LLM weights
+  if (hpDropExceedsThreshold) return true;
+  if (goldCrossedThreshold) return true;
+  if (deckSizeChangedSignificantly) return true;
 
   // On recommended path with stable context — carry forward
   return false;
