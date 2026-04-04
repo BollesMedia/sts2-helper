@@ -24,8 +24,7 @@ import {
 const EVAL_TYPE = "event" as const;
 
 export function setupEventEvalListener() {
-  // Ensure relic lookup is initialized
-  initRelicLookup();
+  let relicInitDone = false;
 
   startAppListening({
     predicate: (action, currentState, previousState) => {
@@ -37,6 +36,12 @@ export function setupEventEvalListener() {
 
     effect: async (_action, listenerApi) => {
       listenerApi.cancelActiveListeners();
+
+      // Lazy init — Supabase may not be ready at store setup time
+      if (!relicInitDone) {
+        relicInitDone = true;
+        initRelicLookup();
+      }
 
       const state = listenerApi.getState();
       const gameState = gameStateApi.endpoints.getGameState.select()(state).data;

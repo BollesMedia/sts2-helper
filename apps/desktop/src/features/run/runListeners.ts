@@ -29,14 +29,18 @@ import { initStarterDecks, getStarterDeck } from "@sts2/shared/supabase/starter-
 export function setupGameStateUpdateListener() {
   let combatSynced = false;
   let lastRunId: string | null = null;
-
-  // Kick off async card validation + starter deck loading
-  initValidCardNames();
-  initStarterDecks();
+  let dataInitialized = false;
 
   startAppListening({
     matcher: gameStateApi.endpoints.getGameState.matchFulfilled,
     effect: (action, listenerApi) => {
+      // Lazy init — Supabase may not be ready at store setup time
+      if (!dataInitialized) {
+        dataInitialized = true;
+        initValidCardNames();
+        initStarterDecks();
+      }
+
       const state = listenerApi.getState();
       const activeRunId = state.run.activeRunId;
       if (!activeRunId) return;
