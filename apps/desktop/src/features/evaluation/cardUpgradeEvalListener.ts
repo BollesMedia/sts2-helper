@@ -8,10 +8,13 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { matchRecommendation } from "../../lib/match-recommendation";
 import { computeCardUpgradeEvalKey, buildCardUpgradePrompt } from "../../lib/eval-inputs/card-upgrade";
+import { initUpgradeLookup } from "../../lib/upgrade-lookup";
 
 const EVAL_TYPE = "card_upgrade" as const;
 
 export function setupCardUpgradeEvalListener() {
+  let upgradeInitDone = false;
+
   startAppListening({
     predicate: (action, currentState, previousState) => {
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
@@ -24,6 +27,13 @@ export function setupCardUpgradeEvalListener() {
 
     effect: async (_action, listenerApi) => {
       listenerApi.cancelActiveListeners();
+
+      if (!upgradeInitDone) {
+        upgradeInitDone = true;
+        initUpgradeLookup();
+        // Small delay to let fetch complete on first trigger
+        await listenerApi.delay(500);
+      }
 
       const state = listenerApi.getState();
       const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
