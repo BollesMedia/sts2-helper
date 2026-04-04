@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "STS2 Replay",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "identifier": "com.sts2replay.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -31,7 +31,9 @@
     "deep-link": {
       "mobile": [],
       "desktop": {
-        "schemes": ["sts2replay"]
+        "schemes": [
+          "sts2replay"
+        ]
       }
     },
     "updater": {
