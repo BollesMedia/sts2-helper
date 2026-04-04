@@ -116,23 +116,26 @@ export function setupRunAnalyticsListener() {
         lastEnemiesAllDead = true;
       }
 
-      // --- Architect = victory ---
-      // Reaching the Architect event means the player won the run.
-      // --- Check for victory mid-run (Architect event, boss kill) ---
+      // --- Check for victory or defeat mid-run ---
       if (runActive && activeRunId) {
         const eventData = currentType === "event" && "event" in gameState
           ? (gameState as { event: { event_id?: string; event_name?: string } }).event
           : null;
 
-        const victoryResult = inferRunOutcome({
+        const overlayData = currentType === "overlay" && "overlay" in gameState
+          ? (gameState as { overlay: { screen_type?: string } }).overlay
+          : null;
+
+        const outcomeResult = inferRunOutcome({
           currentStateType: currentType,
           lastWasBoss,
           lastEnemiesAllDead,
           eventId: eventData?.event_id ?? null,
           eventName: eventData?.event_name ?? null,
+          overlayScreenType: overlayData?.screen_type ?? null,
         });
 
-        if (victoryResult === "victory") {
+        if (outcomeResult === "victory") {
           listenerApi.dispatch(
             runEnded({ runId: activeRunId, inferred: true, finalFloor: lastFloor })
           );
@@ -154,6 +157,34 @@ export function setupRunAnalyticsListener() {
           );
 
           console.log("[RunAnalytics] Victory:", activeRunId, `floor ${lastFloor}`);
+          clearNarrative();
+          clearEvaluationRegistry();
+          runActive = false;
+        }
+
+        if (outcomeResult === "defeat") {
+          listenerApi.dispatch(
+            runEnded({ runId: activeRunId, inferred: false, finalFloor: lastFloor })
+          );
+          listenerApi.dispatch(
+            outcomeConfirmed({ runId: activeRunId, victory: false })
+          );
+          listenerApi.dispatch(
+            evaluationApi.endpoints.endRun.initiate({
+              runId: activeRunId,
+              victory: false,
+              finalFloor: lastFloor,
+              actReached: lastAct,
+              causeOfDeath: lastCombatEnemyName,
+              bossesFought: bossesFought.size > 0 ? [...bossesFought] : null,
+              finalDeck: lastDeckNames.length > 0 ? lastDeckNames : null,
+              finalRelics: lastRelicNames.length > 0 ? lastRelicNames : null,
+              finalDeckSize: lastDeckNames.length || null,
+              narrative: getNarrative(),
+            })
+          );
+
+          console.log("[RunAnalytics] Defeat:", activeRunId, `floor ${lastFloor}`, lastCombatEnemyName ? `killed by ${lastCombatEnemyName}` : "");
           clearNarrative();
           clearEvaluationRegistry();
           runActive = false;
@@ -229,6 +260,7 @@ export function setupRunAnalyticsListener() {
           lastEnemiesAllDead,
           eventId: null,
           eventName: null,
+          overlayScreenType: null,
         });
         const victory = menuOutcome === "victory" ? true : null;
         const endRunId = activeRunId;

@@ -9,9 +9,11 @@ export interface RunOutcomeInput {
   eventId: string | null;
   /** Event name if current state is an event, null otherwise */
   eventName: string | null;
+  /** Overlay screen type if current state is an overlay, null otherwise */
+  overlayScreenType: string | null;
 }
 
-export type RunOutcome = "victory" | null;
+export type RunOutcome = "victory" | "defeat" | null;
 
 /**
  * Infer run outcome from game state.
@@ -26,6 +28,9 @@ export type RunOutcome = "victory" | null;
  * Victory is detected from:
  * 1. Boss combat where all enemies died → combat_rewards transition
  * 2. Architect event (post-final-boss reward screen)
+ *
+ * Defeat is detected from:
+ * 3. Overlay with NGameOverScreen (the mod's death screen)
  */
 export function inferRunOutcome(input: RunOutcomeInput): RunOutcome {
   const {
@@ -34,7 +39,16 @@ export function inferRunOutcome(input: RunOutcomeInput): RunOutcome {
     lastEnemiesAllDead,
     eventId,
     eventName,
+    overlayScreenType,
   } = input;
+
+  // Game over overlay = defeat
+  if (
+    currentStateType === "overlay" &&
+    overlayScreenType?.includes("GameOver")
+  ) {
+    return "defeat";
+  }
 
   // Architect event = victory (post-final-boss)
   if (currentStateType === "event") {

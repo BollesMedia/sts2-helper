@@ -371,6 +371,16 @@ export interface MenuState {
   message: string;
 }
 
+export interface OverlayState {
+  state_type: "overlay";
+  player?: PlayerSummary;
+  overlay: {
+    screen_type: string;
+    message?: string;
+  };
+  run?: RunInfo;
+}
+
 export type GameState = (
   | CombatState
   | HandSelectState
@@ -384,6 +394,7 @@ export type GameState = (
   | RelicSelectState
   | TreasureState
   | MenuState
+  | OverlayState
 ) & MultiplayerFields & BaseFields;
 
 // ============================================

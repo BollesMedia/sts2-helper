@@ -7,6 +7,7 @@ const base: RunOutcomeInput = {
   lastEnemiesAllDead: false,
   eventId: null,
   eventName: null,
+  overlayScreenType: null,
 };
 
 function outcome(overrides: Partial<RunOutcomeInput>) {
@@ -48,7 +49,30 @@ describe("inferRunOutcome", () => {
     });
   });
 
-  describe("non-victory cases", () => {
+  describe("defeat detection", () => {
+    it("detects defeat from NGameOverScreen overlay", () => {
+      expect(outcome({
+        currentStateType: "overlay",
+        overlayScreenType: "NGameOverScreen",
+      })).toBe("defeat");
+    });
+
+    it("detects defeat from any GameOver overlay variant", () => {
+      expect(outcome({
+        currentStateType: "overlay",
+        overlayScreenType: "SomeGameOverScreen",
+      })).toBe("defeat");
+    });
+
+    it("does NOT detect defeat from non-GameOver overlay", () => {
+      expect(outcome({
+        currentStateType: "overlay",
+        overlayScreenType: "SettingsScreen",
+      })).toBeNull();
+    });
+  });
+
+  describe("unknown/null cases", () => {
     it("returns null for regular combat", () => {
       expect(outcome({
         currentStateType: "monster",
@@ -74,15 +98,6 @@ describe("inferRunOutcome", () => {
         currentStateType: "event",
         eventId: "SOME_EVENT",
         eventName: "Doll Room",
-      })).toBeNull();
-    });
-
-    it("does NOT infer defeat from HP (revival relics exist)", () => {
-      // Player HP could hit 0 and be revived — no defeat detection
-      expect(outcome({
-        currentStateType: "menu",
-        lastWasBoss: false,
-        lastEnemiesAllDead: false,
       })).toBeNull();
     });
   });
