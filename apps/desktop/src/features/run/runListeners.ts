@@ -200,12 +200,16 @@ export function setupGameStateUpdateListener() {
         const currentRow = mapState.map.current_position?.row ?? 0;
         const bossRow = mapState.map.boss.row;
         const nextNodeTypes = mapState.map.next_options.map((o) => o.type);
+        // Check ALL future nodes (not just immediate next) for rest/elite/shop ahead
+        const futureNodeTypes = mapState.map.nodes
+          .filter((n) => n.row > currentRow)
+          .map((n) => n.type);
         listenerApi.dispatch(mapContextUpdated({
           floorsToNextBoss: bossRow - currentRow,
           nextNodeTypes,
           hasEliteAhead: nextNodeTypes.includes("Elite"),
-          hasRestAhead: nextNodeTypes.includes("RestSite"),
-          hasShopAhead: nextNodeTypes.includes("Shop"),
+          hasRestAhead: futureNodeTypes.includes("RestSite"),
+          hasShopAhead: futureNodeTypes.includes("Shop"),
         }));
       }
     },
