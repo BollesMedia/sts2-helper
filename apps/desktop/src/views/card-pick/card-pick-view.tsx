@@ -6,7 +6,7 @@ import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { CardRating } from "./card-rating";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
-import { findTopPick } from "../../components/eval-card";
+import { resolveTopPick } from "../../lib/resolve-top-pick";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { selectActivePlayer } from "../../features/run/runSelectors";
 import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
@@ -17,7 +17,6 @@ interface CardPickViewProps {
   exclusive?: boolean;
 }
 
-// Pre-create selectors (stable references)
 const selectCardRewardResult = selectEvalResult<CardRewardEvaluation>("card_reward");
 const selectCardRewardLoading = selectEvalIsLoading("card_reward");
 const selectCardRewardError = selectEvalError("card_reward");
@@ -30,21 +29,23 @@ export function CardPickView({ state }: CardPickViewProps) {
   const error = useAppSelector(selectCardRewardError);
   const cards = state.card_reward.cards;
 
+  // Single source of truth for top pick — drives both badge and summary text
+  const topPickResult = evaluation?.rankings
+    ? resolveTopPick(evaluation.rankings, evaluation.skipRecommended ?? false)
+    : null;
+
   return (
     <div className="flex flex-col gap-3">
       {/* Header row with inline summary */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-display font-bold text-spire-text shrink-0">Card Reward</h2>
 
-        {evaluation?.pickSummary && !isLoading && (
-          <p className={cn(
-            "text-xs font-medium truncate flex-1 text-right",
-            evaluation.skipRecommended ? "text-zinc-500" : "text-emerald-400"
-          )}>
-            {evaluation.pickSummary}
+        {topPickResult && !isLoading && (
+          <p className="text-xs font-medium truncate flex-1 text-right text-emerald-400">
+            {topPickResult.summary}
           </p>
         )}
-        {evaluation?.skipRecommended && !evaluation.pickSummary && !isLoading && (
+        {evaluation?.skipRecommended && !topPickResult && !isLoading && (
           <p className="text-xs font-medium text-zinc-500 truncate flex-1 text-right">
             Skip — {evaluation.skipReasoning ?? "none worth adding"}
           </p>
@@ -64,35 +65,29 @@ export function CardPickView({ state }: CardPickViewProps) {
             {cards.map((c) => <CardSkeleton key={c.index} />)}
           </>
         ) : (
-          (() => {
-            const topPick = evaluation?.rankings
-              ? findTopPick(evaluation.rankings)
-              : null;
+          cards.map((card, cardIndex) => {
+            const cardEval = evaluation?.rankings.find(
+              (r) =>
+                r.itemIndex === cardIndex ||
+                r.itemId.toLowerCase() === card.id.toLowerCase() ||
+                r.itemName.toLowerCase() === card.name.toLowerCase()
+            );
 
-            return cards.map((card, cardIndex) => {
-              const cardEval = evaluation?.rankings.find(
-                (r) =>
-                  r.itemIndex === cardIndex ||
-                  r.itemId.toLowerCase() === card.id.toLowerCase() ||
-                  r.itemName.toLowerCase() === card.name.toLowerCase()
-              );
+            const isTopPick = topPickResult != null &&
+              cardEval != null &&
+              cardEval.itemId === topPickResult.item.itemId;
 
-              const isTopPick = !evaluation?.skipRecommended &&
-                cardEval != null &&
-                cardEval === topPick;
-
-              return (
-                <CardRating
-                  key={card.index}
-                  card={card}
-                  evaluation={cardEval ?? null}
-                  rank={cardEval?.rank}
-                  isTopPick={isTopPick}
-                  character={player?.character}
-                />
-              );
-            });
-          })()
+            return (
+              <CardRating
+                key={card.index}
+                card={card}
+                evaluation={cardEval ?? null}
+                rank={cardEval?.rank}
+                isTopPick={isTopPick}
+                character={player?.character}
+              />
+            );
+          })
         )}
       </div>
 
