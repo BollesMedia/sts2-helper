@@ -190,18 +190,17 @@ export function MenuView({ footer }: MenuViewProps) {
                   className="w-full rounded-lg border border-spire-border bg-spire-surface/80 px-4 py-3 text-sm text-spire-text placeholder-spire-text-muted focus:outline-none focus:border-spire-border-emphasis resize-none transition-colors"
                   rows={3}
                 />
-                {notes.trim() && (
-                  <button
-                    onClick={handleSendNotes}
-                    className={`rounded-lg border px-5 py-1.5 text-xs font-medium transition-all ${
-                      isVictory
-                        ? "border-spire-gold/30 text-spire-gold hover:bg-spire-gold/10"
-                        : "border-spire-border text-spire-text-secondary hover:bg-spire-elevated"
-                    }`}
-                  >
-                    Save notes
-                  </button>
-                )}
+                <button
+                  onClick={handleSendNotes}
+                  disabled={!notes.trim()}
+                  className={`rounded-lg border px-5 py-1.5 text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                    isVictory
+                      ? "border-spire-gold/30 text-spire-gold hover:bg-spire-gold/10"
+                      : "border-spire-border text-spire-text-secondary hover:bg-spire-elevated"
+                  }`}
+                >
+                  Save notes
+                </button>
               </div>
             ) : (
               <p className="text-xs text-spire-text-muted italic">Notes saved</p>
