@@ -78,18 +78,6 @@ export function setupMapEvalListener() {
         };
 
         const shouldEval = shouldEvaluateMap(input);
-
-        if (shouldEval) {
-          console.log("[MapEval] TRIGGERING re-eval. Reason:", JSON.stringify({
-            pos: currentPos ? `${currentPos.col},${currentPos.row}` : "null",
-            isOnPath,
-            hasPrevContext: !!prevContext,
-            actChanged: prevContext ? prevContext.act !== run.act : false,
-            recommendedNodesCount: recommendedNodes.size,
-            optionCount: options.length,
-          }));
-        }
-
         if (!shouldEval) return;
       }
 
