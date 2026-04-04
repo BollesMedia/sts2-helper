@@ -114,7 +114,7 @@ export function MapView({ state }: MapViewProps) {
     return opt ? `${opt.col},${opt.row}` : null;
   }, [bestOptionIndex, next_options]);
 
-  // Recommended path from Redux — computed and persisted by useMapEvaluation hook
+  // Recommended path from Redux — computed and persisted by mapListeners
   const recommendedPath = useAppSelector(selectRecommendedPath);
 
   const recommendedPathEdges = useMemo(() => {

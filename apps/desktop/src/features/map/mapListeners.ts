@@ -16,7 +16,6 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
-import { hasSignificantContextChange } from "../../lib/has-significant-context-change";
 import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
 import { traceRecommendedPath } from "../../views/map/map-path-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
@@ -66,10 +65,6 @@ export function setupMapEvalListener() {
         const recommendedNodes = selectRecommendedNodesSet(state);
         const currentPos = mapState.map?.current_position ?? null;
 
-        const hpPercent = run.player && run.player.maxHp > 0
-          ? run.player.hp / run.player.maxHp
-          : 1;
-
         const shouldEval = shouldEvaluateMap({
           optionCount: options.length,
           hasPrevContext: !!prevContext,
@@ -77,14 +72,6 @@ export function setupMapEvalListener() {
           currentPosition: currentPos,
           isOnRecommendedPath: currentPos
             ? recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
-            : false,
-          hasSignificantContextChange: prevContext
-            ? hasSignificantContextChange({
-                prevHpPercent: prevContext.hpPercent,
-                currentHpPercent: hpPercent,
-                prevDeckSize: prevContext.deckSize,
-                currentDeckSize: run.deck.length,
-              })
             : false,
         });
 

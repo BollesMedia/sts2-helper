@@ -3,8 +3,10 @@
 import { cn } from "@sts2/shared/lib/cn";
 import type { GameState } from "@sts2/shared/types/game-state";
 import { RefineInput } from "../../components/refine-input";
-import { useAppSelector } from "../../store/hooks";
-import { selectEvalResult, selectEvalIsLoading } from "../../features/evaluation/evaluationSelectors";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
+import { EvalError } from "../../components/eval-error";
 
 interface CardUpgradeViewProps {
   state: GameState & { state_type: "card_select" };
@@ -17,10 +19,13 @@ interface UpgradeRecommendation {
 
 const selectUpgradeResult = selectEvalResult<UpgradeRecommendation | null>("card_upgrade");
 const selectUpgradeLoading = selectEvalIsLoading("card_upgrade");
+const selectUpgradeError = selectEvalError("card_upgrade");
 
 export function CardUpgradeView({ state }: CardUpgradeViewProps) {
+  const dispatch = useAppDispatch();
   const recommendation = useAppSelector(selectUpgradeResult);
   const isLoading = useAppSelector(selectUpgradeLoading);
+  const error = useAppSelector(selectUpgradeError);
   const cards = state.card_select.cards.filter((c) => !c.name.endsWith("+"));
 
   return (
@@ -47,6 +52,8 @@ export function CardUpgradeView({ state }: CardUpgradeViewProps) {
           )}
         </div>
       )}
+
+      {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("card_upgrade"))} />}
 
       <div className="grid grid-cols-5 gap-1.5">
         {(() => {

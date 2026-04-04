@@ -4,6 +4,8 @@ import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { selectActivePlayer } from "./features/run/runSelectors";
 import { selectModMismatch, selectIsAdmin, modMismatchCleared } from "./features/connection/connectionSlice";
 import { evalRetryRequested, type EvalType } from "./features/evaluation/evaluationSlice";
+import { getCardSelectSubType } from "./lib/eval-inputs/card-select-type";
+import { selectActiveDeck } from "./features/run/runSelectors";
 import { AppHeader } from "./views/game-views/app-header";
 import { GameStateView } from "./views/game-views/game-state-view";
 import { invoke } from "@tauri-apps/api/core";
@@ -96,18 +98,33 @@ function AuthenticatedApp() {
   const dispatch = useAppDispatch();
 
   const player = useAppSelector(selectActivePlayer);
+  const deckCards = useAppSelector(selectActiveDeck);
   const modMismatch = useAppSelector(selectModMismatch);
   const isAdmin = useAppSelector(selectIsAdmin);
 
-  // Map state_type to eval type for re-eval dispatch
-  const EVAL_TYPE_MAP: Partial<Record<string, EvalType>> = {
-    card_reward: "card_reward",
-    shop: "shop",
-    map: "map",
-    event: "event",
-    rest_site: "rest_site",
-    relic_select: "relic_select",
-  };
+  /** Resolve the eval type for the current game state (handles card_select sub-types) */
+  function getEvalTypeForState(): EvalType | null {
+    if (!gameState) return null;
+    const simpleMap: Partial<Record<string, EvalType>> = {
+      card_reward: "card_reward",
+      shop: "shop",
+      map: "map",
+      event: "event",
+      rest_site: "rest_site",
+      relic_select: "relic_select",
+    };
+    if (simpleMap[gameState.state_type]) return simpleMap[gameState.state_type]!;
+
+    // card_select needs prompt-sniffing to determine sub-type
+    if (gameState.state_type === "card_select" && "card_select" in gameState) {
+      return getCardSelectSubType(
+        gameState.card_select.prompt,
+        gameState.card_select.cards,
+        deckCards.map((c) => c.name)
+      );
+    }
+    return null;
+  }
 
   // When mod mismatch is detected, keep the update UI visible even if the game
   // disconnects (user closed it to update). Otherwise show the normal connection banner.
@@ -165,8 +182,7 @@ function AuthenticatedApp() {
           {isAdmin && (
             <button
               onClick={() => {
-                if (!gameState) return;
-                const evalType = EVAL_TYPE_MAP[gameState.state_type];
+                const evalType = getEvalTypeForState();
                 if (evalType) dispatch(evalRetryRequested(evalType));
               }}
               className="text-[10px] text-spire-text-muted hover:text-spire-text-secondary transition-colors"

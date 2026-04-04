@@ -2,8 +2,10 @@
 
 import { cn } from "@sts2/shared/lib/cn";
 import type { GameState } from "@sts2/shared/types/game-state";
-import { useAppSelector } from "../../store/hooks";
-import { selectEvalResult, selectEvalIsLoading } from "../../features/evaluation/evaluationSelectors";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
+import { EvalError } from "../../components/eval-error";
 
 interface CardSelectEvalViewProps {
   state: GameState & { state_type: "card_select" };
@@ -17,9 +19,13 @@ interface SelectRecommendation {
 const selectResult = selectEvalResult<SelectRecommendation | null>("card_select");
 const selectLoading = selectEvalIsLoading("card_select");
 
+const selectError = selectEvalError("card_select");
+
 export function CardSelectEvalView({ state }: CardSelectEvalViewProps) {
+  const dispatch = useAppDispatch();
   const recommendation = useAppSelector(selectResult);
   const isLoading = useAppSelector(selectLoading);
+  const error = useAppSelector(selectError);
   const prompt = state.card_select.prompt;
   const cards = state.card_select.cards;
 
@@ -42,6 +48,8 @@ export function CardSelectEvalView({ state }: CardSelectEvalViewProps) {
           )}
         </p>
       )}
+
+      {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("card_select"))} />}
 
       <div className="grid grid-cols-5 gap-1.5">
         {(() => {

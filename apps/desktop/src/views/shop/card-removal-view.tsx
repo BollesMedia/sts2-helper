@@ -2,8 +2,10 @@
 
 import { cn } from "@sts2/shared/lib/cn";
 import type { GameState } from "@sts2/shared/types/game-state";
-import { useAppSelector } from "../../store/hooks";
-import { selectEvalResult, selectEvalIsLoading } from "../../features/evaluation/evaluationSelectors";
+import { useAppSelector, useAppDispatch } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
+import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
+import { EvalError } from "../../components/eval-error";
 
 interface CardRemovalViewProps {
   state: GameState & { state_type: "card_select" };
@@ -16,10 +18,13 @@ interface RemovalRecommendation {
 
 const selectRemovalResult = selectEvalResult<RemovalRecommendation | null>("card_removal");
 const selectRemovalLoading = selectEvalIsLoading("card_removal");
+const selectRemovalError = selectEvalError("card_removal");
 
 export function CardRemovalView({ state }: CardRemovalViewProps) {
+  const dispatch = useAppDispatch();
   const recommendation = useAppSelector(selectRemovalResult);
   const isLoading = useAppSelector(selectRemovalLoading);
+  const error = useAppSelector(selectRemovalError);
   const cards = state.card_select.cards;
 
   return (
@@ -46,6 +51,8 @@ export function CardRemovalView({ state }: CardRemovalViewProps) {
           )}
         </div>
       )}
+
+      {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("card_removal"))} />}
 
       <div className="grid grid-cols-5 gap-1.5">
         {(() => {

@@ -8,6 +8,7 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { matchRecommendation } from "../../lib/match-recommendation";
 import { computeCardSelectEvalKey, buildCardSelectPrompt } from "../../lib/eval-inputs/card-select";
+import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
 
 const EVAL_TYPE = "card_select" as const;
 
@@ -23,17 +24,14 @@ export function setupCardSelectEvalListener() {
       const previous = gameStateApi.endpoints.getGameState.select()(previousState);
       if (current.data?.state_type !== "card_select" || current.data === previous.data) return false;
 
-      // Only handle card_select screens that aren't removal or upgrade
-      const prompt = current.data.card_select?.prompt?.toLowerCase() ?? "";
-      const isRemoval = prompt.includes("remove") || prompt.includes("purge");
-      const isUpgrade = prompt.includes("upgrade") || prompt.includes("smith") || prompt.includes("enhance");
-      if (isRemoval || isUpgrade) return false;
-
-      // Only handle "pick from deck" screens (enchant/imbue/transform)
-      // Reward-style card selects are handled by game-state-view routing to CardPickView
-      const deckCards = current.data.card_select?.cards ?? [];
-      // If screen_type is simple_select or cards look like deck cards, handle it
-      return deckCards.length > 0;
+      // Use shared subtype detection — only handle "card_select" (deck-pick) screens
+      const deckCards = currentState.run.runs[currentState.run.activeRunId ?? ""]?.deck ?? [];
+      const subType = getCardSelectSubType(
+        current.data.card_select?.prompt,
+        current.data.card_select?.cards ?? [],
+        deckCards.map((c) => c.name)
+      );
+      return subType === "card_select";
     },
 
     effect: async (_action, listenerApi) => {
@@ -61,7 +59,7 @@ export function setupCardSelectEvalListener() {
         const mapPrompt = buildCardSelectPrompt({ context: ctx, prompt, cards });
         const raw = await listenerApi
           .dispatch(evaluationApi.endpoints.evaluateGeneric.initiate({
-            evalType: "card_reward",
+            evalType: "card_select",
             context: ctx,
             runNarrative: getPromptContext(),
             mapPrompt,

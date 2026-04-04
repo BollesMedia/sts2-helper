@@ -1,5 +1,4 @@
 import type { ShouldEvaluateMapInput } from "./should-evaluate-map";
-import { hasSignificantContextChange } from "./has-significant-context-change";
 
 export interface MapEvalInputSources {
   /** Number of next path options */
@@ -8,10 +7,6 @@ export interface MapEvalInputSources {
   currentPosition: { col: number; row: number } | null;
   /** Current act */
   act: number;
-  /** Current HP percent (0-1) */
-  currentHpPercent: number;
-  /** Current deck size */
-  currentDeckSize: number;
   /** Previous eval context from Redux (null if no prior eval) */
   prevContext: {
     hpPercent: number;
@@ -31,8 +26,6 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     optionCount,
     currentPosition,
     act,
-    currentHpPercent,
-    currentDeckSize,
     prevContext,
     recommendedNodes,
   } = sources;
@@ -47,21 +40,11 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     ? prevContext.act !== act
     : false;
 
-  const significantChange = hasPrevContext
-    ? hasSignificantContextChange({
-        prevHpPercent: prevContext.hpPercent,
-        currentHpPercent,
-        prevDeckSize: prevContext.deckSize,
-        currentDeckSize,
-      })
-    : false;
-
   return {
     optionCount,
     hasPrevContext,
     actChanged,
     currentPosition,
     isOnRecommendedPath,
-    hasSignificantContextChange: significantChange,
   };
 }

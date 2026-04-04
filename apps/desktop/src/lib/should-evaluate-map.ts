@@ -9,8 +9,6 @@ export interface ShouldEvaluateMapInput {
   currentPosition: { col: number; row: number } | null;
   /** Whether the current position is in the set of recommended nodes */
   isOnRecommendedPath: boolean;
-  /** Whether HP or deck changed significantly since last evaluation */
-  hasSignificantContextChange: boolean;
 }
 
 /**
@@ -26,7 +24,6 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     actChanged,
     currentPosition,
     isOnRecommendedPath,
-    hasSignificantContextChange,
   } = input;
 
   // Hard gate: no options at all — nothing to evaluate

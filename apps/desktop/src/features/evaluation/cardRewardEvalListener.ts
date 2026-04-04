@@ -18,6 +18,7 @@ import {
   computeCardRewardEvalKey,
   buildCardRewardRequest,
 } from "../../lib/eval-inputs/card-reward";
+import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
 import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 
 const EVAL_TYPE = "card_reward" as const;
@@ -42,13 +43,25 @@ export function setupCardRewardEvalListener() {
         return true;
       }
 
-      // Game state changed to card_reward
+      // Game state changed to card_reward OR reward-style card_select
       const current = gameStateApi.endpoints.getGameState.select()(currentState);
       const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      return (
-        current.data?.state_type === "card_reward" &&
-        current.data !== previous.data
-      );
+      if (current.data === previous.data) return false;
+
+      if (current.data?.state_type === "card_reward") return true;
+
+      // Reward-style card_select: new cards offered (not from deck)
+      if (current.data?.state_type === "card_select") {
+        const deckCards = currentState.run.runs[currentState.run.activeRunId ?? ""]?.deck ?? [];
+        const subType = getCardSelectSubType(
+          current.data.card_select?.prompt,
+          current.data.card_select?.cards ?? [],
+          deckCards.map((c) => c.name)
+        );
+        return subType === "card_reward";
+      }
+
+      return false;
     },
 
     effect: async (_action, listenerApi) => {
@@ -56,9 +69,17 @@ export function setupCardRewardEvalListener() {
 
       const state = listenerApi.getState();
       const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
-      if (!gameState || gameState.state_type !== "card_reward") return;
+      if (!gameState) return;
 
-      const cards = gameState.card_reward.cards;
+      // Get cards from either card_reward or card_select
+      let cards;
+      if (gameState.state_type === "card_reward") {
+        cards = gameState.card_reward.cards;
+      } else if (gameState.state_type === "card_select") {
+        cards = gameState.card_select.cards;
+      } else {
+        return;
+      }
       const evalKey = computeCardRewardEvalKey(cards);
 
       // Dedup: skip if already evaluated for this key

@@ -8,7 +8,6 @@ const stable: ShouldEvaluateMapInput = {
   actChanged: false,
   currentPosition: { col: 2, row: 5 },
   isOnRecommendedPath: true,
-  hasSignificantContextChange: false,
 };
 
 function evaluate(overrides: Partial<ShouldEvaluateMapInput>) {
@@ -78,17 +77,6 @@ describe("shouldEvaluateMap", () => {
     });
   });
 
-  describe("significant context change", () => {
-    it("returns true when context changed AND deviated from path", () => {
-      expect(evaluate({ hasSignificantContextChange: true, isOnRecommendedPath: false })).toBe(true);
-    });
-
-    it("returns false when context changed but still on recommended path", () => {
-      // User followed the recommended path, went through combat (HP dropped),
-      // returned to map. Path is still valid — don't re-eval.
-      expect(evaluate({ hasSignificantContextChange: true, isOnRecommendedPath: true })).toBe(false);
-    });
-  });
 
   describe("deviation after carry forward", () => {
     it("returns true when deviated even if options unchanged", () => {

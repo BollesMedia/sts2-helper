@@ -8,8 +8,6 @@ function shouldEval(overrides: Partial<MapEvalInputSources>) {
     optionCount: 3,
     currentPosition: { col: 2, row: 5 },
     act: 1,
-    currentHpPercent: 0.8,
-    currentDeckSize: 15,
     prevContext: { hpPercent: 0.9, deckSize: 14, act: 1 },
     recommendedNodes: new Set(["2,5", "3,6", "4,7", "2,8", "1,9"]),
   };
@@ -18,11 +16,9 @@ function shouldEval(overrides: Partial<MapEvalInputSources>) {
 }
 
 describe("buildMapEvalInput + shouldEvaluateMap integration", () => {
-  it("returns false when on recommended path with minor HP change", () => {
-    // Player at 2,5 which IS in recommendedNodes. HP dropped 10% (below 15% threshold).
+  it("returns false when on recommended path", () => {
     const { result } = shouldEval({
       currentPosition: { col: 2, row: 5 },
-      currentHpPercent: 0.8, // was 0.9, dropped 10%
     });
     expect(result).toBe(false);
   });
@@ -70,18 +66,4 @@ describe("buildMapEvalInput + shouldEvaluateMap integration", () => {
     expect(input.isOnRecommendedPath).toBe(false);
   });
 
-  it("does not flag significant context change for normal combat HP loss", () => {
-    // 10% HP drop = below 15% threshold
-    const { input } = shouldEval({
-      currentHpPercent: 0.8, // prev was 0.9
-    });
-    expect(input.hasSignificantContextChange).toBe(false);
-  });
-
-  it("deck grew by 1 after card reward does not trigger", () => {
-    const { input } = shouldEval({
-      currentDeckSize: 15, // prev was 14, grew by 1
-    });
-    expect(input.hasSignificantContextChange).toBe(false);
-  });
 });
