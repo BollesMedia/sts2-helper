@@ -65,14 +65,26 @@ export function setupMapEvalListener() {
         const recommendedNodes = selectRecommendedNodesSet(state);
         const currentPos = mapState.map?.current_position ?? null;
 
-        const shouldEval = shouldEvaluateMap({
+        const isOnPath = currentPos
+          ? recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
+          : false;
+
+        const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
           actChanged: prevContext ? prevContext.act !== run.act : false,
           currentPosition: currentPos,
-          isOnRecommendedPath: currentPos
-            ? recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
-            : false,
+          isOnRecommendedPath: isOnPath,
+        };
+
+        const shouldEval = shouldEvaluateMap(input);
+
+        console.log("[MapEval] shouldEvaluate:", shouldEval, {
+          pos: currentPos ? `${currentPos.col},${currentPos.row}` : "null",
+          isOnPath,
+          hasPrevContext: !!prevContext,
+          recommendedNodesCount: recommendedNodes.size,
+          optionCount: options.length,
         });
 
         if (!shouldEval) return;
