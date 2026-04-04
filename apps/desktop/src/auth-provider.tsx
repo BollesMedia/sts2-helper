@@ -17,6 +17,8 @@ import {
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { open } from "@tauri-apps/plugin-shell";
 import type { User } from "@supabase/supabase-js";
+import { useAppDispatch } from "./store/hooks";
+import { userRoleSet, type UserRole } from "./features/connection/connectionSlice";
 
 const DEEP_LINK_PREFIX = "sts2replay://auth/callback";
 
@@ -46,6 +48,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const supabaseRef = useRef(createClient());
+  const dispatch = useAppDispatch();
+
+  /**
+   * Load user role from profiles table and dispatch to Redux.
+   * Type bypass needed because profiles table isn't in generated types yet.
+   * Run `supabase gen types` after applying 018_add_profiles migration to fix.
+   */
+  const loadUserRole = useCallback(async (userId: string) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabaseRef.current as any).from("profiles").select("role").eq("id", userId).single();
+      dispatch(userRoleSet((data?.role as UserRole) ?? "user"));
+    } catch {
+      dispatch(userRoleSet("user"));
+    }
+  }, [dispatch]);
 
   useEffect(() => {
     const supabase = supabaseRef.current;
@@ -56,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user?.id) {
         localStorage.setItem("sts2-user-id", session.user.id);
         setReportingUser({ id: session.user.id, email: session.user.email });
+        loadUserRole(session.user.id);
       }
     });
 
@@ -65,9 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user?.id) {
         localStorage.setItem("sts2-user-id", session.user.id);
         setReportingUser({ id: session.user.id, email: session.user.email });
+        loadUserRole(session.user.id);
       } else {
         localStorage.removeItem("sts2-user-id");
         setReportingUser(null);
+        dispatch(userRoleSet("user"));
       }
     });
 

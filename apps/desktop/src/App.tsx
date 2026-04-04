@@ -2,7 +2,7 @@ import { ConnectionBanner } from "./views/connection";
 import { useGameState } from "./hooks/useGameState";
 import { useAppSelector, useAppDispatch } from "./store/hooks";
 import { selectActivePlayer } from "./features/run/runSelectors";
-import { selectModMismatch, modMismatchCleared } from "./features/connection/connectionSlice";
+import { selectModMismatch, selectIsAdmin, modMismatchCleared } from "./features/connection/connectionSlice";
 import { evalRetryRequested, type EvalType } from "./features/evaluation/evaluationSlice";
 import { AppHeader } from "./views/game-views/app-header";
 import { GameStateView } from "./views/game-views/game-state-view";
@@ -97,6 +97,7 @@ function AuthenticatedApp() {
 
   const player = useAppSelector(selectActivePlayer);
   const modMismatch = useAppSelector(selectModMismatch);
+  const isAdmin = useAppSelector(selectIsAdmin);
 
   // Map state_type to eval type for re-eval dispatch
   const EVAL_TYPE_MAP: Partial<Record<string, EvalType>> = {
@@ -161,7 +162,7 @@ function AuthenticatedApp() {
           >
             Send Feedback
           </button>
-          <div className="flex gap-3">
+          {isAdmin && (
             <button
               onClick={() => {
                 if (!gameState) return;
@@ -172,7 +173,7 @@ function AuthenticatedApp() {
             >
               Re-evaluate
             </button>
-          </div>
+          )}
         </footer>
       )}
     </div>
