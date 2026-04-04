@@ -1,5 +1,6 @@
 import type { MapNode, MapNextOption } from "@sts2/shared/types/game-state";
-import { traceRecommendedPath } from "../views/map/map-path-tracer";
+import type { NodePreferences } from "./eval-inputs/map";
+import { traceConstraintAwarePath } from "../views/map/constraint-aware-tracer";
 
 /**
  * Compute the preliminary mapEvalUpdated payload BEFORE the API call.
@@ -19,25 +20,38 @@ export function buildPreEvalPayload(params: {
   deckMaturity: number;
   relicCount: number;
   floor: number;
+  ascension: number;
+  maxHp: number;
+  currentRemovalCost: number;
+  nodePreferences: NodePreferences | null;
 }): {
   recommendedNodes: string[];
-  lastEvalContext: { hpPercent: number; deckSize: number; act: number };
+  lastEvalContext: { hpPercent: number; deckSize: number; act: number; gold: number; ascension: number };
 } {
   const {
     options, allNodes, bossPos,
     hpPercent, gold, act, deckSize,
-    deckMaturity, relicCount, floor,
+    ascension, maxHp, currentRemovalCost,
+    nodePreferences,
   } = params;
 
   const recommendedNodes = new Set<string>();
 
   for (const opt of options) {
     recommendedNodes.add(`${opt.col},${opt.row}`);
-    const fullPath = traceRecommendedPath(
-      opt.col, opt.row,
-      allNodes as MapNode[], bossPos,
-      hpPercent, gold, act, deckMaturity, relicCount, floor
-    );
+    const fullPath = traceConstraintAwarePath({
+      startCol: opt.col,
+      startRow: opt.row,
+      nodes: allNodes,
+      bossPos,
+      nodePreferences,
+      hpPercent,
+      gold,
+      act,
+      ascension,
+      maxHp,
+      currentRemovalCost,
+    });
     for (const p of fullPath) {
       recommendedNodes.add(`${p.col},${p.row}`);
     }
@@ -45,6 +59,6 @@ export function buildPreEvalPayload(params: {
 
   return {
     recommendedNodes: [...recommendedNodes],
-    lastEvalContext: { hpPercent, deckSize, act },
+    lastEvalContext: { hpPercent, deckSize, act, gold, ascension },
   };
 }

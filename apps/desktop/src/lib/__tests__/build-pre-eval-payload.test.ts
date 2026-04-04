@@ -29,79 +29,59 @@ const options: MapNextOption[] = [
 
 const bossPos = { col: 1, row: 3 };
 
+const baseParams = {
+  options,
+  allNodes: nodes,
+  bossPos,
+  hpPercent: 1,
+  gold: 100,
+  act: 1,
+  deckSize: 12,
+  deckMaturity: 0.5,
+  relicCount: 2,
+  floor: 1,
+  ascension: 0,
+  maxHp: 80,
+  currentRemovalCost: 75,
+  nodePreferences: null,
+};
+
 describe("buildPreEvalPayload", () => {
   it("includes all option coordinates in recommendedNodes", () => {
-    const result = buildPreEvalPayload({
-      options,
-      allNodes: nodes,
-      bossPos,
-      hpPercent: 1,
-      gold: 100,
-      act: 1,
-      deckSize: 12,
-      deckMaturity: 0.5,
-      relicCount: 2,
-      floor: 1,
-    });
+    const result = buildPreEvalPayload(baseParams);
 
-    // Both option starting points must be included
     expect(result.recommendedNodes).toContain("0,1");
     expect(result.recommendedNodes).toContain("2,1");
   });
 
   it("includes traced path nodes from each option", () => {
-    const result = buildPreEvalPayload({
-      options,
-      allNodes: nodes,
-      bossPos,
-      hpPercent: 1,
-      gold: 100,
-      act: 1,
-      deckSize: 12,
-      deckMaturity: 0.5,
-      relicCount: 2,
-      floor: 1,
-    });
+    const result = buildPreEvalPayload(baseParams);
 
-    // Traced paths should include downstream nodes
-    expect(result.recommendedNodes).toContain("0,2"); // downstream of option 0
-    expect(result.recommendedNodes).toContain("2,2"); // downstream of option 1
+    expect(result.recommendedNodes).toContain("0,2");
+    expect(result.recommendedNodes).toContain("2,2");
   });
 
   it("builds correct lastEvalContext", () => {
     const result = buildPreEvalPayload({
-      options,
-      allNodes: nodes,
-      bossPos,
+      ...baseParams,
       hpPercent: 0.75,
       gold: 50,
       act: 2,
       deckSize: 20,
-      deckMaturity: 0.5,
-      relicCount: 3,
-      floor: 8,
+      ascension: 5,
     });
 
     expect(result.lastEvalContext).toEqual({
       hpPercent: 0.75,
       deckSize: 20,
       act: 2,
+      gold: 50,
+      ascension: 5,
     });
   });
 
   it("returns no duplicates in recommendedNodes", () => {
-    const result = buildPreEvalPayload({
-      options,
-      allNodes: nodes,
-      bossPos,
-      hpPercent: 1,
-      gold: 100,
-      act: 1,
-      deckSize: 12,
-      deckMaturity: 0.5,
-      relicCount: 2,
-      floor: 1,
-    });
+    const result = buildPreEvalPayload(baseParams);
 
     const unique = new Set(result.recommendedNodes);
     expect(result.recommendedNodes.length).toBe(unique.size);
