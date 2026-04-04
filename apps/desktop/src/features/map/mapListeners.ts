@@ -78,17 +78,6 @@ export function setupMapEvalListener() {
         };
 
         const shouldEval = shouldEvaluateMap(input);
-
-        console.log("[MapEval] shouldEvaluate:", shouldEval, {
-          pos: currentPos ? `${currentPos.col},${currentPos.row}` : "null",
-          isOnPath,
-          hasPrevContext: !!prevContext,
-          actChanged: prevContext ? prevContext.act !== run.act : false,
-          recommendedNodesCount: recommendedNodes.size,
-          recommendedNodesSample: [...recommendedNodes].slice(0, 10),
-          optionCount: options.length,
-        });
-
         if (!shouldEval) return;
       }
 
