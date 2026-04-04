@@ -15,6 +15,7 @@ interface GameStateSliceState {
   current: GameState | null;
   previous: GameState | null;
   contentKey: string | null;
+  /** Persists across non-map states — useful in Redux DevTools for debugging map eval triggers */
   lastMapContentKey: string | null;
   /** Dev-only ring buffer, max 30 entries */
   history: GameStateEntry[];
