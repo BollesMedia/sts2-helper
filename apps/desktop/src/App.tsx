@@ -18,17 +18,19 @@ import { SetupWizard } from "./setup-wizard";
 import { useState, useRef } from "react";
 import { ModVersionBanner } from "./mod-version-banner";
 
-// Check for updates on app launch
-check().then(async (update) => {
-  if (update) {
-    console.log("[Updater] Update available:", update.version);
-    reportInfo("updater", `Update available: ${update.version}`);
-    await update.downloadAndInstall();
-    await relaunch();
-  }
-}).catch((err) => {
-  console.warn("[Updater] Check failed:", err);
-});
+// Check for updates on app launch (skip in dev — no binary to relaunch)
+if (!import.meta.env.DEV) {
+  check().then(async (update) => {
+    if (update) {
+      console.log("[Updater] Update available:", update.version);
+      reportInfo("updater", `Update available: ${update.version}`);
+      await update.downloadAndInstall();
+      await relaunch();
+    }
+  }).catch((err) => {
+    console.warn("[Updater] Check failed:", err);
+  });
+}
 
 type ModCheckState = "checking" | "ready" | "needs-setup";
 
