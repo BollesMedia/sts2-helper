@@ -1,16 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
 import { cn } from "@sts2/shared/lib/cn";
-import { useAppSelector } from "../../store/hooks";
-import { selectActiveDeck, selectActivePlayer } from "../../features/run/runSelectors";
-import type { EvaluationContext } from "@sts2/shared/evaluation/types";
-import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
-import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
-import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
-import { apiFetch } from "@sts2/shared/lib/api-client";
-import { matchRecommendation } from "../../lib/match-recommendation";
 import type { GameState } from "@sts2/shared/types/game-state";
+import { useAppSelector } from "../../store/hooks";
+import { selectEvalResult, selectEvalIsLoading } from "../../features/evaluation/evaluationSelectors";
 
 interface CardRemovalViewProps {
   state: GameState & { state_type: "card_select" };
@@ -21,78 +14,16 @@ interface RemovalRecommendation {
   reasoning: string;
 }
 
+const selectRemovalResult = selectEvalResult<RemovalRecommendation | null>("card_removal");
+const selectRemovalLoading = selectEvalIsLoading("card_removal");
+
 export function CardRemovalView({ state }: CardRemovalViewProps) {
-  const deckCards = useAppSelector(selectActiveDeck);
-  const player = useAppSelector(selectActivePlayer);
-  const [recommendation, setRecommendation] = useState<RemovalRecommendation | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const evaluatedKey = useRef("");
-
+  const recommendation = useAppSelector(selectRemovalResult);
+  const isLoading = useAppSelector(selectRemovalLoading);
   const cards = state.card_select.cards;
-  const cardKey = cards.map((c) => c.name).sort().join(",");
-
-  const evaluate = useCallback(async () => {
-    if (cardKey === evaluatedKey.current) return;
-    evaluatedKey.current = cardKey;
-    setIsLoading(true);
-
-    const ctx: EvaluationContext | null = buildEvaluationContext(state, deckCards, player);
-    if (!ctx) {
-      setIsLoading(false);
-      return;
-    }
-
-    updateFromContext(ctx);
-    const contextStr = buildCompactContext(ctx);
-    const narrative = getPromptContext();
-    const cardList = cards.map((c) => `- ${c.name}: ${c.description}`).join("\n");
-
-    try {
-      const res = await apiFetch("/api/evaluate", {
-        method: "POST",
-        body: JSON.stringify({
-          type: "map",
-          evalType: "card_removal",
-          context: ctx,
-          runNarrative: narrative,
-          mapPrompt: `${contextStr}
-
-CARD REMOVAL: Recommend ONE card to remove from this list:
-${cardList}
-
-Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards cannot be removed. If archetype uses block-scaling, keep Defends longer.`,
-          runId: null,
-          gameVersion: null,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Eval failed");
-
-      const data = await res.json();
-      if (data.card_name) {
-        const eligibleNames = cards.map((c) => c.name);
-        const matched = matchRecommendation(data.card_name, eligibleNames);
-        if (matched) {
-          setRecommendation({
-            cardName: matched,
-            reasoning: data.reasoning ?? "",
-          });
-        }
-      }
-    } catch {
-      // Silent fail — removal still works without recommendation
-    } finally {
-      setIsLoading(false);
-    }
-  }, [state, deckCards, player, cards, cardKey]);
-
-  if (cardKey !== evaluatedKey.current && !isLoading) {
-    evaluate();
-  }
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-display font-bold text-spire-text shrink-0">
           Remove a Card
@@ -104,7 +35,6 @@ Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards 
         )}
       </div>
 
-      {/* Recommendation banner */}
       {recommendation && !isLoading && (
         <div className="rounded border border-emerald-500/30 bg-emerald-950/20 px-3 py-2 flex items-center gap-2">
           <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/25 shrink-0">
@@ -117,7 +47,6 @@ Priority: curses/unplayables > Strikes > Defends > off-archetype. ETERNAL cards 
         </div>
       )}
 
-      {/* Card grid */}
       <div className="grid grid-cols-5 gap-1.5">
         {(() => {
           let highlightedOne = false;
