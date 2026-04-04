@@ -63,6 +63,7 @@ export const evaluationSlice = createSlice({
     ) {
       const entry = state.evals[action.payload.evalType];
       entry.evalKey = action.payload.evalKey;
+      entry.result = null;
       entry.isLoading = true;
       entry.error = null;
     },
