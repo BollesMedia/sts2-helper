@@ -53,6 +53,18 @@ body {
   font-family: "DM Sans", system-ui, sans-serif;
 }
 
+/* Victory/Defeat screen entrance animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Map path pulse animation */
 @keyframes path-pulse {
   0%, 100% { opacity: 0.15; }

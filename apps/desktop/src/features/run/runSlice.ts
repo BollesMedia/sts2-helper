@@ -48,6 +48,7 @@ interface CompletedRun {
   runId: string;
   victory: boolean | null;
   finalFloor: number;
+  character: string;
 }
 
 interface RunState {
@@ -125,6 +126,7 @@ export const runSlice = createSlice({
         runId: action.payload.runId,
         victory: action.payload.victory,
         finalFloor: floor,
+        character: state.runs[action.payload.runId]?.character ?? "Unknown",
       };
       state.pendingOutcome = null;
     },
