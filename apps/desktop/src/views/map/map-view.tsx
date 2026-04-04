@@ -125,9 +125,15 @@ export function MapView({ state }: MapViewProps) {
     return edges;
   }, [recommendedPath]);
 
+  // Only show path nodes from current position forward (not already-passed nodes)
+  const currentRow = current_position?.row ?? 0;
   const recommendedPathNodes = useMemo(
-    () => new Set(recommendedPath.map((p) => `${p.col},${p.row}`)),
-    [recommendedPath]
+    () => new Set(
+      recommendedPath
+        .filter((p) => p.row >= currentRow)
+        .map((p) => `${p.col},${p.row}`)
+    ),
+    [recommendedPath, currentRow]
   );
 
   // Multiplayer voting
