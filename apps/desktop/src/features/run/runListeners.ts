@@ -200,16 +200,36 @@ export function setupGameStateUpdateListener() {
         const currentRow = mapState.map.current_position?.row ?? 0;
         const bossRow = mapState.map.boss.row;
         const nextNodeTypes = mapState.map.next_options.map((o) => o.type);
-        // Check ALL future nodes (not just immediate next) for rest/elite/shop ahead
-        const futureNodeTypes = mapState.map.nodes
-          .filter((n) => n.row > currentRow)
-          .map((n) => n.type);
+
+        // Trace reachable nodes from current position's next options
+        // to find rest/shop ahead on the actual path (not other branches)
+        const nodeMap = new Map(mapState.map.nodes.map((n) => [`${n.col},${n.row}`, n]));
+        const reachableTypes = new Set<string>();
+        const visited = new Set<string>();
+
+        function traceReachable(col: number, row: number) {
+          const key = `${col},${row}`;
+          if (visited.has(key)) return;
+          visited.add(key);
+          const node = nodeMap.get(key);
+          if (!node) return;
+          reachableTypes.add(node.type);
+          for (const [cc, cr] of node.children) {
+            traceReachable(cc, cr);
+          }
+        }
+
+        // Start from each next option and trace forward
+        for (const opt of mapState.map.next_options) {
+          traceReachable(opt.col, opt.row);
+        }
+
         listenerApi.dispatch(mapContextUpdated({
           floorsToNextBoss: bossRow - currentRow,
           nextNodeTypes,
           hasEliteAhead: nextNodeTypes.includes("Elite"),
-          hasRestAhead: futureNodeTypes.includes("RestSite"),
-          hasShopAhead: futureNodeTypes.includes("Shop"),
+          hasRestAhead: reachableTypes.has("RestSite"),
+          hasShopAhead: reachableTypes.has("Shop"),
         }));
       }
     },
