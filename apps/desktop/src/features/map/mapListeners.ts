@@ -75,8 +75,8 @@ export function setupMapEvalListener() {
       // --- Should we evaluate? ---
       // Check BEFORE cancelling — don't cancel an in-flight eval
       // just to decide we don't need a new one.
+      const prevContext = selectMapEvalContext(state);
       if (!isRetry) {
-        const prevContext = selectMapEvalContext(state);
         const recommendedNodes = selectRecommendedNodesSet(state);
         const currentPos = mapState.map?.current_position ?? null;
 
@@ -154,6 +154,10 @@ export function setupMapEvalListener() {
         relicCount,
         floor,
       });
+      // Preserve the PREVIOUS act in the pre-eval context so that if the
+      // API call fails, shouldEvaluateMap still detects the act change and
+      // retries. The post-API dispatch sets the correct act on success.
+      preEval.lastEvalContext.act = prevContext?.act ?? 0;
       listenerApi.dispatch(mapEvalUpdated(preEval));
 
       try {
