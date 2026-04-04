@@ -1,5 +1,5 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import {
   evalStarted,
@@ -27,11 +27,10 @@ export function setupEventEvalListener() {
   let relicInitDone = false;
 
   startAppListening({
-    predicate: (action, currentState, previousState) => {
+    predicate: (action, currentState) => {
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      return current.data?.state_type === "event" && current.data !== previous.data;
+      if (!gameStateReceived.match(action)) return false;
+      return selectCurrentGameState(currentState)?.state_type === "event";
     },
 
     effect: async (_action, listenerApi) => {
@@ -44,7 +43,7 @@ export function setupEventEvalListener() {
       }
 
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState || gameState.state_type !== "event") return;
 
       const eventState = gameState as EventState;

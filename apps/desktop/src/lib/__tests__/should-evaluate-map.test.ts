@@ -49,6 +49,12 @@ describe("shouldEvaluateMap", () => {
     it("returns true when act changed", () => {
       expect(evaluate({ actChanged: true })).toBe(true);
     });
+
+    it("returns true when act changed even with prev context and on path", () => {
+      // Scenario: pre-eval dispatch set hasPrevContext=true and isOnRecommendedPath=true
+      // but the act changed (API failed on act transition) — must still re-evaluate
+      expect(evaluate({ actChanged: true, hasPrevContext: true, isOnRecommendedPath: true })).toBe(true);
+    });
   });
 
   describe("position null", () => {

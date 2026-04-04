@@ -1,8 +1,8 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { selectActiveRun, mapEvalUpdated } from "../run/runSlice";
-import { selectMapEvalContext, selectRecommendedNodesSet } from "../run/runSelectors";
+import { selectMapEvalContext, selectRecommendedNodesSet, selectBestPathNodesSet } from "../run/runSelectors";
 import {
   evalStarted,
   evalSucceeded,
@@ -16,7 +16,7 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
-import { computeMapEvalKey, computeMapContentKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { traceRecommendedPath } from "../../views/map/map-path-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
@@ -32,36 +32,16 @@ const EVAL_TYPE = "map" as const;
  * path tracing, recommended nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
-  // Content-based guard: RTK Query creates new data objects on every poll
-  // even when logical content is identical. Track a derived content key so
-  // the predicate only fires when map content actually changed.
-  let lastMapKey: string | null = null;
-
   startAppListening({
     predicate: (action, currentState) => {
-      // Retry
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
-
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      if (current.data?.state_type !== "map") {
-        lastMapKey = null;
-        return false;
-      }
-
-      const mapData = current.data as MapState;
-      const contentKey = computeMapContentKey(
-        mapData.state_type,
-        mapData.map?.current_position ?? null,
-        mapData.map.next_options
-      );
-      if (contentKey === lastMapKey) return false;
-      lastMapKey = contentKey;
-      return true;
+      if (!gameStateReceived.match(action)) return false;
+      return selectCurrentGameState(currentState)?.state_type === "map";
     },
 
     effect: async (_action, listenerApi) => {
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState || gameState.state_type !== "map") return;
 
       const mapState = gameState as MapState;
@@ -75,13 +55,16 @@ export function setupMapEvalListener() {
       // --- Should we evaluate? ---
       // Check BEFORE cancelling — don't cancel an in-flight eval
       // just to decide we don't need a new one.
+      const prevContext = selectMapEvalContext(state);
       if (!isRetry) {
-        const prevContext = selectMapEvalContext(state);
-        const recommendedNodes = selectRecommendedNodesSet(state);
+        const bestPathNodes = selectBestPathNodesSet(state);
         const currentPos = mapState.map?.current_position ?? null;
 
+        // Use bestPathNodes (recommended option's path only) for deviation detection,
+        // NOT recommendedNodes (all options' paths). This ensures re-eval fires when
+        // the user picks a different option than recommended.
         const isOnPath = currentPos
-          ? recommendedNodes.has(`${currentPos.col},${currentPos.row}`)
+          ? bestPathNodes.has(`${currentPos.col},${currentPos.row}`)
           : false;
 
         const input = {
@@ -154,7 +137,13 @@ export function setupMapEvalListener() {
         relicCount,
         floor,
       });
-      listenerApi.dispatch(mapEvalUpdated(preEval));
+      // Preserve the PREVIOUS act in the pre-eval context so that if the
+      // API call fails, shouldEvaluateMap still detects the act change and
+      // retries. The post-API dispatch sets the correct act on success.
+      preEval.lastEvalContext.act = prevContext?.act ?? 0;
+      // Pre-eval: set bestPathNodes to all options — can't know best until API completes.
+      // This prevents false deviation detection during the API window.
+      listenerApi.dispatch(mapEvalUpdated({ ...preEval, bestPathNodes: preEval.recommendedNodes }));
 
       try {
         const mapPrompt = buildMapPrompt({
@@ -197,7 +186,7 @@ export function setupMapEvalListener() {
             )
           : parsed.recommendedPath;
 
-        // Build recommendedNodes from ALL options
+        // Build recommendedNodes from ALL options (for UI highlighting)
         const recommendedNodes = new Set<string>();
         for (const opt of options) {
           recommendedNodes.add(`${opt.col},${opt.row}`);
@@ -216,10 +205,20 @@ export function setupMapEvalListener() {
           recommendedNodes.add(`${p.col},${p.row}`);
         }
 
+        // Build bestPathNodes from ONLY the best option's path (for deviation detection)
+        const bestPathNodes = new Set<string>();
+        for (const p of tracedPath) {
+          bestPathNodes.add(`${p.col},${p.row}`);
+        }
+        for (const p of parsed.recommendedPath) {
+          bestPathNodes.add(`${p.col},${p.row}`);
+        }
+
         // Persist path + context to Redux for shouldEvaluate + map view
         listenerApi.dispatch(mapEvalUpdated({
           recommendedPath: tracedPath,
           recommendedNodes: [...recommendedNodes],
+          bestPathNodes: [...bestPathNodes],
           lastEvalContext: {
             hpPercent: hpPct,
             deckSize: deckCards.length,

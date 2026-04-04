@@ -16,7 +16,8 @@ export interface TrackedPlayer {
 
 export interface MapEvalState {
   recommendedPath: { col: number; row: number }[];
-  recommendedNodes: string[]; // serializable — derive Set in selector
+  recommendedNodes: string[]; // serializable — all options' paths (UI highlighting)
+  bestPathNodes: string[]; // serializable — best option's path only (deviation detection)
   lastEvalContext: {
     hpPercent: number;
     deckSize: number;
@@ -98,6 +99,7 @@ export const runSlice = createSlice({
         mapEval: {
           recommendedPath: [],
           recommendedNodes: [],
+          bestPathNodes: [],
           lastEvalContext: null,
         },
         mapContext: null,

@@ -27,10 +27,16 @@ export const selectRecommendedPath = createSelector(
   (run) => run?.mapEval.recommendedPath ?? EMPTY_PATH
 );
 
-/** Recommended nodes as a Set (derived from serializable string[]) */
+/** Recommended nodes as a Set (derived from serializable string[]) — all options' paths, for UI highlighting */
 export const selectRecommendedNodesSet = createSelector(
   selectActiveRun,
   (run) => new Set(run?.mapEval.recommendedNodes ?? [])
+);
+
+/** Best path nodes as a Set — only the recommended option's path, for deviation detection */
+export const selectBestPathNodesSet = createSelector(
+  selectActiveRun,
+  (run) => new Set(run?.mapEval.bestPathNodes ?? [])
 );
 
 /** Map eval context for shouldEvaluate checks */
