@@ -7,8 +7,10 @@ import { evaluationApi } from "../services/evaluationApi";
 import { connectionSlice } from "../features/connection/connectionSlice";
 import { runSlice } from "../features/run/runSlice";
 import { evaluationSlice } from "../features/evaluation/evaluationSlice";
+import { gameStateSlice } from "../features/gameState/gameStateSlice";
 
 // Import listeners for side-effect registration
+import { setupGameStateBridge } from "../features/gameState/gameStateBridge";
 import { setupConnectionListeners } from "../features/connection/connectionListeners";
 import { setupGameStateUpdateListener } from "../features/run/runListeners";
 import { setupRunAnalyticsListener } from "../features/run/runAnalyticsListener";
@@ -22,6 +24,7 @@ const rootReducer = combineSlices(
   connectionSlice,
   runSlice,
   evaluationSlice,
+  gameStateSlice,
 );
 
 export const store = configureStore({
@@ -37,6 +40,7 @@ export const store = configureStore({
 setupListeners(store.dispatch);
 
 // Start all listeners
+setupGameStateBridge(); // Must be FIRST — slice must be populated before eval listeners fire
 setupPersistenceListener();
 setupConnectionListeners();
 setupGameStateUpdateListener();
