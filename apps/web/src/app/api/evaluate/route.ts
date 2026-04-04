@@ -476,14 +476,13 @@ export async function POST(request: Request) {
             required: ["position", "tier", "confidence", "reasoning"],
           },
         },
-        pick_summary: { type: "string", description: "'Pick [name] — [reason]' or 'Skip — [reason]'. Max 15 words." },
         skip_recommended: { type: "boolean" },
         skip_reasoning: { type: "string", description: "Why skip is recommended, if applicable" },
         ...(type === "shop" ? {
           spending_plan: { type: "string", description: "Concise gold allocation recommendation. Only affordable items." },
         } : {}),
       },
-      required: ["rankings", "pick_summary", "skip_recommended"],
+      required: ["rankings", "skip_recommended"],
     },
   };
 

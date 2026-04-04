@@ -20,7 +20,6 @@ export interface RelicRanking {
 }
 
 export interface RelicEvaluation {
-  pickSummary: string | null;
   rankings: RelicRanking[];
 }
 
@@ -50,7 +49,6 @@ Evaluate which relic best supports the current archetype and win condition. Boss
 
 Respond as JSON:
 {
-  "pick_summary": "Pick [name] — max 12 words why",
   "rankings": [{"item_id": "RELIC_1", "item_name": "relic name", "rank": 1, "tier": "S-F", "recommendation": "strong_pick|good_pick|situational|skip", "reasoning": "max 12 words"}],
   "overall_advice": null
 }
@@ -82,7 +80,6 @@ export function parseRelicSelectResponse(
   );
 
   return {
-    pickSummary: (raw.pick_summary as string) ?? null,
     rankings,
   };
 }

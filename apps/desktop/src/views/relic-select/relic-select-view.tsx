@@ -4,7 +4,8 @@ import { cn } from "@sts2/shared/lib/cn";
 import type { RelicSelectState } from "@sts2/shared/types/game-state";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { EvalError } from "../../components/eval-error";
-import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "../../components/eval-card";
+import { PickBanner, EvalRow, Reasoning, evalBorderClass } from "../../components/eval-card";
+import { resolveTopPick } from "../../lib/resolve-top-pick";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
 import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
@@ -24,15 +25,17 @@ export function RelicSelectView({ state }: RelicSelectViewProps) {
   const isLoading = useAppSelector(selectRelicLoading);
   const error = useAppSelector(selectRelicError);
   const relics = state.relic_select.relics;
-  const topPick = evaluation?.rankings ? findTopPick(evaluation.rankings) : null;
+  const topPickResult = evaluation?.rankings
+    ? resolveTopPick(evaluation.rankings, false)
+    : null;
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-100 shrink-0">Boss Relic</h2>
-        {evaluation?.pickSummary && !isLoading && (
+        {topPickResult && !isLoading && (
           <p className="text-xs font-medium text-emerald-400 truncate flex-1 text-right">
-            {evaluation.pickSummary}
+            {topPickResult.summary}
           </p>
         )}
         {isLoading && (
@@ -45,7 +48,7 @@ export function RelicSelectView({ state }: RelicSelectViewProps) {
       <div className="grid grid-cols-3 gap-3">
         {relics.map((relic, i) => {
           const evalData = evaluation?.rankings.find((r) => r.itemIndex === i);
-          const isTopPick = topPick === evalData && evalData != null;
+          const isTopPick = topPickResult != null && evalData != null && evalData.itemId === topPickResult.item.itemId;
 
           return (
             <div

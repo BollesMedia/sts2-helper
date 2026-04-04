@@ -103,7 +103,6 @@ describe("parseClaudeCardRewardResponse", () => {
     expect(result.rankings[0].tierValue).toBe(6);
     expect(result.rankings[0].source).toBe("claude");
     expect(result.skipRecommended).toBe(false);
-    expect(result.pickSummary).toBe("Pick Offering — best card in game");
   });
 
   it("includes spending plan when present", () => {

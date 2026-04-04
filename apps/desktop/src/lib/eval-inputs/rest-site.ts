@@ -110,7 +110,6 @@ export function parseRestSiteResponse(
 
   return {
     rankings,
-    pickSummary: raw.pick_summary ?? null,
     skipRecommended: raw.skip_recommended ?? false,
     skipReasoning: raw.skip_reasoning ?? null,
   };

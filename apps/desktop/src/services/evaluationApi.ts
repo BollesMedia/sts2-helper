@@ -56,7 +56,6 @@ interface MapEvalRawResponse {
     recommendation: string;
     reasoning: string;
   }[];
-  pick_summary?: string | null;
   skip_recommended?: boolean;
   skip_reasoning?: string | null;
 }

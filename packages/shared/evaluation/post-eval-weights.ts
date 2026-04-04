@@ -274,7 +274,6 @@ function buildRestShortCircuit(
       reasoning: o.id === chosenId ? reasoning : "Not recommended",
       source: "claude" as const,
     })),
-    pickSummary: `${chosenLabel} — ${reasoning}`,
     skipRecommended: false,
     skipReasoning: null,
   };
