@@ -1,5 +1,5 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { selectActiveRun, mapEvalUpdated } from "../run/runSlice";
 import { selectMapEvalContext, selectRecommendedNodesSet } from "../run/runSelectors";
@@ -16,7 +16,7 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
-import { computeMapEvalKey, computeMapContentKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { traceRecommendedPath } from "../../views/map/map-path-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
@@ -32,36 +32,16 @@ const EVAL_TYPE = "map" as const;
  * path tracing, recommended nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
-  // Content-based guard: RTK Query creates new data objects on every poll
-  // even when logical content is identical. Track a derived content key so
-  // the predicate only fires when map content actually changed.
-  let lastMapKey: string | null = null;
-
   startAppListening({
     predicate: (action, currentState) => {
-      // Retry
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
-
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      if (current.data?.state_type !== "map") {
-        lastMapKey = null;
-        return false;
-      }
-
-      const mapData = current.data as MapState;
-      const contentKey = computeMapContentKey(
-        mapData.state_type,
-        mapData.map?.current_position ?? null,
-        mapData.map.next_options
-      );
-      if (contentKey === lastMapKey) return false;
-      lastMapKey = contentKey;
-      return true;
+      if (!gameStateReceived.match(action)) return false;
+      return selectCurrentGameState(currentState)?.state_type === "map";
     },
 
     effect: async (_action, listenerApi) => {
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState || gameState.state_type !== "map") return;
 
       const mapState = gameState as MapState;
