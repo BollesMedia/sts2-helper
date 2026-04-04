@@ -86,7 +86,7 @@ export function setupMapEvalListener() {
           ? (prevContext.gold >= 150 && currentGold < 150) || (prevContext.gold < 150 && currentGold >= 150)
           : false;
         const deckSizeChangedSignificantly = prevContext
-          ? Math.abs(prevContext.deckSize - currentDeckSize) >= 1
+          ? Math.abs(prevContext.deckSize - currentDeckSize) >= 2
           : false;
 
         const input = {

@@ -107,16 +107,22 @@ describe("shouldEvaluateMap", () => {
   });
 
   describe("Tier 2: context change triggers", () => {
-    it("returns true when HP dropped significantly", () => {
-      expect(evaluate({ hpDropExceedsThreshold: true })).toBe(true);
+    it("returns false when on-path even with HP drop (LLM planned for this)", () => {
+      expect(evaluate({ hpDropExceedsThreshold: true })).toBe(false);
     });
 
-    it("returns true when gold crossed viability boundary", () => {
-      expect(evaluate({ goldCrossedThreshold: true })).toBe(true);
+    it("returns false when on-path even with gold change (LLM planned for this)", () => {
+      expect(evaluate({ goldCrossedThreshold: true })).toBe(false);
     });
 
-    it("returns true when deck size changed significantly", () => {
-      expect(evaluate({ deckSizeChangedSignificantly: true })).toBe(true);
+    it("returns false when on-path even with deck size change (LLM planned for this)", () => {
+      expect(evaluate({ deckSizeChangedSignificantly: true })).toBe(false);
+    });
+
+    it("returns true when deviated — context flags escalate to full re-eval in listener", () => {
+      // When off-path, shouldEvaluateMap returns true regardless of Tier 2 flags.
+      // The Tier 2 flags are consumed by mapListeners to decide Tier 1 vs Tier 2.
+      expect(evaluate({ isOnRecommendedPath: false, hpDropExceedsThreshold: true })).toBe(true);
     });
 
     it("returns false when context changes are below thresholds", () => {

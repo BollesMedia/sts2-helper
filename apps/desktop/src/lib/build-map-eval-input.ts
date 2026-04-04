@@ -60,7 +60,7 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     : false;
 
   const deckSizeChangedSignificantly = hasPrevContext
-    ? Math.abs(prevContext.deckSize - currentDeckSize) >= 1
+    ? Math.abs(prevContext.deckSize - currentDeckSize) >= 2
     : false;
 
   return {
