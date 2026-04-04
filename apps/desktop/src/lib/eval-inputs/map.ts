@@ -25,6 +25,23 @@ export function computeMapEvalKey(options: MapNextOption[]): string {
 }
 
 /**
+ * Compute a content-based key for the predicate guard.
+ *
+ * Unlike computeMapEvalKey (options only), this includes state_type and
+ * position so the predicate can detect when the map content hasn't actually
+ * changed despite RTK Query returning new object references on every poll.
+ */
+export function computeMapContentKey(
+  stateType: string,
+  position: { col: number; row: number } | null,
+  options: readonly { col: number; row: number }[]
+): string {
+  const pos = position ? `${position.col},${position.row}` : "null";
+  const opts = options.map((o) => `${o.col},${o.row}`).sort().join("|");
+  return `${stateType}:${pos}:${opts}`;
+}
+
+/**
  * Build the map evaluation prompt with tree visualization.
  */
 export function buildMapPrompt(params: {

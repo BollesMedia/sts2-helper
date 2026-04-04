@@ -16,7 +16,8 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
-import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { computeMapEvalKey, computeMapContentKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { traceRecommendedPath } from "../../views/map/map-path-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
@@ -31,17 +32,31 @@ const EVAL_TYPE = "map" as const;
  * path tracing, recommended nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
+  // Content-based guard: RTK Query creates new data objects on every poll
+  // even when logical content is identical. Track a derived content key so
+  // the predicate only fires when map content actually changed.
+  let lastMapKey: string | null = null;
+
   startAppListening({
-    predicate: (action, currentState, previousState) => {
+    predicate: (action, currentState) => {
       // Retry
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
 
       const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      return (
-        current.data?.state_type === "map" &&
-        current.data !== previous.data
+      if (current.data?.state_type !== "map") {
+        lastMapKey = null;
+        return false;
+      }
+
+      const mapData = current.data as MapState;
+      const contentKey = computeMapContentKey(
+        mapData.state_type,
+        mapData.map?.current_position ?? null,
+        mapData.map.next_options
       );
+      if (contentKey === lastMapKey) return false;
+      lastMapKey = contentKey;
+      return true;
     },
 
     effect: async (_action, listenerApi) => {
@@ -106,6 +121,41 @@ export function setupMapEvalListener() {
       updateFromContext(ctx);
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
 
+      // --- Pre-API dispatch ---
+      // Set lastEvalContext + recommendedNodes BEFORE the API call so that
+      // subsequent polls see hasPrevContext=true and don't re-trigger.
+      const hpPct = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
+      const allNodes = mapState.map?.nodes ?? [];
+      const bossPos = mapState.map.boss;
+      const act = mapState.run?.act ?? 1;
+      const floor = mapState.run?.floor ?? 1;
+      const relics = player?.relics ?? [];
+      const archetypes = detectArchetypes(deckCards, relics);
+      const maturityCtx: DeckMaturityInput = {
+        archetypes,
+        deckSize: deckCards.length,
+        deckCards: deckCards.map((c) => ({ name: c.name })),
+        hasScaling: hasScalingSources(deckCards),
+        scalingSources: getScalingSources(deckCards),
+        upgradeCount: deckCards.filter((c) => c.name.includes("+")).length,
+      };
+      const deckMaturity = computeDeckMaturity(maturityCtx);
+      const relicCount = relics.length;
+
+      const preEval = buildPreEvalPayload({
+        options,
+        allNodes,
+        bossPos,
+        hpPercent: hpPct,
+        gold: mapPlayer?.gold ?? 0,
+        act,
+        deckSize: deckCards.length,
+        deckMaturity,
+        relicCount,
+        floor,
+      });
+      listenerApi.dispatch(mapEvalUpdated(preEval));
+
       try {
         const mapPrompt = buildMapPrompt({
           context: ctx,
@@ -125,27 +175,7 @@ export function setupMapEvalListener() {
           )
           .unwrap();
 
-        // --- Path tracing ---
-        const mp = mapState.player ?? mapState.map?.player;
-        const hpPct = mp && mp.max_hp > 0 ? mp.hp / mp.max_hp : 1;
-        const allNodes = mapState.map?.nodes ?? [];
-        const bossPos = mapState.map.boss;
-        const act = mapState.run?.act ?? 1;
-        const floor = mapState.run?.floor ?? 1;
-
-        const relics = player?.relics ?? [];
-        const archetypes = detectArchetypes(deckCards, relics);
-        const maturityCtx: DeckMaturityInput = {
-          archetypes,
-          deckSize: deckCards.length,
-          deckCards: deckCards.map((c) => ({ name: c.name })),
-          hasScaling: hasScalingSources(deckCards),
-          scalingSources: getScalingSources(deckCards),
-          upgradeCount: deckCards.filter((c) => c.name.includes("+")).length,
-        };
-        const deckMaturity = computeDeckMaturity(maturityCtx);
-        const relicCount = relics.length;
-
+        // --- Post-API path tracing ---
         // Find best option for primary path trace
         const tierOrder = ["S", "A", "B", "C", "D", "F"];
         const bestRanking = parsed.rankings.length > 0
@@ -163,7 +193,7 @@ export function setupMapEvalListener() {
         const tracedPath = bestOpt
           ? traceRecommendedPath(
               bestOpt.col, bestOpt.row, allNodes, bossPos,
-              hpPct, mp?.gold ?? 0, act, deckMaturity, relicCount, floor
+              hpPct, mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor
             )
           : parsed.recommendedPath;
 
@@ -173,7 +203,7 @@ export function setupMapEvalListener() {
           recommendedNodes.add(`${opt.col},${opt.row}`);
           const fullPath = traceRecommendedPath(
             opt.col, opt.row, allNodes, bossPos,
-            hpPct, mp?.gold ?? 0, act, deckMaturity, relicCount, floor
+            hpPct, mapPlayer?.gold ?? 0, act, deckMaturity, relicCount, floor
           );
           for (const p of fullPath) {
             recommendedNodes.add(`${p.col},${p.row}`);
