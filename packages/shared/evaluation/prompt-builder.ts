@@ -78,7 +78,7 @@ MAP PATHING — CORE: Balance relic acquisition against deck development and HP 
 - Treasure nodes = free relic = always high priority (zero HP cost).
 - Act 1: PRIORITIZE MONSTER FIGHTS for card rewards. More fights = more card selections = value density. The biggest Act 1 risk is reaching the boss without quality cards.
 - Act 2+: Unknown/Event nodes are safer than Monster and can give relics/transforms/gold. Prefer over Monster.
-- Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets.
+- Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets. Back-to-back shops are LOW value — each card removal costs 25g more than the last, so consecutive shops drain gold fast without enough fights to earn it back. Spread shops apart with fights in between.
 - Rest sites: you get ONE action per visit — heal OR upgrade, never both. Card upgrades compound over the entire run (~3-5 HP saved per fight). Prioritize upgrades when healthy.
 - ELITE COST: fighting an elite means the next rest site is spent healing instead of upgrading. One elite = one lost upgrade. An upgrade compounds value every remaining fight — a random relic may not.
 - ELITE PHILOSOPHY by act:
