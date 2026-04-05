@@ -102,6 +102,22 @@ describe("buildRestContext", () => {
       expect(result.effectivePassiveHeal).toBe(0);
     });
 
+    it("reproduces act 3 floor 47 scenario (boss is next node, floorsToNextBoss=2)", () => {
+      // Real scenario: 69/90 HP, rest site directly before boss.
+      // floorsToNextBoss=2 because map current_position is one row behind rest site.
+      // hasBossAhead=true because rest site's children include the boss.
+      const result = ctx({
+        hp: 69,
+        maxHp: 90,
+        floorsToNextBoss: 2,
+        hasBossAhead: true,
+        relicDescriptions: ["Burning Blood: At the end of combat, heal 6 HP"],
+      });
+      expect(result.isBossNext).toBe(true);
+      expect(result.effectivePassiveHeal).toBe(0);
+      expect(result.hasEliteAhead).toBe(false); // suppressed when boss is next
+    });
+
     it("disables passive healing when boss is next", () => {
       const result = ctx({
         floorsToNextBoss: 1,

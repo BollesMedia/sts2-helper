@@ -99,6 +99,29 @@ describe("buildMapContext", () => {
       expect(buildMapContext(state).hasBossAhead).toBe(false);
     });
 
+    it("detects boss via children even when leads_to is empty (act 3 endgame)", () => {
+      // Reproduces: Act 3 floor 47, two rest sites before boss.
+      // leads_to was empty in real game data, but children correctly
+      // link the rest sites to the boss node.
+      const state = createMapState({
+        current_position: { col: 2, row: 14, type: "Monster" },
+        next_options: [
+          { index: 0, col: 1, row: 15, type: "RestSite", leads_to: [] },
+          { index: 1, col: 3, row: 15, type: "RestSite", leads_to: [] },
+        ],
+        nodes: [
+          { col: 2, row: 14, type: "Monster", children: [[1, 15], [3, 15]] },
+          { col: 1, row: 15, type: "RestSite", children: [[3, 16]] },
+          { col: 3, row: 15, type: "RestSite", children: [[3, 16]] },
+          { col: 3, row: 16, type: "Boss", children: [] },
+        ],
+        boss: { col: 3, row: 16 },
+      });
+      const ctx = buildMapContext(state);
+      expect(ctx.hasBossAhead).toBe(true);
+      expect(ctx.floorsToNextBoss).toBe(2); // 16 - 14
+    });
+
     it("returns false when no boss in next options or children", () => {
       const state = createMapState({
         next_options: [
