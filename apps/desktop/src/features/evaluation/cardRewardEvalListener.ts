@@ -14,6 +14,8 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
+import { getPendingChoice, clearPendingChoice } from "@sts2/shared/choice-detection/pending-choice-registry";
+import { buildBackfillPayload } from "@sts2/shared/choice-detection/build-backfill-payload";
 import {
   computeCardRewardEvalKey,
   buildCardRewardRequest,
@@ -113,10 +115,11 @@ export function setupCardRewardEvalListener() {
           .unwrap();
 
         // Side effect: register for choice tracker
+        const firstRanking = data.rankings?.[0];
         registerLastEvaluation("card_reward", {
-          recommendedId: data.rankings?.[0]?.itemId ?? null,
-          recommendedTier: data.rankings?.[0]?.tier ?? null,
-          reasoning: data.rankings?.[0]?.reasoning ?? "",
+          recommendedId: firstRanking?.itemId ?? null,
+          recommendedTier: firstRanking?.tier ?? null,
+          reasoning: firstRanking?.reasoning ?? "",
           allRankings: (data.rankings ?? []).map((r) => ({
             itemId: r.itemId,
             itemName: r.itemName,
@@ -125,6 +128,36 @@ export function setupCardRewardEvalListener() {
           })),
           evalType: "card_reward",
         });
+
+        // Backfill: if user acted before eval completed, upsert recommendation data
+        const pending = getPendingChoice(ctx.floor, "card_reward");
+        if (pending && runId) {
+          const backfill = buildBackfillPayload(
+            runId,
+            {
+              recommendedId: firstRanking?.itemId ?? null,
+              recommendedTier: firstRanking?.tier ?? null,
+              allRankings: (data.rankings ?? []).map((r) => ({
+                itemId: r.itemId,
+                itemName: r.itemName,
+                tier: r.tier,
+                recommendation: r.recommendation,
+              })),
+            },
+            pending
+          );
+
+          listenerApi.dispatch(
+            evaluationApi.endpoints.logChoice.initiate({
+              ...backfill,
+              chosenItemId: pending.chosenItemId,
+              offeredItemIds: [],
+              userId: getUserId(),
+            })
+          );
+
+          clearPendingChoice(ctx.floor, "card_reward");
+        }
 
         listenerApi.dispatch(
           evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: data })

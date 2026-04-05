@@ -23,7 +23,8 @@ import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evalua
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 import { detectMapNodeOutcome } from "@sts2/shared/choice-detection/detect-map-node-outcome";
 import { appendNode as appendActNode } from "@sts2/shared/choice-detection/act-path-tracker";
-import { registerPendingChoice } from "@sts2/shared/choice-detection/pending-choice-registry";
+import { registerPendingChoice, getPendingChoice, clearPendingChoice } from "@sts2/shared/choice-detection/pending-choice-registry";
+import { buildBackfillPayload } from "@sts2/shared/choice-detection/build-backfill-payload";
 import type { MapNode as ChoiceMapNode } from "@sts2/shared/choice-detection/types";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { waitForRunCreated } from "../run/runAnalyticsListener";
@@ -445,6 +446,37 @@ export function setupMapEvalListener() {
           })),
           evalType: "map",
         });
+
+        // Backfill: if user picked a map node before eval completed
+        const activeRunId = state.run.activeRunId;
+        const pendingMapNode = getPendingChoice(floor, "map_node");
+        if (pendingMapNode && activeRunId) {
+          const backfill = buildBackfillPayload(
+            activeRunId,
+            {
+              recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
+              recommendedTier: parsed.rankings?.[0]?.tier ?? null,
+              allRankings: (parsed.rankings ?? []).map((r) => ({
+                itemId: r.nodeType,
+                itemName: r.nodeType,
+                tier: r.tier,
+                recommendation: r.recommendation,
+              })),
+            },
+            pendingMapNode
+          );
+
+          listenerApi.dispatch(
+            evaluationApi.endpoints.logChoice.initiate({
+              ...backfill,
+              chosenItemId: pendingMapNode.chosenItemId,
+              offeredItemIds: [],
+              userId: getUserId(),
+            })
+          );
+
+          clearPendingChoice(floor, "map_node");
+        }
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: parsed }));
       } catch (err) {
