@@ -9,33 +9,68 @@ import {
 import { getLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import {
   hasRun,
+  getPlayer,
   type GameState,
   type CombatCard,
 } from "@sts2/shared/types/game-state";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
+import { detectCardRewardOutcome } from "@sts2/shared/choice-detection/detect-card-reward-outcome";
+import { detectShopOutcome } from "@sts2/shared/choice-detection/detect-shop-outcome";
+import { detectRestSiteOutcome } from "@sts2/shared/choice-detection/detect-rest-site-outcome";
+import { registerPendingChoice } from "@sts2/shared/choice-detection/pending-choice-registry";
+import type { GameContextSnapshot, OfferedCard } from "@sts2/shared/choice-detection/types";
+import { selectEvalIsLoading } from "../evaluation/evaluationSelectors";
 
-interface PendingChoice {
-  choiceType: string;
-  offeredItemIds: string[];
+/** Minimal state the listener needs to track between polls. */
+interface PendingCardReward {
+  offeredCards: OfferedCard[];
+  previousDeckNames: Set<string>;
   floor: number;
   act: number;
+}
+
+interface PendingShop {
+  offeredItemIds: string[];
   previousDeckNames: Set<string>;
+  previousDeckSize: number;
+  floor: number;
+  act: number;
+}
+
+interface PendingRestSite {
+  previousDeckNames: Set<string>;
+  floor: number;
+  act: number;
+}
+
+function buildGameContext(
+  gameState: GameState,
+  deckSize: number,
+  run: { character: string; ascension: number; act: number }
+): GameContextSnapshot {
+  const player = getPlayer(gameState);
+  return {
+    hpPercent: player?.max_hp ? (player.hp ?? 0) / player.max_hp : 1,
+    gold: player?.gold ?? 0,
+    deckSize,
+    ascension: run.ascension,
+    act: run.act,
+    character: run.character,
+  };
 }
 
 /**
  * Tracks player choices by watching game state transitions.
  * When the state changes from a decision screen to the next state,
- * diffs the deck to detect what was chosen and logs to Supabase.
+ * uses pure detection functions to identify what was chosen and logs to Supabase.
  * Also appends decisions to the run narrative for evaluation context.
- *
- * IMPORTANT: This listener must be registered AFTER setupGameStateUpdateListener
- * so that the deck in Redux is already updated when this runs.
  */
 export function setupChoiceTrackingListener() {
   let prevStateType: string | null = null;
-  let prevDeckSize = 0;
-  let pendingChoice: PendingChoice | null = null;
-  let deferredCardReward: PendingChoice | null = null;
+  let pendingCardReward: PendingCardReward | null = null;
+  let deferredCardReward: PendingCardReward | null = null;
+  let pendingShop: PendingShop | null = null;
+  let pendingRestSite: PendingRestSite | null = null;
   let lastRunId: string | null = null;
 
   startAppListening({
@@ -46,154 +81,257 @@ export function setupChoiceTrackingListener() {
       const activeRunId = state.run.activeRunId;
       if (!activeRunId) return;
 
-      // Reset pending state when run changes to prevent stale choices
-      // bleeding across runs
+      // Reset pending state when run changes
       if (activeRunId !== lastRunId) {
         lastRunId = activeRunId;
-        pendingChoice = null;
+        pendingCardReward = null;
         deferredCardReward = null;
-        prevDeckSize = 0;
+        pendingShop = null;
+        pendingRestSite = null;
       }
 
       const currentType = gameState.state_type;
       const prevType = prevStateType;
       prevStateType = currentType;
 
+      const runData = state.run.runs[activeRunId];
+      if (!runData) return;
       const run = hasRun(gameState) ? gameState.run : null;
-      const deckCards = state.run.runs[activeRunId]?.deck ?? [];
+      const deckCards = runData.deck;
+      const currentDeckNames = new Set(deckCards.map((c) => c.name));
+      const currentDeckSize = deckCards.length;
+      const floor = run?.floor ?? runData.floor;
+      const act = run?.act ?? runData.act;
 
-      // --- Entering card_reward: record what's offered ---
+      // --- Card Reward: Enter ---
       if (currentType === "card_reward" && prevType !== "card_reward") {
-        pendingChoice = {
-          choiceType: "card_reward",
-          offeredItemIds: gameState.card_reward.cards.map((c) => c.id),
-          floor: run?.floor ?? 0,
-          act: run?.act ?? 1,
-          previousDeckNames: new Set(deckCards.map((c) => c.name)),
+        const cards = gameState.card_reward.cards;
+        pendingCardReward = {
+          offeredCards: cards.map((c) => ({ id: c.id, name: c.name })),
+          previousDeckNames: new Set(currentDeckNames),
+          floor,
+          act,
         };
       }
 
-      // --- Leaving card_reward: defer detection until deck updates ---
+      // --- Card Reward: Leave (defer detection) ---
       if (prevType === "card_reward" && currentType !== "card_reward") {
-        if (pendingChoice) {
-          deferredCardReward = pendingChoice;
-          pendingChoice = null;
+        if (pendingCardReward) {
+          deferredCardReward = pendingCardReward;
+          pendingCardReward = null;
         }
       }
 
-      // --- Resolve deferred card_reward when deck changes ---
-      if (deferredCardReward && deckCards.length !== prevDeckSize) {
-        resolveCardReward(
-          deferredCardReward,
-          deckCards,
-          activeRunId,
-          listenerApi.dispatch
-        );
-        deferredCardReward = null;
+      // --- Card Reward: Resolve ---
+      if (deferredCardReward) {
+        const outcome = detectCardRewardOutcome({
+          offeredCards: deferredCardReward.offeredCards,
+          previousDeckNames: deferredCardReward.previousDeckNames,
+          currentDeckNames,
+        });
+
+        // Wait until we've left combat_rewards to confirm a skip
+        const stillInRewards =
+          currentType === "combat_rewards" || currentType === "card_reward";
+
+        if (outcome.type === "picked" || !stillInRewards) {
+          const lastEval = getLastEvaluation("card_reward");
+          const isEvalPending = !lastEval && selectEvalIsLoading("card_reward")(state);
+          const chosenItemId = outcome.type === "picked" ? outcome.chosenName : null;
+          const gameContext = buildGameContext(gameState, currentDeckSize, runData);
+
+          fireChoiceLog(listenerApi.dispatch, {
+            runId: activeRunId,
+            choiceType: outcome.type === "picked" ? "card_reward" : "skip",
+            floor: deferredCardReward.floor,
+            act: deferredCardReward.act,
+            sequence: 0,
+            offeredItemIds: deferredCardReward.offeredCards.map((c) => c.id),
+            chosenItemId,
+            recommendedItemId: lastEval?.recommendedId ?? null,
+            recommendedTier: lastEval?.recommendedTier ?? null,
+            wasFollowed: lastEval
+              ? chosenItemId === lastEval.recommendedId
+              : undefined,
+            rankingsSnapshot: lastEval?.allRankings ?? null,
+            gameContext,
+            evalPending: isEvalPending || false,
+          });
+
+          if (isEvalPending) {
+            registerPendingChoice(
+              deferredCardReward.floor,
+              "card_reward",
+              chosenItemId,
+              0
+            );
+          }
+
+          appendDecision({
+            floor: deferredCardReward.floor,
+            type: "card_reward",
+            chosen: chosenItemId,
+            advise: lastEval?.recommendedId ?? null,
+            aligned: lastEval
+              ? chosenItemId === lastEval.recommendedId ||
+                (chosenItemId === null && lastEval.recommendedId === null)
+              : true,
+          });
+
+          // Milestone for power/rare
+          if (outcome.type === "picked") {
+            const pickedCard = deckCards.find((c) => c.name === outcome.chosenName);
+            if (pickedCard) {
+              const kwNames = (pickedCard.keywords ?? []).map((k) =>
+                k.name.toLowerCase()
+              );
+              if (kwNames.includes("power") || kwNames.includes("rare")) {
+                addMilestone(`${outcome.chosenName} F${deferredCardReward.floor}`, false);
+              }
+            }
+          }
+
+          deferredCardReward = null;
+        }
       }
 
-      // --- If we leave combat_rewards without deck changing, it was a skip ---
-      if (
-        deferredCardReward &&
-        currentType !== "card_reward" &&
-        currentType !== "combat_rewards" &&
-        prevType === "combat_rewards"
-      ) {
-        resolveCardRewardSkip(deferredCardReward, activeRunId, listenerApi.dispatch);
-        deferredCardReward = null;
-      }
-
-      prevDeckSize = deckCards.length;
-
-      // --- Entering shop: record what's available ---
+      // --- Shop: Enter ---
       if (currentType === "shop" && prevType !== "shop") {
         const shopItems = gameState.shop.items
           .filter((i) => i.is_stocked)
           .map((i) => {
             if (i.category === "card") return i.card_id ?? `card_${i.index}`;
-            if (i.category === "relic")
-              return i.relic_id ?? `relic_${i.index}`;
-            if (i.category === "potion")
-              return i.potion_id ?? `potion_${i.index}`;
+            if (i.category === "relic") return i.relic_id ?? `relic_${i.index}`;
+            if (i.category === "potion") return i.potion_id ?? `potion_${i.index}`;
             return "CARD_REMOVAL";
           });
 
-        pendingChoice = {
-          choiceType: "shop",
+        pendingShop = {
           offeredItemIds: shopItems,
-          floor: run?.floor ?? 0,
-          act: run?.act ?? 1,
-          previousDeckNames: new Set(deckCards.map((c) => c.name)),
+          previousDeckNames: new Set(currentDeckNames),
+          previousDeckSize: currentDeckSize,
+          floor,
+          act,
         };
       }
 
-      // --- Leaving shop: detect purchases ---
-      if (prevType === "shop" && currentType !== "shop") {
-        if (pendingChoice) {
-          resolveShop(
-            pendingChoice,
-            deckCards,
-            activeRunId,
-            listenerApi.dispatch
-          );
-          pendingChoice = null;
-        }
-      }
+      // --- Shop: Leave ---
+      if (prevType === "shop" && currentType !== "shop" && pendingShop) {
+        const shopOutcome = detectShopOutcome({
+          previousDeckNames: pendingShop.previousDeckNames,
+          currentDeckNames,
+          previousDeckSize: pendingShop.previousDeckSize,
+          currentDeckSize,
+        });
 
-      // --- Entering rest_site: snapshot deck for upgrade detection ---
-      if (currentType === "rest_site" && prevType !== "rest_site") {
-        pendingChoice = {
-          choiceType: "rest_site",
-          offeredItemIds: [],
-          floor: run?.floor ?? 0,
-          act: run?.act ?? 1,
-          previousDeckNames: new Set(deckCards.map((c) => c.name)),
-        };
-      }
+        const lastEval = getLastEvaluation("shop");
+        const gameContext = buildGameContext(gameState, currentDeckSize, runData);
 
-      // --- Leaving rest_site: detect rest vs upgrade ---
-      if (prevType === "rest_site" && currentType !== "rest_site") {
-        const floor = run?.floor ?? 0;
-        const prevNames = pendingChoice?.previousDeckNames;
-        if (prevNames) {
-          const upgraded = deckCards.find((c) => {
-            const base = c.name.replace(/\+$/, "");
-            return (
-              c.name.endsWith("+") &&
-              prevNames.has(base) &&
-              !prevNames.has(c.name)
-            );
-          });
+        if (shopOutcome.purchases.length > 0) {
+          shopOutcome.purchases.forEach((cardName, idx) => {
+            fireChoiceLog(listenerApi.dispatch, {
+              runId: activeRunId,
+              choiceType: "shop_purchase",
+              floor: pendingShop!.floor,
+              act: pendingShop!.act,
+              sequence: idx,
+              offeredItemIds: pendingShop!.offeredItemIds,
+              chosenItemId: cardName,
+              recommendedItemId: lastEval?.recommendedId ?? null,
+              recommendedTier: lastEval?.recommendedTier ?? null,
+              wasFollowed: lastEval ? cardName === lastEval.recommendedId : undefined,
+              rankingsSnapshot: lastEval?.allRankings ?? null,
+              gameContext,
+              evalPending: false,
+            });
 
-          if (upgraded) {
-            const lastEval = getLastEvaluation("rest_site");
             appendDecision({
-              floor,
-              type: "rest_site",
-              chosen: `Upgraded ${upgraded.name}`,
+              floor: pendingShop!.floor,
+              type: "shop",
+              chosen: cardName,
               advise: lastEval?.recommendedId ?? null,
-              aligned: lastEval
-                ? upgraded.name.replace(/\+$/, "") ===
-                  lastEval.recommendedId?.replace(/\+$/, "")
-                : true,
+              aligned: lastEval ? cardName === lastEval.recommendedId : true,
             });
-            addMilestone(`${upgraded.name} F${floor}`, false);
-          } else {
-            appendDecision({
-              floor,
-              type: "rest_site",
-              chosen: "Rest",
-              advise: null,
-              aligned: true,
-            });
-          }
+          });
         }
-        pendingChoice = null;
+
+        for (let i = 0; i < shopOutcome.removals; i++) {
+          appendDecision({
+            floor: pendingShop.floor,
+            type: "shop_removal",
+            chosen: "card removal",
+            advise: null,
+            aligned: true,
+          });
+          addMilestone(`Card removal F${pendingShop.floor}`, false);
+        }
+
+        if (shopOutcome.browsedOnly) {
+          fireChoiceLog(listenerApi.dispatch, {
+            runId: activeRunId,
+            choiceType: "shop_browse",
+            floor: pendingShop.floor,
+            act: pendingShop.act,
+            sequence: 0,
+            offeredItemIds: pendingShop.offeredItemIds,
+            chosenItemId: null,
+            recommendedItemId: lastEval?.recommendedId ?? null,
+            recommendedTier: lastEval?.recommendedTier ?? null,
+            wasFollowed: lastEval ? lastEval.recommendedId === null : undefined,
+            rankingsSnapshot: lastEval?.allRankings ?? null,
+            gameContext,
+            evalPending: false,
+          });
+        }
+
+        pendingShop = null;
       }
 
-      // --- Leaving event: detect chosen option ---
+      // --- Rest Site: Enter ---
+      if (currentType === "rest_site" && prevType !== "rest_site") {
+        pendingRestSite = {
+          previousDeckNames: new Set(currentDeckNames),
+          floor,
+          act,
+        };
+      }
+
+      // --- Rest Site: Leave ---
+      if (prevType === "rest_site" && currentType !== "rest_site" && pendingRestSite) {
+        const restOutcome = detectRestSiteOutcome({
+          previousDeckNames: pendingRestSite.previousDeckNames,
+          currentDeckNames,
+        });
+
+        const lastEval = getLastEvaluation("rest_site");
+
+        if (restOutcome.type === "upgraded") {
+          appendDecision({
+            floor: pendingRestSite.floor,
+            type: "rest_site",
+            chosen: `Upgraded ${restOutcome.cardName}`,
+            advise: lastEval?.recommendedId ?? null,
+            aligned: lastEval
+              ? restOutcome.cardName.replace(/\+$/, "") ===
+                lastEval.recommendedId?.replace(/\+$/, "")
+              : true,
+          });
+          addMilestone(`${restOutcome.cardName} F${pendingRestSite.floor}`, false);
+        } else {
+          appendDecision({
+            floor: pendingRestSite.floor,
+            type: "rest_site",
+            chosen: "Rest",
+            advise: null,
+            aligned: true,
+          });
+        }
+
+        pendingRestSite = null;
+      }
+
+      // --- Event: Leave ---
       if (prevType === "event" && currentType !== "event") {
-        const floor = run?.floor ?? 0;
         const lastEval = getLastEvaluation("event");
         appendDecision({
           floor,
@@ -209,166 +347,6 @@ export function setupChoiceTrackingListener() {
 
 // --- Helpers ---
 
-function resolveCardReward(
-  pending: PendingChoice,
-  deckCards: CombatCard[],
-  runId: string,
-  dispatch: (action: unknown) => unknown
-) {
-  const newCards = deckCards.filter(
-    (c) => !pending.previousDeckNames.has(c.name)
-  );
-  const chosenItemId = newCards.length > 0 ? newCards[0].name : null;
-  const lastEval = getLastEvaluation("card_reward");
-
-  fireChoiceLog(dispatch, {
-    runId,
-    choiceType: chosenItemId ? "card_reward" : "skip",
-    floor: pending.floor,
-    act: pending.act,
-    offeredItemIds: pending.offeredItemIds,
-    chosenItemId,
-    recommendedItemId: lastEval?.recommendedId ?? null,
-    recommendedTier: lastEval?.recommendedTier ?? null,
-    wasFollowed: lastEval
-      ? chosenItemId === lastEval.recommendedId
-      : undefined,
-    rankingsSnapshot: lastEval?.allRankings ?? null,
-  });
-
-  appendDecision({
-    floor: pending.floor,
-    type: "card_reward",
-    chosen: chosenItemId,
-    advise: lastEval?.recommendedId ?? null,
-    aligned: lastEval
-      ? chosenItemId === lastEval.recommendedId ||
-        (chosenItemId === null && lastEval.recommendedId === null)
-      : true,
-  });
-
-  // Milestone: power/rare cards define the build
-  if (chosenItemId && newCards[0]) {
-    const kwNames = (newCards[0].keywords ?? []).map((k) =>
-      k.name.toLowerCase()
-    );
-    if (kwNames.includes("power") || kwNames.includes("rare")) {
-      addMilestone(`${chosenItemId} F${pending.floor}`, false);
-    }
-  }
-}
-
-function resolveCardRewardSkip(
-  pending: PendingChoice,
-  runId: string,
-  dispatch: (action: unknown) => unknown
-) {
-  const lastEval = getLastEvaluation("card_reward");
-
-  fireChoiceLog(dispatch, {
-    runId,
-    choiceType: "skip",
-    floor: pending.floor,
-    act: pending.act,
-    offeredItemIds: pending.offeredItemIds,
-    chosenItemId: null,
-    recommendedItemId: lastEval?.recommendedId ?? null,
-    recommendedTier: lastEval?.recommendedTier ?? null,
-    wasFollowed: lastEval
-      ? lastEval.recommendedId === null
-      : undefined,
-    rankingsSnapshot: lastEval?.allRankings ?? null,
-  });
-
-  appendDecision({
-    floor: pending.floor,
-    type: "card_reward",
-    chosen: null,
-    advise: lastEval?.recommendedId ?? null,
-    aligned: lastEval ? lastEval.recommendedId === null : true,
-  });
-}
-
-function resolveShop(
-  pending: PendingChoice,
-  deckCards: CombatCard[],
-  runId: string,
-  dispatch: (action: unknown) => unknown
-) {
-  const newCards = deckCards.filter(
-    (c) => !pending.previousDeckNames.has(c.name)
-  );
-  const previousSize = pending.previousDeckNames.size;
-  const currentSize = deckCards.length;
-
-  // Detect card removals (deck got smaller)
-  if (currentSize < previousSize) {
-    const removedCount = previousSize - currentSize + newCards.length;
-    for (let i = 0; i < removedCount; i++) {
-      appendDecision({
-        floor: pending.floor,
-        type: "shop_removal",
-        chosen: "card removal",
-        advise: null,
-        aligned: true,
-      });
-      addMilestone(`Card removal F${pending.floor}`, false);
-    }
-  }
-
-  // Log each new card as a separate purchase choice
-  if (newCards.length > 0) {
-    const lastEval = getLastEvaluation("shop");
-    for (const card of newCards) {
-      fireChoiceLog(dispatch, {
-        runId,
-        choiceType: "shop_purchase",
-        floor: pending.floor,
-        act: pending.act,
-        offeredItemIds: pending.offeredItemIds,
-        chosenItemId: card.name,
-        recommendedItemId: lastEval?.recommendedId ?? null,
-        recommendedTier: lastEval?.recommendedTier ?? null,
-        wasFollowed: lastEval
-          ? card.name === lastEval.recommendedId
-          : undefined,
-        rankingsSnapshot: lastEval?.allRankings ?? null,
-      });
-
-      appendDecision({
-        floor: pending.floor,
-        type: "shop",
-        chosen: card.name,
-        advise: lastEval?.recommendedId ?? null,
-        aligned: lastEval
-          ? card.name === lastEval.recommendedId
-          : true,
-      });
-    }
-  } else if (currentSize >= previousSize) {
-    // Left shop without buying cards or removing
-    const lastEval = getLastEvaluation("shop");
-    fireChoiceLog(dispatch, {
-      runId,
-      choiceType: "shop_browse",
-      floor: pending.floor,
-      act: pending.act,
-      offeredItemIds: pending.offeredItemIds,
-      chosenItemId: null,
-      recommendedItemId: lastEval?.recommendedId ?? null,
-      recommendedTier: lastEval?.recommendedTier ?? null,
-      wasFollowed: lastEval
-        ? lastEval.recommendedId === null
-        : undefined,
-      rankingsSnapshot: lastEval?.allRankings ?? null,
-    });
-  }
-}
-
-/**
- * Fire-and-forget choice log via RTK Query mutation.
- * Waits for run creation to avoid FK violations.
- */
 function fireChoiceLog(
   dispatch: (action: unknown) => unknown,
   choice: {
@@ -376,18 +354,22 @@ function fireChoiceLog(
     choiceType: string;
     floor: number;
     act: number;
+    sequence: number;
     offeredItemIds: string[];
     chosenItemId: string | null;
     recommendedItemId?: string | null;
     recommendedTier?: string | null;
     wasFollowed?: boolean;
     rankingsSnapshot?: unknown;
+    gameContext?: unknown;
+    evalPending?: boolean;
   }
 ) {
   console.log(
     "[ChoiceTracker]",
     choice.choiceType,
-    choice.chosenItemId ?? "skip"
+    choice.chosenItemId ?? "skip",
+    choice.evalPending ? "(eval pending)" : ""
   );
 
   waitForRunCreated()

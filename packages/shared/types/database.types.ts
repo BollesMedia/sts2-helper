@@ -39,6 +39,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      act_paths: {
+        Row: {
+          id: string
+          run_id: string
+          act: number
+          recommended_path: Json
+          actual_path: Json
+          node_preferences: Json | null
+          deviation_count: number
+          deviation_nodes: Json
+          context_at_start: Json | null
+          user_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          run_id: string
+          act: number
+          recommended_path?: Json
+          actual_path?: Json
+          node_preferences?: Json | null
+          deviation_count?: number
+          deviation_nodes?: Json
+          context_at_start?: Json | null
+          user_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          run_id?: string
+          act?: number
+          recommended_path?: Json
+          actual_path?: Json
+          node_preferences?: Json | null
+          deviation_count?: number
+          deviation_nodes?: Json
+          context_at_start?: Json | null
+          user_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "act_paths_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["run_id"]
+          },
+        ]
+      }
       cards: {
         Row: {
           block: number | null
@@ -178,14 +228,17 @@ export type Database = {
           choice_type: string
           chosen_item_id: string | null
           created_at: string | null
+          eval_pending: boolean
           evaluation_ids: string[] | null
           floor: number
+          game_context: Json | null
           id: string
           offered_item_ids: string[]
           rankings_snapshot: Json | null
           recommended_item_id: string | null
           recommended_tier: string | null
           run_id: string | null
+          sequence: number
           user_id: string | null
           was_followed: boolean | null
         }
@@ -194,14 +247,17 @@ export type Database = {
           choice_type: string
           chosen_item_id?: string | null
           created_at?: string | null
+          eval_pending?: boolean
           evaluation_ids?: string[] | null
           floor: number
+          game_context?: Json | null
           id?: string
           offered_item_ids: string[]
           rankings_snapshot?: Json | null
           recommended_item_id?: string | null
           recommended_tier?: string | null
           run_id?: string | null
+          sequence?: number
           user_id?: string | null
           was_followed?: boolean | null
         }
@@ -210,14 +266,17 @@ export type Database = {
           choice_type?: string
           chosen_item_id?: string | null
           created_at?: string | null
+          eval_pending?: boolean
           evaluation_ids?: string[] | null
           floor?: number
+          game_context?: Json | null
           id?: string
           offered_item_ids?: string[]
           rankings_snapshot?: Json | null
           recommended_item_id?: string | null
           recommended_tier?: string | null
           run_id?: string | null
+          sequence?: number
           user_id?: string | null
           was_followed?: boolean | null
         }

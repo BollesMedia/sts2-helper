@@ -8,12 +8,15 @@ const choiceSchema = z.object({
   choiceType: z.string().min(1),
   floor: z.number().int().min(0).optional(),
   act: z.number().int().min(1).optional(),
+  sequence: z.number().int().min(0).optional(),
   offeredItemIds: z.array(z.string()),
   chosenItemId: z.string().nullable().optional(),
   recommendedItemId: z.string().nullable().optional(),
   recommendedTier: z.string().nullable().optional(),
   wasFollowed: z.boolean().nullable().optional(),
   rankingsSnapshot: z.unknown().nullable().optional(),
+  gameContext: z.unknown().nullable().optional(),
+  evalPending: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -32,11 +35,12 @@ export async function POST(request: Request) {
   const d = result.data;
   const supabase = createServiceClient();
 
-  const { error } = await supabase.from("choices").insert({
+  const row = {
     run_id: d.runId ?? null,
     choice_type: d.choiceType,
     floor: d.floor ?? 0,
     act: d.act ?? 1,
+    sequence: d.sequence ?? 0,
     offered_item_ids: d.offeredItemIds,
     chosen_item_id: d.chosenItemId ?? null,
     user_id: auth.userId,
@@ -44,7 +48,15 @@ export async function POST(request: Request) {
     recommended_tier: d.recommendedTier ?? null,
     was_followed: d.wasFollowed ?? null,
     rankings_snapshot: (d.rankingsSnapshot ?? null) as import("@sts2/shared/types/database.types").Json,
-  });
+    game_context: (d.gameContext ?? null) as import("@sts2/shared/types/database.types").Json,
+    eval_pending: d.evalPending ?? false,
+  };
+
+  const { error } = await supabase
+    .from("choices")
+    .upsert(row, {
+      onConflict: "run_id,floor,choice_type,sequence",
+    });
 
   if (error) {
     console.error("Failed to log choice:", error);
