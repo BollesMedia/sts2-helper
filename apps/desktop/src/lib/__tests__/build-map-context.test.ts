@@ -14,21 +14,36 @@ describe("buildMapContext", () => {
       expect(buildMapContext(state).hasEliteAhead).toBe(true);
     });
 
-    it("detects elite in leads_to (2-node lookahead)", () => {
+    it("detects elite via children (2-node lookahead)", () => {
+      // RestSite at (0,2) has child Elite at (1,3) in the node map
       const state = createMapState({
         current_position: { col: 0, row: 1, type: "Elite" },
         next_options: [
-          { index: 0, col: 0, row: 2, type: "RestSite", leads_to: [{ col: 1, row: 3, type: "Elite" }] },
+          { index: 0, col: 0, row: 2, type: "RestSite", leads_to: [] },
         ],
         nodes: [
-          ...TEST_NODES,
+          { col: 0, row: 2, type: "RestSite", children: [[1, 3]] },
           { col: 1, row: 3, type: "Elite", children: [] },
         ],
       });
       expect(buildMapContext(state).hasEliteAhead).toBe(true);
     });
 
-    it("returns false when no elite in next options or leads_to", () => {
+    it("does not false-positive from leads_to (uses children only)", () => {
+      // leads_to says Elite but children say Monster — should be false
+      const state = createMapState({
+        next_options: [
+          { index: 0, col: 0, row: 1, type: "Monster", leads_to: [{ col: 0, row: 2, type: "Elite" }] },
+        ],
+        nodes: [
+          { col: 0, row: 1, type: "Monster", children: [[0, 2]] },
+          { col: 0, row: 2, type: "Monster", children: [] },
+        ],
+      });
+      expect(buildMapContext(state).hasEliteAhead).toBe(false);
+    });
+
+    it("returns false when no elite in next options or children", () => {
       const state = createMapState({
         next_options: [
           { index: 0, col: 0, row: 2, type: "RestSite", leads_to: [{ col: 1, row: 3, type: "Boss" }] },
@@ -58,17 +73,33 @@ describe("buildMapContext", () => {
       expect(buildMapContext(state).hasBossAhead).toBe(true);
     });
 
-    it("detects boss in leads_to (rest site before boss)", () => {
+    it("detects boss via children (rest site before boss)", () => {
+      // RestSite at (0,2) has child Boss at (1,3) in the node map
       const state = createMapState({
         current_position: { col: 0, row: 1, type: "Elite" },
         next_options: [
-          { index: 0, col: 0, row: 2, type: "RestSite", leads_to: [{ col: 1, row: 3, type: "Boss" }] },
+          { index: 0, col: 0, row: 2, type: "RestSite", leads_to: [] },
         ],
       });
+      // Default TEST_NODES has RestSite(0,2)->Boss(1,3)
       expect(buildMapContext(state).hasBossAhead).toBe(true);
     });
 
-    it("returns false when no boss in next options or leads_to", () => {
+    it("does not false-positive from leads_to (uses children only)", () => {
+      // leads_to says Boss but children lead to Monster — should be false
+      const state = createMapState({
+        next_options: [
+          { index: 0, col: 0, row: 1, type: "Monster", leads_to: [{ col: 1, row: 3, type: "Boss" }] },
+        ],
+        nodes: [
+          { col: 0, row: 1, type: "Monster", children: [[0, 2]] },
+          { col: 0, row: 2, type: "Monster", children: [] },
+        ],
+      });
+      expect(buildMapContext(state).hasBossAhead).toBe(false);
+    });
+
+    it("returns false when no boss in next options or children", () => {
       const state = createMapState({
         next_options: [
           { index: 0, col: 0, row: 1, type: "Elite", leads_to: [{ col: 0, row: 2, type: "RestSite" }] },
