@@ -8,6 +8,21 @@ alter table choices add column if not exists game_context jsonb;
 alter table choices add column if not exists eval_pending boolean not null default false;
 alter table choices add column if not exists sequence smallint not null default 0;
 
+-- Deduplicate existing rows before adding unique constraint.
+-- Keeps the most recent row per (run_id, floor, choice_type, sequence).
+delete from choices
+where id in (
+  select id from (
+    select id,
+           row_number() over (
+             partition by run_id, floor, choice_type, sequence
+             order by created_at desc nulls last, id desc
+           ) as rn
+    from choices
+  ) dupes
+  where rn > 1
+);
+
 -- Unique constraint for upsert backfill pattern.
 -- Allows ON CONFLICT to update recommendation data after eval completes.
 create unique index if not exists uq_choices_run_floor_type_seq
@@ -56,8 +71,8 @@ create index if not exists idx_act_paths_run on act_paths (run_id);
 
 -- --- Update analytics views to exclude eval_pending rows ---
 
-drop view if exists recommendation_follow_rates;
-create view recommendation_follow_rates as
+drop materialized view if exists recommendation_follow_rates;
+create materialized view recommendation_follow_rates as
 select
   c.choice_type,
   r.character,
