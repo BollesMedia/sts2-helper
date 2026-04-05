@@ -130,6 +130,7 @@ export function setupRunAnalyticsListener() {
           currentStateType: currentType,
           lastWasBoss,
           lastEnemiesAllDead,
+          lastAct,
           eventId: eventData?.event_id ?? null,
           eventName: eventData?.event_name ?? null,
           overlayScreenType: overlayData?.screen_type ?? null,
@@ -197,52 +198,75 @@ export function setupRunAnalyticsListener() {
       const wasInMenu = prevStateType === "menu" || prevStateType === null;
 
       if (isInRun && wasInMenu && !runActive) {
-        const newRunId = generateRunId();
+        // On app restart (prevStateType === null), check if we have a persisted
+        // active run that matches the current game. Resume it instead of creating
+        // a new one — a fresh run would have an empty deck and fail validation.
+        const existingRunId = state.run.activeRunId;
+        const existingRun = existingRunId ? state.run.runs[existingRunId] : null;
         const character = getPlayer(gameState)?.character ?? "Unknown";
         const ascension = hasRun(gameState) ? gameState.run.ascension : 0;
-        const gameMode = gameState.game_mode ?? "singleplayer";
 
-        listenerApi.dispatch(
-          runStarted({ runId: newRunId, character, ascension, gameMode })
-        );
+        if (
+          prevStateType === null &&
+          existingRun &&
+          existingRun.character === character &&
+          existingRun.deck.length > 0
+        ) {
+          // Resume persisted run — restore closure state from persisted data
+          runActive = true;
+          lastFloor = existingRun.floor;
+          lastAct = existingRun.act;
+          lastPlayerHp = existingRun.player?.hp ?? 0;
+          lastDeckNames = existingRun.deck.map((c) => c.name);
+          lastRelicNames = existingRun.player?.relics?.map((r) => r.name) ?? [];
+          initializeNarrative(existingRunId!, character, ascension);
+          console.log("[RunAnalytics] Resumed persisted run:", existingRunId);
+        } else {
+          const newRunId = generateRunId();
+          const gameMode = gameState.game_mode ?? "singleplayer";
 
-        // Persist to API
-        runCreatedPromise = listenerApi
-          .dispatch(
-            evaluationApi.endpoints.startRun.initiate({
-              runId: newRunId,
-              character,
-              ascension,
-              gameMode,
-              userId: getUserId(),
-            })
-          )
-          .unwrap()
-          .then(
-            () => {},
-            () => {}
+          listenerApi.dispatch(
+            runStarted({ runId: newRunId, character, ascension, gameMode })
           );
 
-        // Initialize narrative + clear stale eval data
-        initializeNarrative(newRunId, character, ascension);
-        clearEvaluationRegistry();
+          // Persist to API
+          runCreatedPromise = listenerApi
+            .dispatch(
+              evaluationApi.endpoints.startRun.initiate({
+                runId: newRunId,
+                character,
+                ascension,
+                gameMode,
+                userId: getUserId(),
+              })
+            )
+            .unwrap()
+            .then(
+              () => {},
+              () => {}
+            );
 
-        // Clear all evaluation state for the new run
-        listenerApi.dispatch(allEvalsCleared());
+          // Initialize narrative + clear stale eval data
+          initializeNarrative(newRunId, character, ascension);
+          clearEvaluationRegistry();
 
-        // Reset closure tracking
-        runActive = true;
-        lastWasBoss = false;
-        lastFloor = 0;
-        lastAct = 1;
-        lastPlayerHp = 0;
-        lastEnemiesAllDead = false;
-        lastDeckNames = [];
-        lastRelicNames = [];
-        lastCombatEnemyName = null;
-        bossesFought = new Set();
+          // Clear all evaluation state for the new run
+          listenerApi.dispatch(allEvalsCleared());
 
-        console.log("[RunAnalytics] New run started:", newRunId, character);
+          // Reset closure tracking
+          runActive = true;
+          lastWasBoss = false;
+          lastFloor = 0;
+          lastAct = 1;
+          lastPlayerHp = 0;
+          lastEnemiesAllDead = false;
+          lastDeckNames = [];
+          lastRelicNames = [];
+          lastCombatEnemyName = null;
+          bossesFought = new Set();
+
+          console.log("[RunAnalytics] New run started:", newRunId, character);
+        }
       }
 
       // --- Detect run end ---
@@ -258,6 +282,7 @@ export function setupRunAnalyticsListener() {
           currentStateType: "menu",
           lastWasBoss,
           lastEnemiesAllDead,
+          lastAct,
           eventId: null,
           eventName: null,
           overlayScreenType: null,

@@ -7,7 +7,7 @@ import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { selectRecommendedPath } from "../../features/run/runSelectors";
 import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
 import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
-import type { MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { computeMapEvalKey, type MapPathEvaluation } from "../../lib/eval-inputs/map";
 import { NODE_TYPE_ICONS, NODE_SVG_LABELS } from "./map-scoring";
 import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
@@ -67,12 +67,16 @@ const REC_BORDER: Record<string, string> = {
 const selectMapResult = selectEvalResult<MapPathEvaluation>("map");
 const selectMapLoading = selectEvalIsLoading("map");
 const selectMapError = selectEvalError("map");
+// Direct selector — avoids RTK slice selector scoping issues in tests
+const selectMapEvalKey = (state: { evaluation: { evals: { map: { evalKey: string } } } }) =>
+  state.evaluation.evals.map.evalKey;
 
 export function MapView({ state }: MapViewProps) {
   const dispatch = useAppDispatch();
   const evaluation = useAppSelector(selectMapResult);
   const isLoading = useAppSelector(selectMapLoading);
   const error = useAppSelector(selectMapError);
+  const storedEvalKey = useAppSelector(selectMapEvalKey);
   const { nodes, current_position, visited, next_options, boss } = state.map;
 
   const maxRow = useMemo(
@@ -96,6 +100,15 @@ export function MapView({ state }: MapViewProps) {
     [next_options]
   );
 
+  // Check whether the stored evaluation corresponds to the current options.
+  // After the player moves, rankings become stale (they reference the previous
+  // position's options). Using evalKey comparison is robust — it catches same-
+  // count forks with different coordinates.
+  const evalMatchesCurrentOptions = useMemo(() => {
+    if (!storedEvalKey || !evaluation?.rankings.length) return false;
+    return computeMapEvalKey(next_options) === storedEvalKey;
+  }, [storedEvalKey, evaluation, next_options]);
+
   const bestOptionIndex = useMemo(() => {
     if (!evaluation?.rankings.length) return null;
     const tierOrder = ["S", "A", "B", "C", "D", "F"];
@@ -107,12 +120,6 @@ export function MapView({ state }: MapViewProps) {
     });
     return best.optionIndex;
   }, [evaluation]);
-
-  const bestOptionKey = useMemo(() => {
-    if (bestOptionIndex == null) return null;
-    const opt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-    return opt ? `${opt.col},${opt.row}` : null;
-  }, [bestOptionIndex, next_options]);
 
   // Recommended path from Redux — computed and persisted by mapListeners
   const recommendedPath = useAppSelector(selectRecommendedPath);
@@ -135,6 +142,22 @@ export function MapView({ state }: MapViewProps) {
     ),
     [recommendedPath, currentRow]
   );
+
+  // Derive best option: use evaluation rankings when fresh, fall back to
+  // the recommended path when stale (player moved since last eval).
+  const bestOptionKey = useMemo(() => {
+    if (bestOptionIndex != null && evalMatchesCurrentOptions) {
+      const opt = next_options.find((_, i) => i + 1 === bestOptionIndex);
+      if (opt) return `${opt.col},${opt.row}`;
+    }
+    // Fallback: find the next_option that lies on the recommended path
+    for (const opt of next_options) {
+      if (recommendedPathNodes.has(`${opt.col},${opt.row}`)) {
+        return `${opt.col},${opt.row}`;
+      }
+    }
+    return null;
+  }, [bestOptionIndex, evalMatchesCurrentOptions, next_options, recommendedPathNodes]);
 
   // Multiplayer voting
   const isMultiplayer = state.game_mode === "multiplayer";
@@ -311,8 +334,10 @@ export function MapView({ state }: MapViewProps) {
 
         {/* Path option cards */}
         {next_options.map((opt, i) => {
-          const evalData = evaluation?.rankings.find((r) => r.optionIndex === i + 1);
-          const isBest = bestOptionIndex === i + 1;
+          const evalData = evalMatchesCurrentOptions
+            ? evaluation?.rankings.find((r) => r.optionIndex === i + 1)
+            : undefined;
+          const isBest = bestOptionKey === `${opt.col},${opt.row}`;
 
           return (
             <div

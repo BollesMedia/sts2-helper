@@ -6,6 +6,7 @@ const base: RestContextInput = {
   maxHp: 86,
   floorsToNextBoss: 5,
   hasEliteAhead: false,
+  hasBossAhead: false,
   hasRestAhead: false,
   relicDescriptions: [],
   upgradeCandidates: ["Strike", "Bash", "True Grit"],
@@ -84,6 +85,21 @@ describe("buildRestContext", () => {
       const result = ctx({ floorsToNextBoss: 10 });
       expect(result.isBossNext).toBe(false);
       expect(result.isBossSoon).toBe(false);
+    });
+
+    it("isBossNext when hasBossAhead is true even with high floorsToNextBoss", () => {
+      const result = ctx({ floorsToNextBoss: 5, hasBossAhead: true });
+      expect(result.isBossNext).toBe(true);
+      expect(result.isBossSoon).toBe(true);
+    });
+
+    it("disables passive healing when hasBossAhead", () => {
+      const result = ctx({
+        floorsToNextBoss: 5,
+        hasBossAhead: true,
+        relicDescriptions: ["Burning Blood: At the end of combat, heal 6 HP"],
+      });
+      expect(result.effectivePassiveHeal).toBe(0);
     });
 
     it("disables passive healing when boss is next", () => {

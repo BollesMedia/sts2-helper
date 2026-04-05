@@ -60,7 +60,8 @@ export function setupRestSiteEvalListener() {
       const hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
       const missing = restPlayer.max_hp - restPlayer.hp;
       const hasEliteAhead = mapCtx?.hasEliteAhead ?? false;
-      const hasBossNear = bossDistance <= 3;
+      const hasBossAhead = mapCtx?.hasBossAhead ?? false;
+      const hasBossNear = bossDistance <= 3 || hasBossAhead;
 
       const preResult = preEvalRestWeights(
         hpPercent,
@@ -99,6 +100,7 @@ export function setupRestSiteEvalListener() {
           maxHp: restPlayer.max_hp,
           floorsToNextBoss: bossDistance,
           hasEliteAhead,
+          hasBossAhead,
           hasRestAhead: mapCtx?.hasRestAhead ?? false,
           relicDescriptions: (ctx.relics ?? []).map((r) => `${r.name}: ${r.description}`),
           upgradeCandidates: (ctx.deckCards ?? [])
@@ -128,6 +130,7 @@ export function setupRestSiteEvalListener() {
           maxHp: restPlayer.max_hp,
           floorsToNextBoss: bossDistance,
           hasEliteAhead,
+          hasBossAhead,
           hasRestAhead: mapCtx?.hasRestAhead ?? false,
           relicDescriptions: (ctx.relics ?? []).map((r) => `${r.name}: ${r.description}`),
           upgradeCandidates: [],

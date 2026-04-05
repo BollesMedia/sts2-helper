@@ -30,6 +30,7 @@ export function buildRestSitePrompt(params: {
   maxHp: number;
   floorsToNextBoss: number;
   hasEliteAhead: boolean;
+  hasBossAhead: boolean;
   hasRestAhead: boolean;
   relicDescriptions: string[];
   upgradeCandidates: string[];
@@ -45,6 +46,7 @@ export function buildRestSitePrompt(params: {
     maxHp: params.maxHp,
     floorsToNextBoss: params.floorsToNextBoss,
     hasEliteAhead: params.hasEliteAhead,
+    hasBossAhead: params.hasBossAhead,
     hasRestAhead: params.hasRestAhead,
     relicDescriptions: params.relicDescriptions,
     upgradeCandidates: params.upgradeCandidates,

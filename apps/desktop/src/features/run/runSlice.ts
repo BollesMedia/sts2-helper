@@ -39,6 +39,7 @@ export interface MapContext {
   floorsToNextBoss: number;
   nextNodeTypes: string[];
   hasEliteAhead: boolean;
+  hasBossAhead: boolean;
   hasRestAhead: boolean;
   hasShopAhead: boolean;
 }

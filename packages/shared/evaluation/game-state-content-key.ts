@@ -13,7 +13,7 @@ export function computeGameStateContentKey(state: GameState): string {
       );
 
     case "card_reward":
-      return `${base}:${state.card_reward.cards.map((c) => c.id).sort().join(",")}`;
+      return `${base}:${state.card_reward.cards.map((c) => `${c.id}:${c.name}`).sort().join(",")}`;
 
     case "shop":
       return `${base}:${state.shop.items.map((i) => `${i.index}:${i.is_stocked}:${i.can_afford}`).sort().join(",")}`;
@@ -25,7 +25,7 @@ export function computeGameStateContentKey(state: GameState): string {
       return `${base}:${state.rest_site.options.map((o) => o.id).sort().join(",")}`;
 
     case "card_select":
-      return `${base}:${state.card_select.prompt}:${state.card_select.cards.map((c) => c.id).sort().join(",")}`;
+      return `${base}:${state.card_select.prompt}:${state.card_select.cards.map((c) => `${c.id}:${c.name}`).sort().join(",")}`;
 
     case "relic_select":
       return `${base}:${state.relic_select.relics.map((r) => r.id).sort().join(",")}`;

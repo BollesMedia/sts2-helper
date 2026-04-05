@@ -3,6 +3,7 @@ export interface RestContextInput {
   maxHp: number;
   floorsToNextBoss: number;
   hasEliteAhead: boolean;
+  hasBossAhead: boolean;
   hasRestAhead: boolean;
   relicDescriptions: string[];
   upgradeCandidates: string[];
@@ -33,6 +34,7 @@ export function buildRestContext(input: RestContextInput): RestContext {
     maxHp,
     floorsToNextBoss,
     hasEliteAhead,
+    hasBossAhead,
     hasRestAhead,
     relicDescriptions,
     upgradeCandidates,
@@ -53,8 +55,8 @@ export function buildRestContext(input: RestContextInput): RestContext {
     if (lower.includes("meat on the bone")) passiveHealPerCombat += 6;
   }
 
-  const isBossNext = floorsToNextBoss <= 1;
-  const isBossSoon = floorsToNextBoss <= 3;
+  const isBossNext = floorsToNextBoss <= 1 || hasBossAhead;
+  const isBossSoon = floorsToNextBoss <= 3 || hasBossAhead;
 
   // Boss is next floor → no combats before boss → passive healing irrelevant
   const effectivePassiveHeal = isBossNext ? 0 : passiveHealPerCombat;

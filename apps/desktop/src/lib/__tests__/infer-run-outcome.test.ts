@@ -5,6 +5,7 @@ const base: RunOutcomeInput = {
   currentStateType: "map",
   lastWasBoss: false,
   lastEnemiesAllDead: false,
+  lastAct: 1,
   eventId: null,
   eventName: null,
   overlayScreenType: null,
@@ -32,20 +33,40 @@ describe("inferRunOutcome", () => {
       })).toBe("victory");
     });
 
-    it("detects victory from boss combat rewards", () => {
+    it("detects victory from act 3 boss combat rewards", () => {
       expect(outcome({
         currentStateType: "combat_rewards",
         lastWasBoss: true,
         lastEnemiesAllDead: true,
+        lastAct: 3,
       })).toBe("victory");
     });
 
-    it("detects victory from boss with all enemies dead (direct)", () => {
+    it("does NOT detect victory from act 1 boss combat rewards", () => {
+      expect(outcome({
+        currentStateType: "combat_rewards",
+        lastWasBoss: true,
+        lastEnemiesAllDead: true,
+        lastAct: 1,
+      })).toBeNull();
+    });
+
+    it("does NOT detect victory from act 2 boss combat rewards", () => {
+      expect(outcome({
+        currentStateType: "combat_rewards",
+        lastWasBoss: true,
+        lastEnemiesAllDead: true,
+        lastAct: 2,
+      })).toBeNull();
+    });
+
+    it("does NOT detect victory from boss state alone", () => {
       expect(outcome({
         currentStateType: "boss",
         lastWasBoss: true,
         lastEnemiesAllDead: true,
-      })).toBe("victory");
+        lastAct: 3,
+      })).toBeNull();
     });
   });
 

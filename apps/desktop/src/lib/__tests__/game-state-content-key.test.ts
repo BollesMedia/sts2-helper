@@ -88,7 +88,7 @@ describe("computeGameStateContentKey", () => {
         run: { act: 1, floor: 2, ascension: 0 },
       } as unknown as GameState;
 
-      expect(computeGameStateContentKey(state)).toBe("card_reward:defend,strike");
+      expect(computeGameStateContentKey(state)).toBe("card_reward:defend:Defend,strike:Strike");
     });
 
     it("different content produces different keys", () => {
@@ -192,7 +192,7 @@ describe("computeGameStateContentKey", () => {
         run: { act: 1, floor: 9, ascension: 0 },
       } as unknown as GameState;
 
-      expect(computeGameStateContentKey(state)).toBe("card_select:Choose a card to upgrade:bash,strike");
+      expect(computeGameStateContentKey(state)).toBe("card_select:Choose a card to upgrade:bash:Bash,strike:Strike");
     });
   });
 

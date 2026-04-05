@@ -13,8 +13,8 @@ interface OfferedCard {
  * Compute the dedup key for a card reward evaluation.
  * Cards sorted by ID so order doesn't matter.
  */
-export function computeCardRewardEvalKey(cards: { id: string }[]): string {
-  return cards.map((c) => c.id).sort().join(",");
+export function computeCardRewardEvalKey(cards: { id: string; name: string }[]): string {
+  return cards.map((c) => `${c.id}:${c.name}`).sort().join(",");
 }
 
 /**

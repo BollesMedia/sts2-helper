@@ -5,6 +5,8 @@ export interface RunOutcomeInput {
   lastWasBoss: boolean;
   /** Whether all enemies were dead in the last combat */
   lastEnemiesAllDead: boolean;
+  /** Current act number (1-3) */
+  lastAct: number;
   /** Event ID if current state is an event, null otherwise */
   eventId: string | null;
   /** Event name if current state is an event, null otherwise */
@@ -37,6 +39,7 @@ export function inferRunOutcome(input: RunOutcomeInput): RunOutcome {
     currentStateType,
     lastWasBoss,
     lastEnemiesAllDead,
+    lastAct,
     eventId,
     eventName,
     overlayScreenType,
@@ -58,17 +61,15 @@ export function inferRunOutcome(input: RunOutcomeInput): RunOutcome {
     if (isArchitect) return "victory";
   }
 
-  // Boss combat → combat_rewards with all enemies dead = victory
+  // Final boss combat → combat_rewards with all enemies dead = victory
   if (
     currentStateType === "combat_rewards" &&
     lastWasBoss &&
-    lastEnemiesAllDead
+    lastEnemiesAllDead &&
+    lastAct >= 3
   ) {
     return "victory";
   }
-
-  // Boss combat with all enemies dead (direct check)
-  if (lastWasBoss && lastEnemiesAllDead) return "victory";
 
   return null;
 }
