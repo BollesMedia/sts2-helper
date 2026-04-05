@@ -9,6 +9,7 @@ import {
   getScalingSources,
 } from "./archetype-detector";
 import { computeDeckMaturity } from "./deck-maturity";
+import { validateEvaluationContext } from "./context-validator";
 
 /**
  * Build an EvaluationContext from the current game state + tracked player/deck.
@@ -85,6 +86,19 @@ export function buildEvaluationContext(
   };
 
   partialCtx.deckMaturity = computeDeckMaturity(partialCtx);
+
+  const validation = validateEvaluationContext(partialCtx);
+  for (const w of validation.warnings) {
+    console.warn(`[EvalContext] ${w.field}: ${w.message} (got: ${JSON.stringify(w.actual)})`);
+  }
+  for (const e of validation.errors) {
+    console.error(`[EvalContext] ${e.field}: ${e.message} (got: ${JSON.stringify(e.actual)})`);
+  }
+
+  if (!validation.isValid) {
+    console.error("[EvalContext] Context validation failed — skipping evaluation");
+    return null;
+  }
 
   return partialCtx;
 }

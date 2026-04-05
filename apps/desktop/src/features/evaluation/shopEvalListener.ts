@@ -50,9 +50,11 @@ export function setupShopEvalListener() {
 
       const ctx = buildEvaluationContext(gameState, deckCards, player);
       if (!ctx) {
-        listenerApi.dispatch(evalFailed({ evalType: EVAL_TYPE, evalKey, error: "Could not build evaluation context" }));
+        listenerApi.dispatch(evalFailed({ evalType: EVAL_TYPE, evalKey, error: "Could not build evaluation context — see console for validation errors" }));
         return;
       }
+
+      console.log(`[ShopEval] context: ${ctx.character} Act${ctx.act} F${ctx.floor} deck=${ctx.deckSize} hp=${Math.round(ctx.hpPercent * 100)}% relics=${ctx.relics.length}`);
 
       const shopPlayer = getPlayer(shopState);
       const gold = shopPlayer?.gold ?? 0;

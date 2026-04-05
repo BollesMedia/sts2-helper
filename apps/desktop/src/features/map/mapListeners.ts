@@ -282,37 +282,49 @@ export function setupMapEvalListener() {
           currentRemovalCost: player?.cardRemovalCost ?? 75,
         };
 
-        const tracedPath = bestOpt
+        // Trace from the best option; fall back to first option if
+        // bestOpt is null (e.g., option_index mismatch from LLM).
+        const traceStart = bestOpt ?? options[0] ?? null;
+        const tracedPath = traceStart
           ? traceConstraintAwarePath({
-              startCol: bestOpt.col,
-              startRow: bestOpt.row,
+              startCol: traceStart.col,
+              startRow: traceStart.row,
               ...tracerInput,
             })
           : parsed.recommendedPath;
+
+        // Prepend the current position so the recommended path covers
+        // the full visual range from where the player is standing.
+        const currentPos = mapState.map?.current_position ?? null;
+        const fullPath = currentPos &&
+          (tracedPath.length === 0 || tracedPath[0].col !== currentPos.col || tracedPath[0].row !== currentPos.row)
+          ? [{ col: currentPos.col, row: currentPos.row }, ...tracedPath]
+          : tracedPath;
 
         // Build recommendedNodes from ALL options (for UI highlighting)
         const recommendedNodes = new Set<string>();
         for (const opt of options) {
           recommendedNodes.add(`${opt.col},${opt.row}`);
-          const fullPath = traceConstraintAwarePath({
+          const optPath = traceConstraintAwarePath({
             startCol: opt.col,
             startRow: opt.row,
             ...tracerInput,
           });
-          for (const p of fullPath) {
+          for (const p of optPath) {
             recommendedNodes.add(`${p.col},${p.row}`);
           }
         }
         for (const p of parsed.recommendedPath) {
           recommendedNodes.add(`${p.col},${p.row}`);
         }
-        for (const p of tracedPath) {
+        for (const p of fullPath) {
           recommendedNodes.add(`${p.col},${p.row}`);
         }
 
-        // Build bestPathNodes from ONLY the best option's path (for deviation detection)
+        // Build bestPathNodes from the full path (includes current position
+        // so the next poll sees isOnPath=true and doesn't spuriously re-trace)
         const bestPathNodes = new Set<string>();
-        for (const p of tracedPath) {
+        for (const p of fullPath) {
           bestPathNodes.add(`${p.col},${p.row}`);
         }
         for (const p of parsed.recommendedPath) {
@@ -321,7 +333,7 @@ export function setupMapEvalListener() {
 
         // Persist path + context + nodePreferences to Redux
         listenerApi.dispatch(mapEvalUpdated({
-          recommendedPath: tracedPath,
+          recommendedPath: fullPath,
           recommendedNodes: [...recommendedNodes],
           bestPathNodes: [...bestPathNodes],
           lastEvalContext: {

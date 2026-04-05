@@ -45,3 +45,4 @@ next-env.d.ts
 
 # symlinked env
 apps/web/.env.local
+.superpowers/
