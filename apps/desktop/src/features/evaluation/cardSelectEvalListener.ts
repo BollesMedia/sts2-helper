@@ -1,5 +1,5 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { evalStarted, evalSucceeded, evalFailed, evalRetryRequested } from "./evaluationSlice";
 import { selectEvalKey } from "./evaluationSelectors";
@@ -18,17 +18,17 @@ const EVAL_TYPE = "card_select" as const;
  */
 export function setupCardSelectEvalListener() {
   startAppListening({
-    predicate: (action, currentState, previousState) => {
+    predicate: (action, currentState) => {
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      if (current.data?.state_type !== "card_select" || current.data === previous.data) return false;
+      if (!gameStateReceived.match(action)) return false;
 
-      // Use shared subtype detection — only handle "card_select" (deck-pick) screens
+      const gs = selectCurrentGameState(currentState);
+      if (gs?.state_type !== "card_select") return false;
+
       const deckCards = currentState.run.runs[currentState.run.activeRunId ?? ""]?.deck ?? [];
       const subType = getCardSelectSubType(
-        current.data.card_select?.prompt,
-        current.data.card_select?.cards ?? [],
+        gs.card_select?.prompt,
+        gs.card_select?.cards ?? [],
         deckCards.map((c) => c.name)
       );
       return subType === "card_select";
@@ -38,7 +38,7 @@ export function setupCardSelectEvalListener() {
       listenerApi.cancelActiveListeners();
 
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState || gameState.state_type !== "card_select") return;
 
       const prompt = gameState.card_select.prompt ?? "";

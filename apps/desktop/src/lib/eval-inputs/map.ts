@@ -4,6 +4,15 @@ import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { NODE_TYPE_ICONS } from "../../views/map/map-scoring";
 
+export interface NodePreferences {
+  monster: number;
+  elite: number;
+  shop: number;
+  rest: number;
+  treasure: number;
+  event: number;
+}
+
 export interface MapPathEvaluation {
   rankings: {
     optionIndex: number;
@@ -15,6 +24,7 @@ export interface MapPathEvaluation {
   }[];
   overallAdvice: string | null;
   recommendedPath: { col: number; row: number }[];
+  nodePreferences: NodePreferences | null;
 }
 
 /**
@@ -23,6 +33,8 @@ export interface MapPathEvaluation {
 export function computeMapEvalKey(options: MapNextOption[]): string {
   return options.map((o) => `${o.col},${o.row}`).sort().join("|");
 }
+
+export { computeMapContentKey } from "@sts2/shared/evaluation/map-content-key";
 
 /**
  * Build the map evaluation prompt with tree visualization.

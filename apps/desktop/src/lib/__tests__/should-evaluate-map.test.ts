@@ -8,6 +8,9 @@ const stable: ShouldEvaluateMapInput = {
   actChanged: false,
   currentPosition: { col: 2, row: 5 },
   isOnRecommendedPath: true,
+  hpDropExceedsThreshold: false,
+  goldCrossedThreshold: false,
+  deckSizeChangedSignificantly: false,
 };
 
 function evaluate(overrides: Partial<ShouldEvaluateMapInput>) {
@@ -48,6 +51,12 @@ describe("shouldEvaluateMap", () => {
   describe("act changed", () => {
     it("returns true when act changed", () => {
       expect(evaluate({ actChanged: true })).toBe(true);
+    });
+
+    it("returns true when act changed even with prev context and on path", () => {
+      // Scenario: pre-eval dispatch set hasPrevContext=true and isOnRecommendedPath=true
+      // but the act changed (API failed on act transition) — must still re-evaluate
+      expect(evaluate({ actChanged: true, hasPrevContext: true, isOnRecommendedPath: true })).toBe(true);
     });
   });
 
@@ -94,6 +103,34 @@ describe("shouldEvaluateMap", () => {
 
     it("returns false with multiple options, on path, no changes", () => {
       expect(evaluate({ optionCount: 5 })).toBe(false);
+    });
+  });
+
+  describe("Tier 2: context change triggers", () => {
+    it("returns false when on-path even with HP drop (LLM planned for this)", () => {
+      expect(evaluate({ hpDropExceedsThreshold: true })).toBe(false);
+    });
+
+    it("returns false when on-path even with gold change (LLM planned for this)", () => {
+      expect(evaluate({ goldCrossedThreshold: true })).toBe(false);
+    });
+
+    it("returns false when on-path even with deck size change (LLM planned for this)", () => {
+      expect(evaluate({ deckSizeChangedSignificantly: true })).toBe(false);
+    });
+
+    it("returns true when deviated — context flags escalate to full re-eval in listener", () => {
+      // When off-path, shouldEvaluateMap returns true regardless of Tier 2 flags.
+      // The Tier 2 flags are consumed by mapListeners to decide Tier 1 vs Tier 2.
+      expect(evaluate({ isOnRecommendedPath: false, hpDropExceedsThreshold: true })).toBe(true);
+    });
+
+    it("returns false when context changes are below thresholds", () => {
+      expect(evaluate({
+        hpDropExceedsThreshold: false,
+        goldCrossedThreshold: false,
+        deckSizeChangedSignificantly: false,
+      })).toBe(false);
     });
   });
 });

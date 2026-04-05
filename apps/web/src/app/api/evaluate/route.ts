@@ -19,7 +19,7 @@ import {
 import { getStatisticalEvaluation } from "@sts2/shared/evaluation/statistical-evaluator";
 import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
-import { applyPostEvalWeights, buildWeightContext, adjustTier as adjustTierByDelta } from "@sts2/shared/evaluation/post-eval-weights";
+import { applyPostEvalWeights, buildWeightContext, adjustTier as adjustTierByDelta, reconcileSkipRecommended } from "@sts2/shared/evaluation/post-eval-weights";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
@@ -152,6 +152,7 @@ interface EvaluateRequest {
     cost?: number;
     type?: string;
     rarity?: string;
+    keywords?: string[];
   }[];
   mapPrompt?: string;
   runNarrative?: string | null;
@@ -186,12 +187,15 @@ export async function POST(request: Request) {
   const isMultiplayer = context?.isMultiplayer === true;
   const systemPrompt = buildSystemPrompt(evalType, isMultiplayer) + keywordGlossary;
 
-  // Enrich offered items with authoritative Supabase descriptions
+  // Enrich offered items with authoritative Supabase descriptions + keywords
   if (items) {
     for (const item of items) {
       const cached = enrichedCards.get(item.id);
       if (cached) {
         item.description = cached.description;
+        if (cached.keywords.length > 0) {
+          item.keywords = cached.keywords;
+        }
       }
     }
   }
@@ -448,7 +452,8 @@ export async function POST(request: Request) {
         const isDuplicate = deckCardNames.has(item.name.toLowerCase());
         const dupWarning = isDuplicate ? " [2nd copy — good if core engine piece, bad if mediocre]" : "";
         const saleTag = (item as Record<string, unknown>).on_sale ? " [SALE 50% OFF]" : "";
-        return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}${costUnit}` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""}${saleTag} — ${item.description}${dupWarning}`;
+        const kwTag = item.keywords?.length ? ` [${item.keywords.join(",")}]` : "";
+        return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}${costUnit}` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""}${kwTag}${saleTag} — ${item.description}${dupWarning}`;
       }
     )
     .join("\n");
@@ -608,6 +613,10 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
         }
       }
     }
+
+    // Reconcile skipRecommended with actual tiers — Claude can return
+    // contradictory data (A-tier card + skip_recommended: true)
+    reconcileSkipRecommended(evaluation);
 
     // Log evaluations async (don't block response)
     Promise.all(

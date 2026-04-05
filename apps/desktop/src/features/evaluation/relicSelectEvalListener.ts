@@ -1,5 +1,5 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { evalStarted, evalSucceeded, evalFailed, evalRetryRequested } from "./evaluationSlice";
 import { selectEvalKey } from "./evaluationSelectors";
@@ -18,18 +18,17 @@ const EVAL_TYPE = "relic_select" as const;
 
 export function setupRelicSelectEvalListener() {
   startAppListening({
-    predicate: (action, currentState, previousState) => {
+    predicate: (action, currentState) => {
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      return current.data?.state_type === "relic_select" && current.data !== previous.data;
+      if (!gameStateReceived.match(action)) return false;
+      return selectCurrentGameState(currentState)?.state_type === "relic_select";
     },
 
     effect: async (_action, listenerApi) => {
       listenerApi.cancelActiveListeners();
 
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState || gameState.state_type !== "relic_select") return;
 
       const relicState = gameState as RelicSelectState;

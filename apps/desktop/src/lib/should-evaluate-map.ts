@@ -9,6 +9,12 @@ export interface ShouldEvaluateMapInput {
   currentPosition: { col: number; row: number } | null;
   /** Whether the current position is in the set of recommended nodes */
   isOnRecommendedPath: boolean;
+  /** Tier 2: HP dropped more than 20% since last eval */
+  hpDropExceedsThreshold: boolean;
+  /** Tier 2: Gold crossed a meaningful viability boundary */
+  goldCrossedThreshold: boolean;
+  /** Tier 2: Deck size changed significantly (card added or removed) */
+  deckSizeChangedSignificantly: boolean;
 }
 
 /**
@@ -24,6 +30,9 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     actChanged,
     currentPosition,
     isOnRecommendedPath,
+    hpDropExceedsThreshold,
+    goldCrossedThreshold,
+    deckSizeChangedSignificantly,
   } = input;
 
   // Hard gate: no options at all — nothing to evaluate
@@ -45,6 +54,17 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   // Deviated from recommended path — re-evaluate (even with 1 option).
   // If position is null, we can't check deviation — treat as on-path.
   if (currentPosition && !isOnRecommendedPath) return true;
+
+  // Tier 2: Material context changes — only when OFF the recommended path.
+  // When on-path, the LLM already planned for expected combat costs along
+  // this route. Tier 2 only matters when the player deviated AND context
+  // shifted (the deviation check above already returns true for off-path,
+  // but the Tier 1 local re-trace in mapListeners may handle it without
+  // an API call — these flags tell shouldEvaluateMap to prefer a full
+  // re-eval over a local re-trace when context has materially changed).
+  // Note: these are unreachable when isOnRecommendedPath is false (line above
+  // already returned true), so they effectively only gate Tier 1 → Tier 2
+  // escalation in the listener. Kept here for clarity of the decision tree.
 
   // On recommended path with stable context — carry forward
   return false;

@@ -8,8 +8,11 @@ function shouldEval(overrides: Partial<MapEvalInputSources>) {
     optionCount: 3,
     currentPosition: { col: 2, row: 5 },
     act: 1,
-    prevContext: { hpPercent: 0.9, deckSize: 14, act: 1 },
+    prevContext: { hpPercent: 0.9, deckSize: 14, act: 1, gold: 100, ascension: 0 },
     recommendedNodes: new Set(["2,5", "3,6", "4,7", "2,8", "1,9"]),
+    currentHpPercent: 0.9,
+    currentGold: 100,
+    currentDeckSize: 14,
   };
   const input = buildMapEvalInput({ ...base, ...overrides });
   return { input, result: shouldEvaluateMap(input) };

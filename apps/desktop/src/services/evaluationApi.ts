@@ -178,6 +178,7 @@ export const evaluationApi = createApi({
             runId: args.runId,
             gameVersion: args.gameVersion,
           });
+          const rawPrefs = raw.node_preferences as Record<string, number> | undefined;
           const data: MapPathEvaluation = {
             rankings: ((raw.rankings as Array<Record<string, unknown>>) ?? []).map((r) => ({
               optionIndex: r.option_index as number,
@@ -191,6 +192,16 @@ export const evaluationApi = createApi({
             recommendedPath: Array.isArray(raw.recommended_path)
               ? (raw.recommended_path as Array<{ col: number; row: number }>).map((p) => ({ col: p.col, row: p.row }))
               : [],
+            nodePreferences: rawPrefs
+              ? {
+                  monster: rawPrefs.monster ?? 0.4,
+                  elite: rawPrefs.elite ?? 0.5,
+                  shop: rawPrefs.shop ?? 0.5,
+                  rest: rawPrefs.rest ?? 0.6,
+                  treasure: rawPrefs.treasure ?? 0.9,
+                  event: rawPrefs.event ?? 0.5,
+                }
+              : null,
           };
           return { data };
         } catch (err) {

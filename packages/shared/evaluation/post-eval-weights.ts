@@ -298,3 +298,27 @@ export function applyPostEvalWeights(
     applyShopWeights(evaluation, wctx, descs);
   }
 }
+
+/**
+ * Reconcile skipRecommended with actual ranking tiers.
+ *
+ * Claude can return contradictory data — e.g. an A-tier "strong_pick"
+ * alongside skip_recommended: true. Post-eval weights can also upgrade
+ * tiers without clearing the flag. Call this after all tier adjustments
+ * to ensure the flag agrees with the rankings.
+ *
+ * Threshold: B-tier or above with a non-skip recommendation.
+ */
+export function reconcileSkipRecommended(
+  evaluation: CardRewardEvaluation
+): void {
+  if (!evaluation.skipRecommended) return;
+
+  const hasWorthTaking = evaluation.rankings.some(
+    (r) => r.tierValue >= 4 && r.recommendation !== "skip"
+  );
+
+  if (hasWorthTaking) {
+    evaluation.skipRecommended = false;
+  }
+}

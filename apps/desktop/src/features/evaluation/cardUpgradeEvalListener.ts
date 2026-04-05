@@ -1,5 +1,5 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { evalStarted, evalSucceeded, evalFailed, evalRetryRequested } from "./evaluationSlice";
 import { selectEvalKey } from "./evaluationSelectors";
@@ -14,12 +14,13 @@ const EVAL_TYPE = "card_upgrade" as const;
 
 export function setupCardUpgradeEvalListener() {
   startAppListening({
-    predicate: (action, currentState, previousState) => {
+    predicate: (action, currentState) => {
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      if (current.data?.state_type !== "card_select" || current.data === previous.data) return false;
-      const prompt = current.data.card_select?.prompt?.toLowerCase() ?? "";
+      if (!gameStateReceived.match(action)) return false;
+
+      const gs = selectCurrentGameState(currentState);
+      if (gs?.state_type !== "card_select") return false;
+      const prompt = gs.card_select?.prompt?.toLowerCase() ?? "";
       return prompt.includes("upgrade") || prompt.includes("smith") || prompt.includes("enhance");
     },
 
@@ -27,7 +28,7 @@ export function setupCardUpgradeEvalListener() {
       listenerApi.cancelActiveListeners();
 
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState || gameState.state_type !== "card_select") return;
 
       const allCards = gameState.card_select.cards;

@@ -1,5 +1,5 @@
 import { startAppListening } from "../../store/listenerMiddleware";
-import { gameStateApi } from "../../services/gameStateApi";
+import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import {
   evalStarted,
@@ -34,28 +34,18 @@ const EVAL_TYPE = "card_reward" as const;
  */
 export function setupCardRewardEvalListener() {
   startAppListening({
-    predicate: (action, currentState, previousState) => {
-      // Retry requested
-      if (
-        evalRetryRequested.match(action) &&
-        action.payload === EVAL_TYPE
-      ) {
-        return true;
-      }
+    predicate: (action, currentState) => {
+      if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
+      if (!gameStateReceived.match(action)) return false;
 
-      // Game state changed to card_reward OR reward-style card_select
-      const current = gameStateApi.endpoints.getGameState.select()(currentState);
-      const previous = gameStateApi.endpoints.getGameState.select()(previousState);
-      if (current.data === previous.data) return false;
+      const gs = selectCurrentGameState(currentState);
+      if (gs?.state_type === "card_reward") return true;
 
-      if (current.data?.state_type === "card_reward") return true;
-
-      // Reward-style card_select: new cards offered (not from deck)
-      if (current.data?.state_type === "card_select") {
+      if (gs?.state_type === "card_select") {
         const deckCards = currentState.run.runs[currentState.run.activeRunId ?? ""]?.deck ?? [];
         const subType = getCardSelectSubType(
-          current.data.card_select?.prompt,
-          current.data.card_select?.cards ?? [],
+          gs.card_select?.prompt,
+          gs.card_select?.cards ?? [],
           deckCards.map((c) => c.name)
         );
         return subType === "card_reward";
@@ -68,7 +58,7 @@ export function setupCardRewardEvalListener() {
       listenerApi.cancelActiveListeners();
 
       const state = listenerApi.getState();
-      const gameState = gameStateApi.endpoints.getGameState.select()(state).data;
+      const gameState = selectCurrentGameState(state);
       if (!gameState) return;
 
       // Get cards from either card_reward or card_select
@@ -94,10 +84,12 @@ export function setupCardRewardEvalListener() {
       const ctx = buildEvaluationContext(gameState, deckCards, player);
       if (!ctx) {
         listenerApi.dispatch(
-          evalFailed({ evalType: EVAL_TYPE, evalKey, error: "Could not build evaluation context" })
+          evalFailed({ evalType: EVAL_TYPE, evalKey, error: "Could not build evaluation context — see console for validation errors" })
         );
         return;
       }
+
+      console.log(`[CardRewardEval] context: ${ctx.character} Act${ctx.act} F${ctx.floor} deck=${ctx.deckSize} hp=${Math.round(ctx.hpPercent * 100)}% relics=${ctx.relics.length}`);
 
       // Side effect: update run narrative
       updateFromContext(ctx);
