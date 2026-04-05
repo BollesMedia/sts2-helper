@@ -296,6 +296,7 @@ export const evaluationApi = createApi({
       choiceType: string;
       floor: number;
       act?: number;
+      sequence?: number;
       offeredItemIds: string[];
       chosenItemId: string | null;
       recommendedItemId?: string | null;
@@ -303,10 +304,36 @@ export const evaluationApi = createApi({
       wasFollowed?: boolean;
       rankingsSnapshot?: unknown;
       userId?: string | null;
+      gameContext?: unknown;
+      evalPending?: boolean;
     }>({
       async queryFn(args) {
         try {
           await apiFetch("/api/choice", {
+            method: "POST",
+            body: JSON.stringify(args),
+          });
+          return { data: undefined };
+        } catch (err) {
+          return { error: { status: "CUSTOM_ERROR", data: err instanceof Error ? err.message : "Failed" } };
+        }
+      },
+    }),
+
+    // Act path logging
+    logActPath: build.mutation<void, {
+      runId: string;
+      act: number;
+      recommendedPath: { col: number; row: number; nodeType: string }[];
+      actualPath: { col: number; row: number; nodeType: string }[];
+      nodePreferences?: unknown;
+      deviationCount: number;
+      deviationNodes: { col: number; row: number; recommended: string; actual: string }[];
+      contextAtStart?: unknown;
+    }>({
+      async queryFn(args) {
+        try {
+          await apiFetch("/api/act-path", {
             method: "POST",
             body: JSON.stringify(args),
           });
@@ -330,4 +357,5 @@ export const {
   useStartRunMutation,
   useEndRunMutation,
   useLogChoiceMutation,
+  useLogActPathMutation,
 } = evaluationApi;
