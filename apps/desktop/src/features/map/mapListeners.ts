@@ -451,10 +451,12 @@ export function setupMapEvalListener() {
         const activeRunId = state.run.activeRunId;
         const pendingMapNode = getPendingChoice(floor, "map_node");
         if (pendingMapNode && activeRunId) {
+          // Use col,row format to match the original choice log's recommendedItemId
+          const recommendedNodeId = bestOpt ? `${bestOpt.col},${bestOpt.row}` : null;
           const backfill = buildBackfillPayload(
             activeRunId,
             {
-              recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
+              recommendedId: recommendedNodeId,
               recommendedTier: parsed.rankings?.[0]?.tier ?? null,
               allRankings: (parsed.rankings ?? []).map((r) => ({
                 itemId: r.nodeType,
