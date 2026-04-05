@@ -18,6 +18,10 @@ import {
 import { clearEvaluationRegistry } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { inferRunOutcome } from "../../lib/infer-run-outcome";
+import { getActPath, clearAllActPaths } from "@sts2/shared/choice-detection/act-path-tracker";
+import { buildActPathRecord } from "@sts2/shared/choice-detection/build-act-path-record";
+import { clearAllPendingChoices } from "@sts2/shared/choice-detection/pending-choice-registry";
+import type { MapEvalState, RunData } from "./runSlice";
 
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -53,6 +57,47 @@ export function setupRunAnalyticsListener() {
   let lastDeckNames: string[] = [];
   let lastRelicNames: string[] = [];
   let bossesFought = new Set<string>();
+  let prevAct: number | null = null;
+
+  function flushActPath(
+    actNumber: number,
+    runId: string,
+    runData: RunData,
+    dispatch: (action: unknown) => unknown
+  ) {
+    const actualPath = getActPath(actNumber);
+    if (actualPath.length === 0) return;
+
+    const recommendedPath = runData.mapEval.recommendedPath.map((p) => ({
+      ...p,
+      nodeType: "unknown",
+    }));
+
+    const record = buildActPathRecord(actNumber, recommendedPath, actualPath);
+
+    waitForRunCreated()
+      .then(() => {
+        dispatch(
+          evaluationApi.endpoints.logActPath.initiate({
+            runId,
+            act: record.act,
+            recommendedPath: record.recommendedPath,
+            actualPath: record.actualPath,
+            nodePreferences: runData.mapEval.nodePreferences,
+            deviationCount: record.deviationCount,
+            deviationNodes: record.deviationNodes,
+            contextAtStart: {
+              hpPercent: runData.player?.maxHp ? runData.player.hp / runData.player.maxHp : 1,
+              gold: runData.player?.gold ?? 0,
+              deckSize: runData.deck.length,
+              character: runData.character,
+              ascension: runData.ascension,
+            },
+          })
+        );
+      })
+      .catch(console.error);
+  }
 
   startAppListening({
     matcher: gameStateApi.endpoints.getGameState.matchFulfilled,
@@ -66,7 +111,17 @@ export function setupRunAnalyticsListener() {
 
       if (hasRun(gameState)) {
         lastFloor = gameState.run.floor;
-        lastAct = gameState.run.act;
+        const currentAct = gameState.run.act;
+
+        // Flush previous act's path on act change
+        if (prevAct !== null && currentAct !== prevAct && activeRunId) {
+          const runData = state.run.runs[activeRunId];
+          if (runData) {
+            flushActPath(prevAct, activeRunId, runData, listenerApi.dispatch);
+          }
+        }
+        prevAct = currentAct;
+        lastAct = currentAct;
       }
 
       // Combat tracking
@@ -158,9 +213,16 @@ export function setupRunAnalyticsListener() {
           );
 
           console.log("[RunAnalytics] Victory:", activeRunId, `floor ${lastFloor}`);
+          if (prevAct !== null) {
+            const runData = state.run.runs[activeRunId];
+            if (runData) flushActPath(prevAct, activeRunId, runData, listenerApi.dispatch);
+          }
+          clearAllActPaths();
+          clearAllPendingChoices();
           clearNarrative();
           clearEvaluationRegistry();
           runActive = false;
+          prevAct = null;
         }
 
         if (outcomeResult === "defeat") {
@@ -186,9 +248,16 @@ export function setupRunAnalyticsListener() {
           );
 
           console.log("[RunAnalytics] Defeat:", activeRunId, `floor ${lastFloor}`, lastCombatEnemyName ? `killed by ${lastCombatEnemyName}` : "");
+          if (prevAct !== null) {
+            const runData = state.run.runs[activeRunId];
+            if (runData) flushActPath(prevAct, activeRunId, runData, listenerApi.dispatch);
+          }
+          clearAllActPaths();
+          clearAllPendingChoices();
           clearNarrative();
           clearEvaluationRegistry();
           runActive = false;
+          prevAct = null;
         }
       }
 
@@ -264,6 +333,9 @@ export function setupRunAnalyticsListener() {
           lastRelicNames = [];
           lastCombatEnemyName = null;
           bossesFought = new Set();
+          clearAllActPaths();
+          clearAllPendingChoices();
+          prevAct = null;
 
           console.log("[RunAnalytics] New run started:", newRunId, character);
         }
@@ -338,9 +410,16 @@ export function setupRunAnalyticsListener() {
           );
         }
 
+        if (prevAct !== null && endRunId) {
+          const runData = state.run.runs[endRunId];
+          if (runData) flushActPath(prevAct, endRunId, runData, listenerApi.dispatch);
+        }
+        clearAllActPaths();
+        clearAllPendingChoices();
         clearNarrative();
         clearEvaluationRegistry();
         runActive = false;
+        prevAct = null;
       }
 
       prevStateType = currentType;
