@@ -13,7 +13,7 @@ import { selectEvalKey } from "../evaluation/evaluationSelectors";
 import { selectActiveDeck, selectActivePlayer } from "../run/runSelectors";
 import type { MapState } from "@sts2/shared/types/game-state";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
-import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
+import { getPromptContext, updateFromContext, appendDecision } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
 import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
@@ -21,6 +21,13 @@ import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { traceConstraintAwarePath } from "../../views/map/constraint-aware-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
+import { detectMapNodeOutcome } from "@sts2/shared/choice-detection/detect-map-node-outcome";
+import { appendNode as appendActNode } from "@sts2/shared/choice-detection/act-path-tracker";
+import { registerPendingChoice } from "@sts2/shared/choice-detection/pending-choice-registry";
+import type { MapNode as ChoiceMapNode } from "@sts2/shared/choice-detection/types";
+import { getUserId } from "@sts2/shared/lib/get-user-id";
+import { waitForRunCreated } from "../run/runAnalyticsListener";
+import { getLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 
 const EVAL_TYPE = "map" as const;
 
@@ -36,6 +43,8 @@ const EVAL_TYPE = "map" as const;
  * Tier 2 deviation (HP/gold/deck changed) triggers a full re-evaluation.
  */
 export function setupMapEvalListener() {
+  let prevMapPosition: { col: number; row: number } | null = null;
+
   startAppListening({
     predicate: (action, currentState) => {
       if (evalRetryRequested.match(action) && action.payload === EVAL_TYPE) return true;
@@ -88,6 +97,84 @@ export function setupMapEvalListener() {
         const deckSizeChangedSignificantly = prevContext
           ? Math.abs(prevContext.deckSize - currentDeckSize) >= 2
           : false;
+
+        // --- Map node choice logging ---
+        if (currentPos && prevMapPosition &&
+            (currentPos.col !== prevMapPosition.col || currentPos.row !== prevMapPosition.row)) {
+          const optionsWithTypes: ChoiceMapNode[] = options.map((o) => ({
+            col: o.col,
+            row: o.row,
+            nodeType: o.type,
+          }));
+
+          const recommendedNext = optionsWithTypes.find((o) =>
+            bestPathNodes.has(`${o.col},${o.row}`)
+          ) ?? null;
+
+          const mapOutcome = detectMapNodeOutcome({
+            previousPosition: prevMapPosition,
+            currentPosition: currentPos,
+            recommendedNextNode: recommendedNext,
+            nextOptions: optionsWithTypes,
+          });
+
+          if (mapOutcome) {
+            appendActNode(run.act, mapOutcome.chosenNode);
+
+            const lastEval = getLastEvaluation("map");
+            const isEvalPending = !lastEval;
+
+            waitForRunCreated()
+              .then(() => {
+                listenerApi.dispatch(
+                  evaluationApi.endpoints.logChoice.initiate({
+                    runId: state.run.activeRunId,
+                    choiceType: "map_node",
+                    floor: run.floor,
+                    act: run.act,
+                    sequence: 0,
+                    offeredItemIds: optionsWithTypes.map((o) => `${o.col},${o.row}`),
+                    chosenItemId: `${mapOutcome.chosenNode.col},${mapOutcome.chosenNode.row}`,
+                    recommendedItemId: mapOutcome.recommendedNode
+                      ? `${mapOutcome.recommendedNode.col},${mapOutcome.recommendedNode.row}`
+                      : null,
+                    recommendedTier: lastEval?.recommendedTier ?? null,
+                    wasFollowed: mapOutcome.wasFollowed,
+                    rankingsSnapshot: lastEval?.allRankings ?? null,
+                    gameContext: {
+                      hpPercent: currentHp,
+                      gold: currentGold,
+                      deckSize: currentDeckSize,
+                      ascension: run.ascension,
+                      act: run.act,
+                      character: run.character,
+                    },
+                    evalPending: isEvalPending,
+                    userId: getUserId(),
+                  })
+                );
+              })
+              .catch(console.error);
+
+            if (isEvalPending) {
+              registerPendingChoice(
+                run.floor,
+                "map_node",
+                `${mapOutcome.chosenNode.col},${mapOutcome.chosenNode.row}`,
+                0
+              );
+            }
+
+            appendDecision({
+              floor: run.floor,
+              type: "map",
+              chosen: mapOutcome.chosenNode.nodeType,
+              advise: mapOutcome.recommendedNode?.nodeType ?? null,
+              aligned: mapOutcome.wasFollowed,
+            });
+          }
+        }
+        prevMapPosition = currentPos;
 
         const input = {
           optionCount: options.length,
