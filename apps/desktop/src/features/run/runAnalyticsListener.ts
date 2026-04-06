@@ -22,6 +22,7 @@ import { getActPath, clearAllActPaths } from "@sts2/shared/choice-detection/act-
 import { buildActPathRecord } from "@sts2/shared/choice-detection/build-act-path-record";
 import { clearAllPendingChoices } from "@sts2/shared/choice-detection/pending-choice-registry";
 import { shouldResumeRun } from "./should-resume-run";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 import type { MapEvalState, RunData } from "./runSlice";
 
 function generateRunId(): string {
@@ -229,6 +230,15 @@ export function setupRunAnalyticsListener() {
           clearAllPendingChoices();
           clearNarrative();
           clearEvaluationRegistry();
+          logDevEvent("run", "ended", {
+            runId: activeRunId,
+            outcome: "victory",
+            finalFloor: lastFloor,
+            actReached: lastAct,
+            bossesFought: bossesFought.size > 0 ? [...bossesFought] : [],
+            finalDeckSize: lastDeckNames.length,
+          });
+          logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "run_ended");
           runActive = false;
           prevAct = null;
         }
@@ -264,6 +274,16 @@ export function setupRunAnalyticsListener() {
           clearAllPendingChoices();
           clearNarrative();
           clearEvaluationRegistry();
+          logDevEvent("run", "ended", {
+            runId: activeRunId,
+            outcome: "defeat",
+            finalFloor: lastFloor,
+            actReached: lastAct,
+            causeOfDeath: lastCombatEnemyName,
+            bossesFought: bossesFought.size > 0 ? [...bossesFought] : [],
+            finalDeckSize: lastDeckNames.length,
+          });
+          logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "run_ended");
           runActive = false;
           prevAct = null;
         }
@@ -296,6 +316,20 @@ export function setupRunAnalyticsListener() {
         });
         isFirstRunTransition = false;
 
+        logDevEvent("run", "resume_decision", {
+          input: {
+            isFirstRunTransition: true, // logged with the input value, not the post-flip
+            existingRunId,
+            existingRunCharacter: existingRun?.character ?? null,
+            existingRunDeckLen: existingRun?.deck.length ?? 0,
+            character,
+            ascension,
+            currentFloor,
+            currentAct,
+          },
+          canResume,
+        });
+
         if (canResume && existingRun && existingRunId) {
           // Resume persisted run — restore closure state from persisted data
           runActive = true;
@@ -313,6 +347,14 @@ export function setupRunAnalyticsListener() {
           listenerApi.dispatch(
             runStarted({ runId: newRunId, character, ascension, gameMode })
           );
+
+          logDevEvent("run", "started", {
+            runId: newRunId,
+            character,
+            ascension,
+            gameMode,
+          });
+          logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "run_started");
 
           // Persist to API
           runCreatedPromise = listenerApi
@@ -434,6 +476,13 @@ export function setupRunAnalyticsListener() {
         clearAllPendingChoices();
         clearNarrative();
         clearEvaluationRegistry();
+        logDevEvent("run", "ended", {
+          runId: endRunId,
+          outcome: "menu_transition",
+          inferredVictory: victory,
+          finalFloor: lastFloor,
+        });
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "run_ended");
         runActive = false;
         prevAct = null;
       }
