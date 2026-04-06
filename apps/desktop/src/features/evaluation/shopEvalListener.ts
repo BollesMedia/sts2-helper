@@ -16,6 +16,7 @@ import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { computeShopEvalKey, buildShopRequest } from "../../lib/eval-inputs/shop";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "shop" as const;
 
@@ -68,20 +69,27 @@ export function setupShopEvalListener() {
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
 
       try {
+        const shopRequest = buildShopRequest({
+          context: ctx,
+          items: shopState.shop.items,
+          gold,
+          runId,
+          userId: getUserId(),
+          runNarrative: getPromptContext(),
+        });
+
+        logDevEvent("eval", "shop_api_request", {
+          context: ctx,
+          mapPrompt: shopRequest,
+        });
+
         const data = await listenerApi
           .dispatch(
-            evaluationApi.endpoints.evaluateShop.initiate(
-              buildShopRequest({
-                context: ctx,
-                items: shopState.shop.items,
-                gold,
-                runId,
-                userId: getUserId(),
-                runNarrative: getPromptContext(),
-              })
-            )
+            evaluationApi.endpoints.evaluateShop.initiate(shopRequest)
           )
           .unwrap();
+
+        logDevEvent("eval", "shop_api_response", data);
 
         registerLastEvaluation("shop", {
           recommendedId: data.rankings?.[0]?.itemId ?? null,
@@ -97,6 +105,7 @@ export function setupShopEvalListener() {
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: data }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_shop_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,

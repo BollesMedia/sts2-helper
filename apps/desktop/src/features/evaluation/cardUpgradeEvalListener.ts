@@ -9,6 +9,7 @@ import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run
 import { matchRecommendation } from "../../lib/match-recommendation";
 import { computeCardUpgradeEvalKey, buildCardUpgradePrompt } from "../../lib/eval-inputs/card-upgrade";
 import { fetchUpgradeData } from "../../lib/upgrade-lookup";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "card_upgrade" as const;
 
@@ -55,6 +56,12 @@ export function setupCardUpgradeEvalListener() {
           eligibleCards: eligible,
           alreadyUpgraded,
         });
+
+        logDevEvent("eval", "card_upgrade_api_request", {
+          context: ctx,
+          mapPrompt,
+        });
+
         const raw = await listenerApi
           .dispatch(evaluationApi.endpoints.evaluateGeneric.initiate({
             evalType: "card_upgrade",
@@ -66,6 +73,8 @@ export function setupCardUpgradeEvalListener() {
           }))
           .unwrap();
 
+        logDevEvent("eval", "card_upgrade_api_response", raw);
+
         const cardName = raw.card_name as string | undefined;
         const eligibleNames = eligible.map((c) => c.name);
         const matched = cardName ? matchRecommendation(cardName, eligibleNames) : null;
@@ -75,6 +84,7 @@ export function setupCardUpgradeEvalListener() {
           evalKey,
           result: matched ? { cardName: matched, reasoning: (raw.reasoning as string) ?? "" } : null,
         }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_card_upgrade_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,

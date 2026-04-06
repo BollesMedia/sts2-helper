@@ -21,6 +21,7 @@ import {
   buildRestSitePrompt,
   parseRestSiteResponse,
 } from "../../lib/eval-inputs/rest-site";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "rest_site" as const;
 
@@ -109,6 +110,11 @@ export function setupRestSiteEvalListener() {
           options,
         });
 
+        logDevEvent("eval", "rest_site_api_request", {
+          context: ctx,
+          mapPrompt,
+        });
+
         const raw = await listenerApi
           .dispatch(
             evaluationApi.endpoints.evaluateRestSite.initiate({
@@ -121,6 +127,8 @@ export function setupRestSiteEvalListener() {
             })
           )
           .unwrap();
+
+        logDevEvent("eval", "rest_site_api_response", raw);
 
         const evaluation = parseRestSiteResponse(raw, options);
 
@@ -151,6 +159,7 @@ export function setupRestSiteEvalListener() {
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: evaluation }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_rest_site_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,

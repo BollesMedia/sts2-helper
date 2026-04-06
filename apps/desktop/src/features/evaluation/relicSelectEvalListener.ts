@@ -13,6 +13,7 @@ import {
   buildRelicSelectPrompt,
   parseRelicSelectResponse,
 } from "../../lib/eval-inputs/relic-select";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "relic_select" as const;
 
@@ -52,6 +53,11 @@ export function setupRelicSelectEvalListener() {
           relics,
         });
 
+        logDevEvent("eval", "relic_select_api_request", {
+          context: ctx,
+          mapPrompt,
+        });
+
         const raw = await listenerApi
           .dispatch(evaluationApi.endpoints.evaluateGeneric.initiate({
             evalType: "relic_select",
@@ -62,6 +68,8 @@ export function setupRelicSelectEvalListener() {
             gameVersion: null,
           }))
           .unwrap();
+
+        logDevEvent("eval", "relic_select_api_response", raw);
 
         const evaluation = parseRelicSelectResponse(raw, relics);
 
@@ -82,6 +90,7 @@ export function setupRelicSelectEvalListener() {
         }
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: evaluation }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_relic_select_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,

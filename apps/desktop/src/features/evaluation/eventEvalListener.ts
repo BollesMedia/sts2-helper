@@ -20,6 +20,7 @@ import {
   buildEventPrompt,
   parseEventResponse,
 } from "../../lib/eval-inputs/event";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "event" as const;
 
@@ -76,6 +77,11 @@ export function setupEventEvalListener() {
           runNarrative: getPromptContext(),
         });
 
+        logDevEvent("eval", "event_api_request", {
+          context: ctx,
+          mapPrompt,
+        });
+
         const raw = await listenerApi
           .dispatch(
             evaluationApi.endpoints.evaluateEvent.initiate({
@@ -88,6 +94,8 @@ export function setupEventEvalListener() {
             })
           )
           .unwrap();
+
+        logDevEvent("eval", "event_api_response", raw);
 
         const evaluation = parseEventResponse(raw, options);
 
@@ -105,6 +113,7 @@ export function setupEventEvalListener() {
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: evaluation }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_event_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,

@@ -22,6 +22,7 @@ import {
 } from "../../lib/eval-inputs/card-reward";
 import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
 import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "card_reward" as const;
 
@@ -99,20 +100,27 @@ export function setupCardRewardEvalListener() {
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
 
       try {
+        const cardRewardRequest = buildCardRewardRequest({
+          context: ctx,
+          cards,
+          exclusive: true,
+          runId,
+          userId: getUserId(),
+          runNarrative: getPromptContext(),
+        });
+
+        logDevEvent("eval", "card_reward_api_request", {
+          context: ctx,
+          mapPrompt: cardRewardRequest,
+        });
+
         const data = await listenerApi
           .dispatch(
-            evaluationApi.endpoints.evaluateCardReward.initiate(
-              buildCardRewardRequest({
-                context: ctx,
-                cards,
-                exclusive: true,
-                runId,
-                userId: getUserId(),
-                runNarrative: getPromptContext(),
-              })
-            )
+            evaluationApi.endpoints.evaluateCardReward.initiate(cardRewardRequest)
           )
           .unwrap();
+
+        logDevEvent("eval", "card_reward_api_response", data);
 
         // Side effect: register for choice tracker
         const firstRanking = data.rankings?.[0];
@@ -162,6 +170,7 @@ export function setupCardRewardEvalListener() {
         listenerApi.dispatch(
           evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: data })
         );
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_card_reward_eval");
       } catch (err) {
         listenerApi.dispatch(
           evalFailed({

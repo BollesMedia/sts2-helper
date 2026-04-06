@@ -8,6 +8,7 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { matchRecommendation } from "../../lib/match-recommendation";
 import { computeCardRemovalEvalKey, buildCardRemovalPrompt } from "../../lib/eval-inputs/card-removal";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "card_removal" as const;
 
@@ -48,6 +49,12 @@ export function setupCardRemovalEvalListener() {
 
       try {
         const mapPrompt = buildCardRemovalPrompt({ context: ctx, cards });
+
+        logDevEvent("eval", "card_removal_api_request", {
+          context: ctx,
+          mapPrompt,
+        });
+
         const raw = await listenerApi
           .dispatch(evaluationApi.endpoints.evaluateGeneric.initiate({
             evalType: "card_removal",
@@ -59,6 +66,8 @@ export function setupCardRemovalEvalListener() {
           }))
           .unwrap();
 
+        logDevEvent("eval", "card_removal_api_response", raw);
+
         const cardName = raw.card_name as string | undefined;
         const eligibleNames = cards.map((c) => c.name);
         const matched = cardName ? matchRecommendation(cardName, eligibleNames) : null;
@@ -68,6 +77,7 @@ export function setupCardRemovalEvalListener() {
           evalKey,
           result: matched ? { cardName: matched, reasoning: (raw.reasoning as string) ?? "" } : null,
         }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_card_removal_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,

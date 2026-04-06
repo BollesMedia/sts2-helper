@@ -9,6 +9,7 @@ import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run
 import { matchRecommendation } from "../../lib/match-recommendation";
 import { computeCardSelectEvalKey, buildCardSelectPrompt } from "../../lib/eval-inputs/card-select";
 import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "card_select" as const;
 
@@ -57,6 +58,12 @@ export function setupCardSelectEvalListener() {
 
       try {
         const mapPrompt = buildCardSelectPrompt({ context: ctx, prompt, cards });
+
+        logDevEvent("eval", "card_select_api_request", {
+          context: ctx,
+          mapPrompt,
+        });
+
         const raw = await listenerApi
           .dispatch(evaluationApi.endpoints.evaluateGeneric.initiate({
             evalType: "card_select",
@@ -68,6 +75,8 @@ export function setupCardSelectEvalListener() {
           }))
           .unwrap();
 
+        logDevEvent("eval", "card_select_api_response", raw);
+
         const cardName = raw.card_name as string | undefined;
         const eligibleNames = cards.map((c) => c.name);
         const matched = cardName ? matchRecommendation(cardName, eligibleNames) : null;
@@ -77,6 +86,7 @@ export function setupCardSelectEvalListener() {
           evalKey,
           result: matched ? { cardName: matched, reasoning: (raw.reasoning as string) ?? "" } : null,
         }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_card_select_eval");
       } catch (err) {
         listenerApi.dispatch(evalFailed({
           evalType: EVAL_TYPE,
