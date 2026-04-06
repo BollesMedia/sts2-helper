@@ -286,7 +286,7 @@ export async function POST(request: Request) {
 
     // Select tool schema based on eval type
     const isMapEval = evalType === "map";
-    const isSimpleEval = evalType === "card_removal" || evalType === "card_upgrade";
+    const isSimpleEval = evalType === "card_removal" || evalType === "card_upgrade" || evalType === "card_select";
     const toolSchema = isMapEval
       ? buildMapToolSchema(body.mapPrompt.match(/Option \d+/g)?.length ?? 3)
       : isSimpleEval

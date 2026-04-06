@@ -28,11 +28,5 @@ ${cardList}
 Choose the card that benefits MOST from this effect given the current archetype and win condition.
 Prioritize: key engine cards > most-played cards > highest-impact cards.
 
-Respond as JSON:
-{
-  "card_name": "exact card name",
-  "reasoning": "under 20 words",
-  "overall_advice": null,
-  "rankings": []
-}`;
+Return your single pick via the submit_recommendation tool with the exact card name and under-20-words reasoning.`;
 }
