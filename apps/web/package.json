@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.67",
-    "@anthropic-ai/sdk": "^0.80.0",
     "@sts2/shared": "*",
     "@supabase/supabase-js": "^2.100.1",
     "ai": "^6.0.148",
