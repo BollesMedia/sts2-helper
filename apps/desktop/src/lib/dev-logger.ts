@@ -262,6 +262,14 @@ export async function initDevLogger(): Promise<void> {
     scheduleFlush();
   }
 
+  // Best-effort flush on window unload so the last few events make it
+  // to disk before the Tauri webview closes.
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", () => {
+      void flushDevLogger();
+    });
+  }
+
   // eslint-disable-next-line no-console
   console.info(`[dev-logger] Session file: ${sessionPath}`);
 }

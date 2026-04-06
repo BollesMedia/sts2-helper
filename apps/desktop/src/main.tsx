@@ -11,6 +11,7 @@ import { ErrorBoundary } from "./components/error-boundary";
 import { initSharedConfig } from "@sts2/shared/lib/init";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
 import { reportError, initErrorReporter } from "@sts2/shared/lib/error-reporter";
+import { initDevLogger, logDevEvent } from "./lib/dev-logger";
 import { createClient } from "@sts2/shared/supabase/client";
 
 // Initialize Sentry for crash reporting
@@ -29,6 +30,12 @@ initErrorReporter({
   setTag: (key, value) => Sentry.setTag(key, value),
   setUser: (user) => Sentry.setUser(user),
 });
+
+if (import.meta.env.DEV) {
+  initDevLogger().catch((err) => {
+    console.error("[dev-logger] init failed", err);
+  });
+}
 
 // Configure shared package for desktop environment
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://sts2-helper.vercel.app";
@@ -71,10 +78,19 @@ window.onerror = (message, source, lineno, colno, error) => {
     source, lineno, colno,
     stack: error?.stack,
   });
+  logDevEvent("error", "unhandled_error", {
+    message: String(message),
+    source, lineno, colno,
+    stack: error?.stack,
+  });
 };
 
 window.addEventListener("unhandledrejection", (e) => {
   reportError("unhandled_rejection", e.reason?.message ?? String(e.reason), {
+    stack: e.reason?.stack,
+  });
+  logDevEvent("error", "unhandled_rejection", {
+    message: e.reason?.message ?? String(e.reason),
     stack: e.reason?.stack,
   });
 });
