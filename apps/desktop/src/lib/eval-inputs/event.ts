@@ -1,5 +1,6 @@
 import type { EventOption } from "@sts2/shared/types/game-state";
 import type { EvaluationContext, CardRewardEvaluation, CardEvaluation } from "@sts2/shared/evaluation/types";
+import type { GenericEvalRaw } from "@sts2/shared/evaluation/eval-schemas";
 import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { getRelicDescription } from "../../lib/relic-lookup";
@@ -77,14 +78,14 @@ Use item_id EVENT_1, EVENT_2, EVENT_3 matching the numbered options above.`;
 }
 
 /**
- * Parse the raw event eval response into CardRewardEvaluation.
+ * Parse the validated generic eval response into CardRewardEvaluation.
  * Maps EVENT_1/EVENT_2/etc back to option titles.
  */
 export function parseEventResponse(
-  raw: { rankings: { item_id: string; rank: number; tier: string; synergy_score: number; confidence: number; recommendation: string; reasoning: string }[]; pick_summary?: string | null; skip_recommended?: boolean; skip_reasoning?: string | null },
+  raw: GenericEvalRaw,
   options: EventOption[]
 ): CardRewardEvaluation {
-  const rankings: CardEvaluation[] = (raw.rankings ?? []).map((r) => {
+  const rankings: CardEvaluation[] = raw.rankings.map((r, i) => {
     const indexMatch = r.item_id.match(/(\d+)$/);
     const oneIndexed = indexMatch ? parseInt(indexMatch[1], 10) : 0;
     const optIndex = oneIndexed - 1;
@@ -93,12 +94,12 @@ export function parseEventResponse(
       itemId: r.item_id,
       itemName: options[optIndex]?.title ?? r.item_id,
       itemIndex: optIndex,
-      rank: r.rank,
+      rank: r.rank ?? i + 1,
       tier: r.tier as TierLetter,
       tierValue: tierToValue(r.tier as TierLetter),
-      synergyScore: r.synergy_score,
+      synergyScore: r.synergy_score ?? 50,
       confidence: r.confidence,
-      recommendation: r.recommendation as CardEvaluation["recommendation"],
+      recommendation: (r.recommendation ?? deriveRecommendationFromTier(r.tier)) as CardEvaluation["recommendation"],
       reasoning: r.reasoning,
       source: "claude" as const,
     };
@@ -109,4 +110,11 @@ export function parseEventResponse(
     skipRecommended: raw.skip_recommended ?? false,
     skipReasoning: raw.skip_reasoning ?? null,
   };
+}
+
+function deriveRecommendationFromTier(tier: string): CardEvaluation["recommendation"] {
+  if (tier === "S" || tier === "A") return "strong_pick";
+  if (tier === "B") return "good_pick";
+  if (tier === "C") return "situational";
+  return "skip";
 }

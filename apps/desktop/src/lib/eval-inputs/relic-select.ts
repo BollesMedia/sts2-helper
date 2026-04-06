@@ -1,4 +1,5 @@
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
+import type { GenericEvalRaw } from "@sts2/shared/evaluation/eval-schemas";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 
@@ -57,27 +58,24 @@ Use RELIC_1, RELIC_2, RELIC_3 matching the numbered options above.`;
 }
 
 export function parseRelicSelectResponse(
-  raw: Record<string, unknown>,
+  raw: GenericEvalRaw,
   relics: Relic[]
 ): RelicEvaluation {
-  const rankings: RelicRanking[] = ((raw.rankings as Array<Record<string, unknown>>) ?? []).map(
-    (r) => {
-      const itemId = r.item_id as string;
-      const indexMatch = itemId.match(/(\d+)$/);
-      const oneIndexed = indexMatch ? parseInt(indexMatch[1], 10) : 0;
-      const idx = oneIndexed - 1;
+  const rankings: RelicRanking[] = raw.rankings.map((r, i) => {
+    const indexMatch = r.item_id.match(/(\d+)$/);
+    const oneIndexed = indexMatch ? parseInt(indexMatch[1], 10) : 0;
+    const idx = oneIndexed - 1;
 
-      return {
-        itemId,
-        itemName: (r.item_name as string) ?? relics[idx]?.name ?? itemId,
-        itemIndex: idx,
-        rank: r.rank as number,
-        tier: r.tier as TierLetter,
-        recommendation: r.recommendation as string,
-        reasoning: r.reasoning as string,
-      };
-    }
-  );
+    return {
+      itemId: r.item_id,
+      itemName: relics[idx]?.name ?? r.item_id,
+      itemIndex: idx,
+      rank: r.rank ?? i + 1,
+      tier: r.tier as TierLetter,
+      recommendation: r.recommendation ?? "",
+      reasoning: r.reasoning,
+    };
+  });
 
   return {
     rankings,
