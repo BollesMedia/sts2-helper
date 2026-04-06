@@ -11,7 +11,7 @@ import { ErrorBoundary } from "./components/error-boundary";
 import { initSharedConfig } from "@sts2/shared/lib/init";
 import { setApiBaseUrl } from "@sts2/shared/lib/api-client";
 import { reportError, initErrorReporter } from "@sts2/shared/lib/error-reporter";
-import { initDevLogger, logDevEvent } from "./lib/dev-logger";
+import { initDevLogger, logDevEvent, logReduxSnapshot } from "./lib/dev-logger";
 import { createClient } from "@sts2/shared/supabase/client";
 
 // Initialize Sentry for crash reporting
@@ -83,6 +83,7 @@ window.onerror = (message, source, lineno, colno, error) => {
     source, lineno, colno,
     stack: error?.stack,
   });
+  logReduxSnapshot(store, "uncaught_error");
 };
 
 window.addEventListener("unhandledrejection", (e) => {
@@ -93,6 +94,7 @@ window.addEventListener("unhandledrejection", (e) => {
     message: e.reason?.message ?? String(e.reason),
     stack: e.reason?.stack,
   });
+  logReduxSnapshot(store, "uncaught_error");
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

@@ -40,6 +40,7 @@ let sessionPath: string | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInFlight: Promise<void> | null = null;
 let rotationIndex = 1;
+let beforeunloadRegistered = false;
 
 function rotatedPath(basePath: string, index: number): string {
   if (index <= 1) return basePath;
@@ -264,7 +265,8 @@ export async function initDevLogger(): Promise<void> {
 
   // Best-effort flush on window unload so the last few events make it
   // to disk before the Tauri webview closes.
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && !beforeunloadRegistered) {
+    beforeunloadRegistered = true;
     window.addEventListener("beforeunload", () => {
       void flushDevLogger();
     });
@@ -320,6 +322,7 @@ export function __resetForTest(): void {
   sessionPath = null;
   fsAdapter = null;
   rotationIndex = 1;
+  beforeunloadRegistered = false;
   if (flushTimer != null) {
     clearTimeout(flushTimer);
     flushTimer = null;
