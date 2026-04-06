@@ -7,6 +7,7 @@ import {
   flushDevLogger,
   getCurrentSessionPath,
 } from "../dev-logger";
+import type { FsAdapter } from "../dev-logger";
 
 interface FakeFs {
   appendCalls: { path: string; content: string }[];
@@ -17,15 +18,7 @@ interface FakeFs {
   removed: string[];
 }
 
-function makeFakeFs(): FakeFs & {
-  appLogDir: () => Promise<string>;
-  exists: (p: string) => Promise<boolean>;
-  mkdir: (p: string, opts: { recursive: boolean }) => Promise<void>;
-  appendTextFile: (p: string, content: string) => Promise<void>;
-  stat: (p: string) => Promise<{ size: number }>;
-  readDir: (p: string) => Promise<{ name: string; mtime: number }[]>;
-  remove: (p: string) => Promise<void>;
-} {
+function makeFakeFs(): { state: FakeFs; adapter: FsAdapter } {
   const state: FakeFs = {
     appendCalls: [],
     existsCalls: [],
@@ -34,8 +27,7 @@ function makeFakeFs(): FakeFs & {
     dirEntries: [],
     removed: [],
   };
-  return {
-    ...state,
+  const adapter: FsAdapter = {
     appLogDir: async () => "/tmp/fake-applog",
     exists: async (p) => {
       state.existsCalls.push(p);
@@ -54,13 +46,15 @@ function makeFakeFs(): FakeFs & {
       state.files.delete(p);
     },
   };
+  return { state, adapter };
 }
 
 describe("dev-logger", () => {
   beforeEach(() => {
     __resetForTest();
     __setDevModeForTest(true);
-    __setFsAdapterForTest(makeFakeFs());
+    const { adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
   });
 
   it("is a no-op when DEV mode is off", async () => {
