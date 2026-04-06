@@ -1,7 +1,11 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import { apiFetch } from "@sts2/shared/lib/api-client";
 import type { CardRewardEvaluation, EvaluationContext } from "@sts2/shared/evaluation/types";
-import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
+import {
+  mapEvalResponseSchema,
+  genericEvalSchema,
+  type GenericEvalRaw,
+} from "@sts2/shared/evaluation/eval-schemas";
 import type { MapPathEvaluation } from "../lib/eval-inputs/map";
 
 // --- Request types ---
@@ -45,19 +49,15 @@ interface MapPromptRequest extends EvalRequestBase {
   mapPrompt: string;
 }
 
-/** Raw response from map-style eval endpoints (event, rest_site) — snake_case */
-interface MapEvalRawResponse {
-  rankings: {
-    item_id: string;
-    rank: number;
-    tier: string;
-    synergy_score: number;
-    confidence: number;
-    recommendation: string;
-    reasoning: string;
-  }[];
-  skip_recommended?: boolean;
-  skip_reasoning?: string | null;
+// Fallback recommendation when the model omits it — mirrors the derivation
+// in `@sts2/shared/evaluation/parse-tool-response.ts:toCardRewardEvaluation`.
+function deriveRecommendationFromTier(
+  tier: "S" | "A" | "B" | "C" | "D" | "F",
+): "strong_pick" | "good_pick" | "situational" | "skip" {
+  if (tier === "S" || tier === "A") return "strong_pick";
+  if (tier === "B") return "good_pick";
+  if (tier === "C") return "situational";
+  return "skip";
 }
 
 // --- Shared fetch helper ---
@@ -125,11 +125,11 @@ export const evaluationApi = createApi({
       },
     }),
 
-    // Event evaluation — returns raw map-style response (snake_case rankings)
-    evaluateEvent: build.mutation<MapEvalRawResponse, MapPromptRequest>({
+    // Event evaluation — returns the validated generic eval shape (snake_case).
+    evaluateEvent: build.mutation<GenericEvalRaw, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const data = await evalFetch<MapEvalRawResponse>({
+          const raw = await evalFetch<unknown>({
             type: "map",
             evalType: args.evalType ?? "event",
             context: args.context,
@@ -138,18 +138,18 @@ export const evaluationApi = createApi({
             runId: args.runId,
             gameVersion: args.gameVersion,
           });
-          return { data };
+          return { data: genericEvalSchema.parse(raw) };
         } catch (err) {
           return { error: { status: "CUSTOM_ERROR", data: err instanceof Error ? err.message : "Eval failed" } };
         }
       },
     }),
 
-    // Rest site evaluation — returns raw map-style response (snake_case rankings)
-    evaluateRestSite: build.mutation<MapEvalRawResponse, MapPromptRequest>({
+    // Rest site evaluation — returns the validated generic eval shape (snake_case).
+    evaluateRestSite: build.mutation<GenericEvalRaw, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const data = await evalFetch<MapEvalRawResponse>({
+          const raw = await evalFetch<unknown>({
             type: "map",
             evalType: args.evalType ?? "rest_site",
             context: args.context,
@@ -158,18 +158,18 @@ export const evaluationApi = createApi({
             runId: args.runId,
             gameVersion: args.gameVersion,
           });
-          return { data };
+          return { data: genericEvalSchema.parse(raw) };
         } catch (err) {
           return { error: { status: "CUSTOM_ERROR", data: err instanceof Error ? err.message : "Eval failed" } };
         }
       },
     }),
 
-    // Map path evaluation — transforms snake_case API response to camelCase
+    // Map path evaluation — parses with zod then transforms to camelCase.
     evaluateMap: build.mutation<MapPathEvaluation, MapPromptRequest>({
       async queryFn(args) {
         try {
-          const raw = await evalFetch<Record<string, unknown>>({
+          const raw = await evalFetch<unknown>({
             type: "map",
             evalType: "map",
             context: args.context,
@@ -178,30 +178,23 @@ export const evaluationApi = createApi({
             runId: args.runId,
             gameVersion: args.gameVersion,
           });
-          const rawPrefs = raw.node_preferences as Record<string, number> | undefined;
+          const parsed = mapEvalResponseSchema.parse(raw);
           const data: MapPathEvaluation = {
-            rankings: ((raw.rankings as Array<Record<string, unknown>>) ?? []).map((r) => ({
-              optionIndex: r.option_index as number,
-              nodeType: r.node_type as string,
-              tier: (r.tier as string).toUpperCase() as TierLetter,
-              confidence: r.confidence as number,
-              recommendation: r.recommendation as string,
-              reasoning: r.reasoning as string,
+            rankings: parsed.rankings.map((r) => ({
+              optionIndex: r.option_index,
+              nodeType: r.node_type ?? "",
+              tier: r.tier,
+              confidence: r.confidence,
+              recommendation: r.recommendation ?? deriveRecommendationFromTier(r.tier),
+              reasoning: r.reasoning,
             })),
-            overallAdvice: (raw.overall_advice as string) ?? null,
-            recommendedPath: Array.isArray(raw.recommended_path)
-              ? (raw.recommended_path as Array<{ col: number; row: number }>).map((p) => ({ col: p.col, row: p.row }))
-              : [],
-            nodePreferences: rawPrefs
-              ? {
-                  monster: rawPrefs.monster ?? 0.4,
-                  elite: rawPrefs.elite ?? 0.5,
-                  shop: rawPrefs.shop ?? 0.5,
-                  rest: rawPrefs.rest ?? 0.6,
-                  treasure: rawPrefs.treasure ?? 0.9,
-                  event: rawPrefs.event ?? 0.5,
-                }
-              : null,
+            overallAdvice: parsed.overall_advice,
+            // recommendedPath is populated client-side by the map retrace
+            // listener (mapPathRetraced). Haiku's tool schema has never
+            // included it — the old `raw.recommended_path` reader was
+            // dead code that always returned []. Initialize empty.
+            recommendedPath: [],
+            nodePreferences: parsed.node_preferences,
           };
           return { data };
         } catch (err) {

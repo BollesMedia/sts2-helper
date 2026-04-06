@@ -5,6 +5,7 @@ import { evalStarted, evalSucceeded, evalFailed, evalRetryRequested } from "./ev
 import { selectEvalKey } from "./evaluationSelectors";
 import { selectActiveDeck, selectActivePlayer } from "../run/runSelectors";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
+import { genericEvalSchema } from "@sts2/shared/evaluation/eval-schemas";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import type { RelicSelectState } from "@sts2/shared/types/game-state";
@@ -71,7 +72,7 @@ export function setupRelicSelectEvalListener() {
 
         logDevEvent("eval", "relic_select_api_response", raw);
 
-        const evaluation = parseRelicSelectResponse(raw, relics);
+        const evaluation = parseRelicSelectResponse(genericEvalSchema.parse(raw), relics);
 
         const topPick = evaluation.rankings.find((r) => r.rank === 1);
         if (topPick) {

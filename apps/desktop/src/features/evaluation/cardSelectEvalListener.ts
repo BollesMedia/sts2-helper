@@ -5,6 +5,7 @@ import { evalStarted, evalSucceeded, evalFailed, evalRetryRequested } from "./ev
 import { selectEvalKey } from "./evaluationSelectors";
 import { selectActiveDeck, selectActivePlayer } from "../run/runSelectors";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
+import { simpleEvalSchema } from "@sts2/shared/evaluation/eval-schemas";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
 import { matchRecommendation } from "../../lib/match-recommendation";
 import { computeCardSelectEvalKey, buildCardSelectPrompt } from "../../lib/eval-inputs/card-select";
@@ -77,14 +78,14 @@ export function setupCardSelectEvalListener() {
 
         logDevEvent("eval", "card_select_api_response", raw);
 
-        const cardName = raw.card_name as string | undefined;
+        const parsed = simpleEvalSchema.parse(raw);
         const eligibleNames = cards.map((c) => c.name);
-        const matched = cardName ? matchRecommendation(cardName, eligibleNames) : null;
+        const matched = matchRecommendation(parsed.card_name, eligibleNames);
 
         listenerApi.dispatch(evalSucceeded({
           evalType: EVAL_TYPE,
           evalKey,
-          result: matched ? { cardName: matched, reasoning: (raw.reasoning as string) ?? "" } : null,
+          result: matched ? { cardName: matched, reasoning: parsed.reasoning } : null,
         }));
         logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_card_select_eval");
       } catch (err) {

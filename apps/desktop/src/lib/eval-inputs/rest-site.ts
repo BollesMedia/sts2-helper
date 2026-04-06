@@ -1,4 +1,5 @@
 import type { EvaluationContext, CardRewardEvaluation, CardEvaluation } from "@sts2/shared/evaluation/types";
+import type { GenericEvalRaw } from "@sts2/shared/evaluation/eval-schemas";
 import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { buildRestContext, buildRestPromptSection } from "../build-rest-context";
@@ -70,24 +71,24 @@ Respond as JSON:
 }
 
 /**
- * Parse rest site raw response into CardRewardEvaluation.
+ * Parse the validated generic eval response into CardRewardEvaluation.
  * Maps option IDs back to rest site option names.
  */
 export function parseRestSiteResponse(
-  raw: { rankings: { item_id: string; rank: number; tier: string; synergy_score: number; confidence: number; recommendation: string; reasoning: string }[]; pick_summary?: string | null; skip_recommended?: boolean; skip_reasoning?: string | null },
+  raw: GenericEvalRaw,
   options: RestOption[]
 ): CardRewardEvaluation {
-  const rankings: CardEvaluation[] = (raw.rankings ?? []).map((r, i) => {
+  const rankings: CardEvaluation[] = raw.rankings.map((r, i) => {
     const ranking = {
       itemId: r.item_id,
       itemName: r.item_id,
       itemIndex: i,
-      rank: r.rank,
+      rank: r.rank ?? i + 1,
       tier: r.tier as TierLetter,
       tierValue: tierToValue(r.tier as TierLetter),
-      synergyScore: r.synergy_score,
+      synergyScore: r.synergy_score ?? 50,
       confidence: r.confidence,
-      recommendation: r.recommendation as CardEvaluation["recommendation"],
+      recommendation: (r.recommendation ?? deriveRecommendationFromTier(r.tier)) as CardEvaluation["recommendation"],
       reasoning: r.reasoning,
       source: "claude" as const,
     };
@@ -115,4 +116,11 @@ export function parseRestSiteResponse(
     skipRecommended: raw.skip_recommended ?? false,
     skipReasoning: raw.skip_reasoning ?? null,
   };
+}
+
+function deriveRecommendationFromTier(tier: string): CardEvaluation["recommendation"] {
+  if (tier === "S" || tier === "A") return "strong_pick";
+  if (tier === "B") return "good_pick";
+  if (tier === "C") return "situational";
+  return "skip";
 }
