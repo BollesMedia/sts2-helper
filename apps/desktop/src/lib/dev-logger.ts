@@ -192,7 +192,9 @@ async function loadTauriFsAdapter(): Promise<FsAdapter | null> {
       },
       remove: (p) => fsMod.remove(p),
     };
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("[dev-logger] Failed to load Tauri FS adapter:", err);
     return null;
   }
 }
