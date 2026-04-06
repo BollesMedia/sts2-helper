@@ -184,24 +184,34 @@ describe("dev-logger", () => {
     const { state, adapter } = makeFakeFs();
     __setFsAdapterForTest(adapter);
 
-    // Pre-populate session at 49.9MB
+    // Pre-populate session at 49MB. We seed state.fileSizes directly
+    // (bypassing appendTextFile's normal accounting) to simulate a file
+    // that filled up across prior sessions — generating 49MB through
+    // logDevEvent calls would require ~250k events which is impractical.
     const path = "/tmp/fake-applog/dev-session-2026-04-06T10-00-00.jsonl";
-    state.fileSizes.set(path, 49.9 * 1024 * 1024);
+    state.fileSizes.set(path, 49 * 1024 * 1024);
     state.files.set(path, "x");
     (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = path;
 
-    // Push enough events to push past 50MB on flush
+    // First flush: small batch (~0.5MB) — stays under 50MB, writes to base path.
+    const small = "y".repeat(50 * 1024); // 50KB per event
+    for (let i = 0; i < 5; i++) {
+      logDevEvent("poll", "game_state", { payload: small });
+    }
+    await flushDevLogger();
+    // Second flush: large batch (~1.5MB) — pushes past 50MB, should rotate to part2.
     const big = "y".repeat(200 * 1024); // 200KB per event
     for (let i = 0; i < 5; i++) {
       logDevEvent("poll", "game_state", { payload: big });
     }
     await flushDevLogger();
-    // Trigger another event that should land on a part2 file
-    logDevEvent("poll", "game_state", { after: "rotation" });
-    await flushDevLogger();
 
     const writtenPaths = new Set(state.appendCalls.map((c) => c.path));
+    // First flush hit the base path (file was under cap at that point).
+    const basePathHit = [...writtenPaths].some((p) => p === path);
+    // Second flush triggered rotation and landed on a part2 file.
     const part2 = [...writtenPaths].find((p) => p.includes("-part2.jsonl"));
+    expect(basePathHit).toBe(true);
     expect(part2).toBeDefined();
 
     delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;

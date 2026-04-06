@@ -106,6 +106,10 @@ export async function flushDevLogger(): Promise<void> {
     try {
       let targetPath = rotatedPath(basePath, rotationIndex);
       // Check current file size; rotate if it would exceed the cap.
+      // Rotation: bump rotationIndex AT MOST ONCE per flush. If a single
+      // toWrite batch is itself >50MB (e.g., a giant Redux snapshot), the
+      // resulting part file will exceed the cap. Acceptable for a dev tool;
+      // we don't loop because in practice flushes are 50 events of <1MB.
       try {
         if (await fsAdapter!.exists(targetPath)) {
           const meta = await fsAdapter!.stat(targetPath);
@@ -249,6 +253,7 @@ export async function initDevLogger(): Promise<void> {
 
   const fileName = buildSessionFileName(new Date());
   sessionPath = `${dir}/${fileName}`;
+  rotationIndex = 1; // reset for this new session
 
   // T3 review fix: drain any events buffered before init by re-arming
   // the flush timer. flushDevLogger's pre-init early-return left them
