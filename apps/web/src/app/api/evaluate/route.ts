@@ -345,6 +345,21 @@ export async function POST(request: Request) {
             const adviceMatch = str.match(/"overall_advice"\s*:\s*"([^"]*)"/);
             if (adviceMatch) result.overall_advice = adviceMatch[1];
           }
+          // Extract node_preferences if embedded in the string. Haiku
+          // sometimes stuffs the whole response into rankings; without
+          // this the client sees nodePreferences: null and the map
+          // constraint tracer falls back to defaults, silently
+          // defeating the LLM's per-session tuning.
+          if (!result.node_preferences) {
+            const prefsMatch = str.match(/"node_preferences"\s*:\s*(\{[^}]*\})/);
+            if (prefsMatch) {
+              try {
+                result.node_preferences = JSON.parse(prefsMatch[1]);
+              } catch {
+                // Leave unset; client will default.
+              }
+            }
+          }
         } catch {
           result.rankings = [];
         }
