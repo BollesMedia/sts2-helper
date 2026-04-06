@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   __setFsAdapterForTest,
   __setDevModeForTest,
@@ -143,7 +143,7 @@ describe("dev-logger", () => {
     const { state, adapter } = makeFakeFs();
     // Pretend 25 existing session files of varying ages
     state.dirEntries = Array.from({ length: 25 }, (_, i) => ({
-      name: `dev-session-2026-04-0${(i % 9) + 1}T10-00-00.jsonl`,
+      name: `dev-session-2026-04-${String(i + 1).padStart(2, "0")}T10-00-00.jsonl`,
       mtime: 1000 + i,
     }));
     __setFsAdapterForTest(adapter);
@@ -181,27 +181,32 @@ describe("dev-logger", () => {
   });
 
   it("initDevLogger drains pre-init buffered events on the next flush tick", async () => {
-    const { state, adapter } = makeFakeFs();
-    __setFsAdapterForTest(adapter);
+    vi.useFakeTimers();
+    try {
+      const { state, adapter } = makeFakeFs();
+      __setFsAdapterForTest(adapter);
 
-    // Log events BEFORE init — they should buffer but not flush
-    logDevEvent("poll", "game_state", { early: 1 });
-    logDevEvent("poll", "game_state", { early: 2 });
+      // Log events BEFORE init — they should buffer but not flush
+      logDevEvent("poll", "game_state", { early: 1 });
+      logDevEvent("poll", "game_state", { early: 2 });
 
-    // Pre-init: nothing written yet
-    expect(state.appendCalls).toHaveLength(0);
+      // Pre-init: nothing written yet
+      expect(state.appendCalls).toHaveLength(0);
 
-    // Init resolves the session path AND should re-arm the flush timer
-    await initDevLogger();
+      // Init resolves the session path AND should re-arm the flush timer
+      await initDevLogger();
 
-    // Allow scheduled flush to fire
-    await new Promise((r) => setTimeout(r, 1100));
+      // Advance fake timers past the 1000ms flush interval
+      await vi.advanceTimersByTimeAsync(1100);
 
-    // The buffered pre-init events should now be on disk
-    expect(state.appendCalls.length).toBeGreaterThan(0);
-    const totalLines = state.appendCalls
-      .flatMap((c) => c.content.trim().split("\n"))
-      .filter(Boolean).length;
-    expect(totalLines).toBe(2);
+      // The buffered pre-init events should now be on disk
+      expect(state.appendCalls.length).toBeGreaterThan(0);
+      const totalLines = state.appendCalls
+        .flatMap((c) => c.content.trim().split("\n"))
+        .filter(Boolean).length;
+      expect(totalLines).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
