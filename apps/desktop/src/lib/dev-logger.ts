@@ -256,6 +256,15 @@ export async function initDevLogger(): Promise<void> {
   sessionPath = `${dir}/${fileName}`;
   rotationIndex = 1; // reset for this new session
 
+  // Emit a self-verification event so the session file always exists
+  // on disk after init, even if no other listeners ever fire (e.g.,
+  // STS2 not running). The assistant can Read the file to confirm
+  // the logger pipeline works end-to-end.
+  logDevEvent("run", "logger_init", {
+    sessionPath,
+    initializedAt: new Date().toISOString(),
+  });
+
   // T3 review fix: drain any events buffered before init by re-arming
   // the flush timer. flushDevLogger's pre-init early-return left them
   // sitting in the buffer with no scheduled flush.

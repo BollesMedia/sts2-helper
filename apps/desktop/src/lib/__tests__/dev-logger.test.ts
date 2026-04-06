@@ -282,12 +282,41 @@ describe("dev-logger", () => {
       // Advance fake timers past the 1000ms flush interval
       await vi.advanceTimersByTimeAsync(1100);
 
-      // The buffered pre-init events should now be on disk
+      // The buffered pre-init events should now be on disk — plus the
+      // logger_init event that initDevLogger emits after setting sessionPath.
       expect(state.appendCalls.length).toBeGreaterThan(0);
       const totalLines = state.appendCalls
         .flatMap((c) => c.content.trim().split("\n"))
         .filter(Boolean).length;
-      expect(totalLines).toBe(2);
+      expect(totalLines).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("initDevLogger emits a logger_init event with sessionPath and timestamp", async () => {
+    vi.useFakeTimers();
+    try {
+      const { state, adapter } = makeFakeFs();
+      __setFsAdapterForTest(adapter);
+
+      await initDevLogger();
+      await vi.advanceTimersByTimeAsync(1100); // let flush fire
+
+      // The first (and only) event should be the logger_init
+      expect(state.appendCalls.length).toBeGreaterThan(0);
+      const lines = state.appendCalls
+        .flatMap((c) => c.content.trim().split("\n"))
+        .filter(Boolean);
+      expect(lines).toHaveLength(1);
+
+      const event = JSON.parse(lines[0]);
+      expect(event.category).toBe("run");
+      expect(event.name).toBe("logger_init");
+      expect(event.data.sessionPath).toMatch(/^\/tmp\/fake-applog\/dev-session-/);
+      expect(typeof event.data.initializedAt).toBe("string");
+      // ISO format check
+      expect(event.data.initializedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     } finally {
       vi.useRealTimers();
     }
