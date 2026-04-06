@@ -180,6 +180,33 @@ describe("dev-logger", () => {
     expect(state.removed).toHaveLength(0);
   });
 
+  it("rotates session file when it exceeds 50MB", async () => {
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+
+    // Pre-populate session at 49.9MB
+    const path = "/tmp/fake-applog/dev-session-2026-04-06T10-00-00.jsonl";
+    state.fileSizes.set(path, 49.9 * 1024 * 1024);
+    state.files.set(path, "x");
+    (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = path;
+
+    // Push enough events to push past 50MB on flush
+    const big = "y".repeat(200 * 1024); // 200KB per event
+    for (let i = 0; i < 5; i++) {
+      logDevEvent("poll", "game_state", { payload: big });
+    }
+    await flushDevLogger();
+    // Trigger another event that should land on a part2 file
+    logDevEvent("poll", "game_state", { after: "rotation" });
+    await flushDevLogger();
+
+    const writtenPaths = new Set(state.appendCalls.map((c) => c.path));
+    const part2 = [...writtenPaths].find((p) => p.includes("-part2.jsonl"));
+    expect(part2).toBeDefined();
+
+    delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
+
   it("initDevLogger drains pre-init buffered events on the next flush tick", async () => {
     vi.useFakeTimers();
     try {

@@ -29,6 +29,7 @@ export interface FsAdapter {
 const FLUSH_THRESHOLD_LINES = 50;
 const FLUSH_INTERVAL_MS = 1000;
 const MAX_SESSIONS = 20;
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const SESSION_FILE_PREFIX = "dev-session-";
 const SESSION_FILE_EXT = ".jsonl";
 
@@ -38,6 +39,13 @@ let buffer: string[] = [];
 let sessionPath: string | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInFlight: Promise<void> | null = null;
+let rotationIndex = 1;
+
+function rotatedPath(basePath: string, index: number): string {
+  if (index <= 1) return basePath;
+  // Inject -partN before the .jsonl extension
+  return basePath.replace(/\.jsonl$/, `-part${index}.jsonl`);
+}
 
 function resolveSessionPath(): string | null {
   // TEST-ONLY override: setting `globalThis.__devLoggerSessionPathOverride`
@@ -85,8 +93,8 @@ export async function flushDevLogger(): Promise<void> {
   if (flushInFlight) return flushInFlight;
   if (buffer.length === 0) return;
 
-  const path = resolveSessionPath();
-  if (!path || !fsAdapter) {
+  const basePath = resolveSessionPath();
+  if (!basePath || !fsAdapter) {
     // Not initialized yet — keep buffering.
     return;
   }
@@ -96,7 +104,20 @@ export async function flushDevLogger(): Promise<void> {
 
   flushInFlight = (async () => {
     try {
-      await fsAdapter!.appendTextFile(path, toWrite);
+      let targetPath = rotatedPath(basePath, rotationIndex);
+      // Check current file size; rotate if it would exceed the cap.
+      try {
+        if (await fsAdapter!.exists(targetPath)) {
+          const meta = await fsAdapter!.stat(targetPath);
+          if (meta.size + toWrite.length > MAX_FILE_BYTES) {
+            rotationIndex += 1;
+            targetPath = rotatedPath(basePath, rotationIndex);
+          }
+        }
+      } catch {
+        // stat failures are non-fatal; just write to current target.
+      }
+      await fsAdapter!.appendTextFile(targetPath, toWrite);
     } catch {
       // Drop silently — logging an error here would loop. The events
       // in this batch are discarded, not re-queued: persistent fs
@@ -260,6 +281,7 @@ export function __resetForTest(): void {
   buffer = [];
   sessionPath = null;
   fsAdapter = null;
+  rotationIndex = 1;
   if (flushTimer != null) {
     clearTimeout(flushTimer);
     flushTimer = null;
