@@ -46,3 +46,9 @@ next-env.d.ts
 # symlinked env
 apps/web/.env.local
 .superpowers/
+
+# db migration dumps
+scripts/*.dump.sql
+scripts/supabase-*.sql
+scripts/neon-*.sql
+scripts/user-migration.json
