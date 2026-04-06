@@ -101,7 +101,12 @@ function softPenalty(
     penalty *= 0.3;
   }
 
-  if (nodeType === "Elite" && !hasRestNearby) {
+  // Elite without a rest site within 2 nodes: only penalize when the
+  // player isn't already healthy enough to absorb the fight comfortably.
+  // The prior unconditional penalty compounded with the HP<70% penalty
+  // and crushed elite paths even at 90% HP, making the eval overly
+  // elite-averse (observed in dev event log 2026-04-06 act 1 runs).
+  if (nodeType === "Elite" && !hasRestNearby && simulatedHp < PATH_CONSTRAINTS.eliteNoRestHpExempt) {
     penalty *= 0.6;
   }
 

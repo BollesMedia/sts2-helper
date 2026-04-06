@@ -33,6 +33,12 @@ export const PATH_CONSTRAINTS = {
   consecutiveMonsterPenalty: 3,
   /** Soft penalty: elite without a rest within N nodes after */
   eliteRequiresRestWithin: 2,
+  /**
+   * HP% at or above which the "no rest within 2 nodes" elite penalty is
+   * skipped. Healthy players can absorb the fight without needing a rest
+   * chaser, and the penalty was crushing elite paths during Act 1 runs.
+   */
+  eliteNoRestHpExempt: 0.85,
 } as const;
 
 /** Default node preferences when LLM doesn't provide them */
