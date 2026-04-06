@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -9,22 +8,17 @@ import {
   buildCompactContext,
   compactStrategy,
   compactBossReference,
-  buildMapToolSchema,
-  buildGenericToolSchema,
-  buildSimpleToolSchema,
   type EvalType,
 } from "@sts2/shared/evaluation/prompt-builder";
 import {
   bossBriefingSchema,
+  buildCardRewardSchema,
   buildMapEvalSchema,
   genericEvalSchema,
   simpleEvalSchema,
 } from "@sts2/shared/evaluation/eval-schemas";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
-import {
-  parseToolUseInput,
-  parseClaudeCardRewardResponse,
-} from "@sts2/shared/evaluation/parse-tool-response";
+import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { getStatisticalEvaluation } from "@sts2/shared/evaluation/statistical-evaluator";
 import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
@@ -33,11 +27,6 @@ import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
-
-// Legacy SDK — only used by call sites pending migration to the AI SDK in
-// later phases of sts2-helper#46. Renamed to avoid colliding with the
-// `anthropic` provider import from `@ai-sdk/anthropic` above.
-const anthropicLegacy = new Anthropic();
 
 // ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
 
@@ -460,37 +449,7 @@ export async function POST(request: Request) {
     .join("\n");
 
   const isExclusive = body.exclusive !== false; // default true for card_reward
-
-  // Build tool schema for structured output
-  const evaluationTool: Anthropic.Tool = {
-    name: "submit_evaluation",
-    description: "Submit the evaluation of all items",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        rankings: {
-          type: "array",
-          description: `Exactly ${items.length} entries in this EXACT order: ${items.map((item, i) => `${i + 1}=${item.name}`).join(", ")}.`,
-          items: {
-            type: "object",
-            properties: {
-              position: { type: "integer", description: "Item position (1-indexed)" },
-              tier: { type: "string", enum: ["S", "A", "B", "C", "D", "F"] },
-              confidence: { type: "integer", description: "0-100" },
-              reasoning: { type: "string", description: "Under 20 words. Reference archetype fit." },
-            },
-            required: ["position", "tier", "confidence", "reasoning"],
-          },
-        },
-        skip_recommended: { type: "boolean" },
-        skip_reasoning: { type: "string", description: "Why skip is recommended, if applicable" },
-        ...(type === "shop" ? {
-          spending_plan: { type: "string", description: "Concise gold allocation recommendation. Only affordable items." },
-        } : {}),
-      },
-      required: ["rankings", "skip_recommended"],
-    },
-  };
+  const cardSchema = buildCardRewardSchema(items, type === "shop");
 
   const goldBudget = isShop && body.goldBudget != null ? `\nGOLD BUDGET: ${body.goldBudget}g — only recommend items you can afford. All items listed below are affordable.\n` : "";
 
@@ -511,72 +470,24 @@ ${budgetSummary}
 Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matching the order above.`;
 
   try {
-    const message = await anthropicLegacy.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: items.length > 5 ? 4096 : 1024,
+    const result = await generateText({
+      model: anthropic(EVAL_MODELS.default),
+      maxOutputTokens: items.length > 5 ? 4096 : 1024,
       system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-      tools: [evaluationTool],
-      tool_choice: { type: "tool", name: "submit_evaluation" },
+      prompt: userPrompt,
+      output: Output.object({ schema: cardSchema }),
     });
 
-    // Log usage
     logUsage(supabase, {
       userId: body.userId ?? null,
       evalType: evalType,
-      model: "claude-haiku-4-5-20251001",
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
+      model: EVAL_MODELS.default,
+      inputTokens: result.usage.inputTokens ?? 0,
+      outputTokens: result.usage.outputTokens ?? 0,
     }).catch(console.error);
 
-    // Extract structured tool use result — no JSON parsing needed
-    const toolUse = message.content.find((b) => b.type === "tool_use");
-    if (!toolUse || toolUse.type !== "tool_use") {
-      return NextResponse.json(
-        { error: "No tool use response from Claude" },
-        { status: 502 }
-      );
-    }
-
-    console.log("[Evaluate] Tool use input:", JSON.stringify(toolUse.input));
-    const parsed = parseToolUseInput(toolUse.input);
-    console.log("[Evaluate] Parsed rankings count:", parsed.rankings.length);
-    const evaluation = parseClaudeCardRewardResponse(parsed);
-
-    // Position-based matching: Claude returns items by position (1-indexed).
-    // Map each ranking to the original item using position, not name/ID matching.
-    for (const ranking of evaluation.rankings) {
-      // Position is 1-indexed from Claude, convert to 0-indexed array position
-      const idx = (ranking.itemIndex ?? -1);
-      if (idx >= 0 && idx < items.length) {
-        ranking.itemId = items[idx].id;
-        ranking.itemName = items[idx].name;
-        ranking.itemIndex = idx;
-      }
-    }
-
-    // If we got fewer rankings than items, fill missing with position-based fallback
-    if (evaluation.rankings.length < items.length) {
-      const coveredPositions = new Set(evaluation.rankings.map((r) => r.itemIndex));
-      for (let i = 0; i < items.length; i++) {
-        if (!coveredPositions.has(i)) {
-          evaluation.rankings.push({
-            itemId: items[i].id,
-            itemName: items[i].name,
-            itemIndex: i,
-            rank: items.length,
-            tier: "C" as const,
-            tierValue: 3,
-            synergyScore: 50,
-            confidence: 30,
-            recommendation: "situational",
-            reasoning: "Not evaluated",
-            source: "claude",
-          });
-        }
-      }
-    }
-
+    console.log("[Evaluate] Card/shop output:", JSON.stringify(result.output));
+    const evaluation = toCardRewardEvaluation(result.output, items);
     console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
 
     // Save original tier values before weight adjustments
@@ -635,10 +546,31 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
 
     return NextResponse.json(evaluation);
   } catch (error) {
+    // Strict-fail: zod validation failure (e.g. Haiku returns fewer rankings
+    // than items, or returns a stringified-blob shape) → 502 with detail.
+    // Replaces the previous fallback fill at the now-deleted route.ts:573-592.
+    if (NoObjectGeneratedError.isInstance(error)) {
+      if (error.usage) {
+        logUsage(supabase, {
+          userId: body.userId ?? null,
+          evalType: evalType,
+          model: EVAL_MODELS.default,
+          inputTokens: error.usage.inputTokens ?? 0,
+          outputTokens: error.usage.outputTokens ?? 0,
+        }).catch(console.error);
+      }
+      const detail = error.cause instanceof Error ? error.cause.message : error.message;
+      console.error("[Evaluate] Card/shop schema validation failed:", detail, "raw text:", error.text);
+      return NextResponse.json(
+        { error: "Schema validation failed", detail },
+        { status: 502 }
+      );
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     console.error("Evaluation failed:", message);
 
-    // Detect rate limiting from Anthropic
+    // Detect rate limiting from the AI SDK / Anthropic
     const isRateLimit = message.includes("rate") || message.includes("429");
     const status = isRateLimit ? 429 : 500;
     const detail = isRateLimit
