@@ -26,23 +26,81 @@ export interface FsAdapter {
   remove(path: string): Promise<void>;
 }
 
+const FLUSH_THRESHOLD_LINES = 50;
+const FLUSH_INTERVAL_MS = 1000;
+
 let isDev = import.meta.env.DEV;
 let fsAdapter: FsAdapter | null = null;
 let buffer: string[] = [];
 let sessionPath: string | null = null;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushInFlight: Promise<void> | null = null;
+
+function resolveSessionPath(): string | null {
+  // Test override hook — bypasses initDevLogger.
+  const override = (globalThis as Record<string, unknown>)
+    .__devLoggerSessionPathOverride;
+  if (typeof override === "string") return override;
+  return sessionPath;
+}
+
+function scheduleFlush(): void {
+  if (flushTimer != null) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    void flushDevLogger();
+  }, FLUSH_INTERVAL_MS);
+}
 
 export function logDevEvent(
-  _category: DevLogCategory,
-  _name: string,
-  _data: unknown
+  category: DevLogCategory,
+  name: string,
+  data: unknown
 ): void {
   if (!isDev) return;
-  // Implemented in Task 3.
+  const event: DevLogEvent = { t: Date.now(), category, name, data };
+  let line: string;
+  try {
+    line = JSON.stringify(event);
+  } catch {
+    // Unserializable payload — drop silently to avoid feedback loops.
+    return;
+  }
+  buffer.push(line);
+  if (buffer.length >= FLUSH_THRESHOLD_LINES) {
+    void flushDevLogger();
+  } else {
+    scheduleFlush();
+  }
 }
 
 export async function flushDevLogger(): Promise<void> {
   if (!isDev) return;
-  // Implemented in Task 3.
+  if (flushInFlight) return flushInFlight;
+  if (buffer.length === 0) return;
+
+  const path = resolveSessionPath();
+  if (!path || !fsAdapter) {
+    // Not initialized yet — keep buffering.
+    return;
+  }
+
+  const toWrite = buffer.join("\n") + "\n";
+  buffer = [];
+
+  flushInFlight = (async () => {
+    try {
+      await fsAdapter!.appendTextFile(path, toWrite);
+    } catch {
+      // Drop silently — logging an error here would loop.
+    }
+  })();
+
+  try {
+    await flushInFlight;
+  } finally {
+    flushInFlight = null;
+  }
 }
 
 export async function initDevLogger(): Promise<void> {
@@ -56,7 +114,6 @@ export function getCurrentSessionPath(): string | null {
 }
 
 // --- Test hooks ---
-// These are gated to test usage only. Do not call from production code.
 
 export function __setDevModeForTest(value: boolean): void {
   isDev = value;
@@ -70,9 +127,11 @@ export function __resetForTest(): void {
   buffer = [];
   sessionPath = null;
   fsAdapter = null;
+  if (flushTimer != null) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  flushInFlight = null;
   isDev = import.meta.env.DEV;
+  delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
 }
-
-// Silence unused-var lint until later tasks fill these in.
-void buffer;
-void fsAdapter;

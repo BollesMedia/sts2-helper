@@ -63,4 +63,68 @@ describe("dev-logger", () => {
     await flushDevLogger();
     expect(getCurrentSessionPath()).toBeNull();
   });
+
+  it("buffers events as JSONL lines and writes them on flush", async () => {
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+    // Pre-set sessionPath so logDevEvent doesn't need init
+    // (init is tested separately in Task 4)
+    (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = "/tmp/fake-applog/dev-session-test.jsonl";
+
+    logDevEvent("poll", "game_state", { hp: 80, floor: 12 });
+    logDevEvent("eval", "map_api_response", { rankings: [] });
+
+    await flushDevLogger();
+
+    expect(state.appendCalls).toHaveLength(1);
+    const lines = state.appendCalls[0].content.trim().split("\n");
+    expect(lines).toHaveLength(2);
+
+    const first = JSON.parse(lines[0]);
+    expect(first.category).toBe("poll");
+    expect(first.name).toBe("game_state");
+    expect(first.data).toEqual({ hp: 80, floor: 12 });
+    expect(typeof first.t).toBe("number");
+
+    const second = JSON.parse(lines[1]);
+    expect(second.category).toBe("eval");
+    expect(second.name).toBe("map_api_response");
+
+    delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
+
+  it("flushes automatically when buffer reaches 50 entries", async () => {
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+    (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = "/tmp/fake-applog/dev-session-test.jsonl";
+
+    for (let i = 0; i < 50; i++) {
+      logDevEvent("poll", "game_state", { i });
+    }
+    // Allow microtask flush
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(state.appendCalls.length).toBeGreaterThan(0);
+    const totalLines = state.appendCalls
+      .flatMap((c) => c.content.trim().split("\n"))
+      .filter(Boolean).length;
+    expect(totalLines).toBe(50);
+
+    delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
+
+  it("drops events silently when fs append throws", async () => {
+    const { adapter } = makeFakeFs();
+    adapter.appendTextFile = async () => {
+      throw new Error("disk full");
+    };
+    __setFsAdapterForTest(adapter);
+    (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = "/tmp/fake-applog/dev-session-test.jsonl";
+
+    logDevEvent("poll", "game_state", { hp: 80 });
+    // Should not throw
+    await expect(flushDevLogger()).resolves.toBeUndefined();
+
+    delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
 });
