@@ -81,11 +81,16 @@ MAP PATHING — CORE: Balance relic acquisition against deck development and HP 
 - Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets. Back-to-back shops are LOW value — each card removal costs 25g more than the last, so consecutive shops drain gold fast without enough fights to earn it back. Spread shops apart with fights in between.
 - Rest sites: you get ONE action per visit — heal OR upgrade, never both. Card upgrades compound over the entire run (~3-5 HP saved per fight). Prioritize upgrades when healthy.
 - ELITE COST: fighting an elite means the next rest site is spent healing instead of upgrading. One elite = one lost upgrade. An upgrade compounds value every remaining fight — a random relic may not.
-- ELITE PHILOSOPHY by act:
-  - Act 1: Be cautious. Consider 1-2 elites when HP > 60% and a rest site follows. The relic compounds power across all remaining fights, but the HP cost forces healing instead of upgrading — weigh the tradeoff.
-  - Act 2: Peak window. Deck should handle elites efficiently with less HP loss, making the relic worth the cost.
-  - Act 3: Selective only. Boss preparation matters more than another relic. Avoid unless very healthy.
-- Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).`,
+- ELITE PHILOSOPHY by act — these are TARGETS, not ceilings. Relic-poor runs stall out by Act 3:
+  - Act 1: Target 1-2 elites. Take them when HP > 60% and deck can handle the fight. Skipping all elites leaves you relic-poor entering Act 2 and is almost always wrong. Only avoid entirely if HP is already low (<50%) or your deck is uniquely bad at the matchup.
+  - Act 2: Peak window. Target 2-3 elites. Your deck should handle them efficiently by this point, making the relic clearly worth the HP cost.
+  - Act 3: Selective. 0-1 elites. Boss preparation matters more than another relic; only take them when very healthy.
+- Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).
+- NODE PREFERENCE GUIDANCE for node_preferences.elite:
+  - Healthy (HP > 60%) and below act target: elite >= 0.7
+  - Healthy and already hit act target: elite ~0.5
+  - Hurt (HP < 60%) or at/past act target: elite < 0.5
+  - Never return elite below 0.3 unless the deck is actively incapable of elite fights — "be cautious" means "pick carefully", not "avoid entirely".`,
 
   rest_site: `
 REST SITE:
