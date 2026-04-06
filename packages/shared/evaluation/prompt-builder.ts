@@ -19,6 +19,7 @@ export type EvalType =
   | "event"
   | "card_removal"
   | "card_upgrade"
+  | "card_select"
   | "relic_select"
   | "boss_briefing";
 

@@ -1,8 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@sts2/shared/types/database.types";
 
-// Haiku pricing per 1M tokens (as of March 2026)
+// Haiku pricing per 1M tokens (as of March 2026).
+// Both the legacy `@anthropic-ai/sdk` dated key and the `@ai-sdk/anthropic`
+// undated key are listed so historical `usage_logs` rows still resolve
+// correctly post-migration (sts2-helper#46).
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-haiku-4-5": { input: 0.80, output: 4.00 },
   "claude-haiku-4-5-20251001": { input: 0.80, output: 4.00 },
   "claude-sonnet-4-20250514": { input: 3.00, output: 15.00 },
 };
