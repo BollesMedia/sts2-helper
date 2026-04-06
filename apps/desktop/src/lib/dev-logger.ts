@@ -141,9 +141,60 @@ async function pruneOldSessions(adapter: FsAdapter, dir: string): Promise<void> 
 }
 
 async function loadTauriFsAdapter(): Promise<FsAdapter | null> {
-  // Real adapter implemented in Task 5. For now, return null so unit tests
-  // (which inject their own adapter) drive coverage.
-  return null;
+  // Only attempt to load Tauri APIs in a real Tauri runtime.
+  // jsdom-based unit tests don't have __TAURI_INTERNALS__ set, so the
+  // dynamic imports below would fail — bail out cleanly instead.
+  if (typeof window === "undefined") return null;
+  if (!(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__) return null;
+
+  try {
+    const [pathMod, fsMod] = await Promise.all([
+      import("@tauri-apps/api/path"),
+      import("@tauri-apps/plugin-fs"),
+    ]);
+
+    return {
+      appLogDir: () => pathMod.appLogDir(),
+      exists: (p) => fsMod.exists(p),
+      mkdir: (p, opts) => fsMod.mkdir(p, opts),
+      appendTextFile: async (p, content) => {
+        // Tauri's plugin-fs 2.x does not expose a native append flag.
+        // For our usage (small per-flush batches), read-then-write is fine.
+        let existing = "";
+        try {
+          if (await fsMod.exists(p)) {
+            existing = await fsMod.readTextFile(p);
+          }
+        } catch {
+          existing = "";
+        }
+        await fsMod.writeTextFile(p, existing + content);
+      },
+      stat: async (p) => {
+        const meta = await fsMod.stat(p);
+        return { size: Number(meta.size) };
+      },
+      readDir: async (p) => {
+        // plugin-fs 2.x DirEntry doesn't include mtime — stat per file.
+        const entries = await fsMod.readDir(p);
+        const enriched = await Promise.all(
+          entries.map(async (e) => {
+            try {
+              const meta = await fsMod.stat(`${p}/${e.name}`);
+              const mtimeMs = meta.mtime ? new Date(meta.mtime).getTime() : 0;
+              return { name: e.name, mtime: mtimeMs };
+            } catch {
+              return { name: e.name, mtime: 0 };
+            }
+          })
+        );
+        return enriched;
+      },
+      remove: (p) => fsMod.remove(p),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function initDevLogger(): Promise<void> {
