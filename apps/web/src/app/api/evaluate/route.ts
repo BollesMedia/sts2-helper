@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { generateText, Output } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import {
@@ -12,6 +14,8 @@ import {
   buildSimpleToolSchema,
   type EvalType,
 } from "@sts2/shared/evaluation/prompt-builder";
+import { bossBriefingSchema } from "@sts2/shared/evaluation/eval-schemas";
+import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import {
   parseToolUseInput,
   parseClaudeCardRewardResponse,
@@ -25,7 +29,10 @@ import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
 
-const anthropic = new Anthropic();
+// Legacy SDK — only used by call sites pending migration to the AI SDK in
+// later phases of sts2-helper#46. Renamed to avoid colliding with the
+// `anthropic` provider import from `@ai-sdk/anthropic` above.
+const anthropicLegacy = new Anthropic();
 
 // ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
 
@@ -249,35 +256,26 @@ export async function POST(request: Request) {
       if (bossCompact) mapPromptFull += `\n\n${bossCompact}`;
     }
 
-    // Boss briefing: simple JSON response, no tool use
+    // Boss briefing: structured strategy via AI SDK + zod
     if (evalType === "boss_briefing") {
       try {
-        const message = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 512,
+        const result = await generateText({
+          model: anthropic(EVAL_MODELS.boss),
+          maxOutputTokens: 512,
           system: systemPrompt,
-          messages: [{ role: "user", content: mapPromptFull }],
+          prompt: mapPromptFull,
+          output: Output.object({ schema: bossBriefingSchema }),
         });
 
         logUsage(supabase, {
           userId: body.userId ?? null,
           evalType: "boss_briefing",
-          model: "claude-haiku-4-5-20251001",
-          inputTokens: message.usage.input_tokens,
-          outputTokens: message.usage.output_tokens,
+          model: EVAL_MODELS.boss,
+          inputTokens: result.usage.inputTokens ?? 0,
+          outputTokens: result.usage.outputTokens ?? 0,
         }).catch(console.error);
 
-        const textBlock = message.content.find((b) => b.type === "text");
-        const text = textBlock && textBlock.type === "text" ? textBlock.text : "";
-        // Extract JSON from response
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            const parsed = JSON.parse(jsonMatch[0]);
-            return NextResponse.json(parsed);
-          } catch {}
-        }
-        return NextResponse.json({ strategy: text });
+        return NextResponse.json({ strategy: result.output.strategy });
       } catch (err) {
         console.error("[Evaluate] Boss briefing error:", err);
         return NextResponse.json({ error: "Boss briefing failed" }, { status: 500 });
@@ -294,7 +292,7 @@ export async function POST(request: Request) {
         : buildGenericToolSchema(`Submit ${evalType} evaluation`);
 
     try {
-      const message = await anthropic.messages.create({
+      const message = await anthropicLegacy.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2048,
         system: systemPrompt,
@@ -525,7 +523,7 @@ ${budgetSummary}
 Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matching the order above.`;
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await anthropicLegacy.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: items.length > 5 ? 4096 : 1024,
       system: systemPrompt,
