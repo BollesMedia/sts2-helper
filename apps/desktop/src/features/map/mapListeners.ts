@@ -29,6 +29,7 @@ import type { MapNode as ChoiceMapNode } from "@sts2/shared/choice-detection/typ
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { waitForRunCreated } from "../run/runAnalyticsListener";
 import { getLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
+import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "map" as const;
 
@@ -189,6 +190,7 @@ export function setupMapEvalListener() {
         };
 
         const shouldEval = shouldEvaluateMap(input);
+        logDevEvent("eval", "map_should_eval", { input, shouldEval });
         if (!shouldEval) return;
 
         // Tier 1: If deviated but no material context change, just re-trace locally
@@ -246,6 +248,12 @@ export function setupMapEvalListener() {
             bestPathNodes2.add(`${p.col},${p.row}`);
           }
 
+          logDevEvent("eval", "map_tier1_retrace", {
+            currentPos,
+            storedPrefs,
+            retracedPath,
+            recommendedNodes: [...recommendedNodes],
+          });
           listenerApi.dispatch(mapPathRetraced({
             recommendedPath: retracedPath,
             bestPathNodes: [...bestPathNodes2],
@@ -331,6 +339,15 @@ export function setupMapEvalListener() {
           cardRemovalCost: player?.cardRemovalCost ?? null,
         });
 
+        logDevEvent("eval", "map_api_request", {
+          context: ctx,
+          mapPrompt,
+          floor: ctx.floor,
+          act: ctx.act,
+          ascension: ctx.ascension,
+          hpPercent: ctx.hpPercent,
+          deckSize: ctx.deckSize,
+        });
         const parsed = await listenerApi
           .dispatch(
             evaluationApi.endpoints.evaluateMap.initiate({
@@ -342,6 +359,7 @@ export function setupMapEvalListener() {
             })
           )
           .unwrap();
+        logDevEvent("eval", "map_api_response", parsed);
 
         // --- Post-API path tracing ---
         // Find best option for primary path trace
@@ -380,6 +398,10 @@ export function setupMapEvalListener() {
               ...tracerInput,
             })
           : parsed.recommendedPath;
+        logDevEvent("eval", "map_tracer_result", {
+          tracerInput,
+          tracedPath,
+        });
 
         // Prepend the current position so the recommended path covers
         // the full visual range from where the player is standing.
@@ -433,6 +455,7 @@ export function setupMapEvalListener() {
           },
           nodePreferences: parsed.nodePreferences,
         }));
+        logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_map_eval");
 
         registerLastEvaluation("map", {
           recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
