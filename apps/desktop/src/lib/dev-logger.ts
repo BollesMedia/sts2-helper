@@ -271,6 +271,26 @@ export function getCurrentSessionPath(): string | null {
   return sessionPath;
 }
 
+/**
+ * Capture a full Redux state snapshot. Called from listeners at meaningful
+ * checkpoints (after each eval, after run lifecycle changes, on uncaught
+ * errors). Not auto-fired on every action — combat polls would generate
+ * an unmanageable volume.
+ */
+export function logReduxSnapshot(
+  store: { getState: () => unknown },
+  reason: string
+): void {
+  if (!isDev) return;
+  let state: unknown;
+  try {
+    state = store.getState();
+  } catch {
+    return;
+  }
+  logDevEvent("state", "snapshot", { reason, ...(state as object) });
+}
+
 // --- Test hooks ---
 // These are gated to test usage only. Do not call from production code.
 

@@ -7,6 +7,7 @@ import {
   flushDevLogger,
   getCurrentSessionPath,
   initDevLogger,
+  logReduxSnapshot,
 } from "../dev-logger";
 import type { FsAdapter } from "../dev-logger";
 
@@ -213,6 +214,28 @@ describe("dev-logger", () => {
     const part2 = [...writtenPaths].find((p) => p.includes("-part2.jsonl"));
     expect(basePathHit).toBe(true);
     expect(part2).toBeDefined();
+
+    delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
+
+  it("logReduxSnapshot logs a state/snapshot event with reason and full state", async () => {
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+    (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = "/tmp/fake-applog/dev-session-test.jsonl";
+
+    const fakeStore = {
+      getState: () => ({ run: { activeRunId: "abc" }, evaluation: { evals: {} } }),
+    };
+    logReduxSnapshot(fakeStore, "after_map_eval");
+    await flushDevLogger();
+
+    expect(state.appendCalls).toHaveLength(1);
+    const event = JSON.parse(state.appendCalls[0].content.trim());
+    expect(event.category).toBe("state");
+    expect(event.name).toBe("snapshot");
+    expect(event.data.reason).toBe("after_map_eval");
+    expect(event.data.run.activeRunId).toBe("abc");
+    expect(event.data.evaluation).toBeDefined();
 
     delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
   });
