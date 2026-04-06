@@ -218,13 +218,19 @@ describe("dev-logger", () => {
     delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
   });
 
-  it("logReduxSnapshot logs a state/snapshot event with reason and full state", async () => {
+  it("logReduxSnapshot logs a state/snapshot event with reason taking precedence over state.reason", async () => {
     const { state, adapter } = makeFakeFs();
     __setFsAdapterForTest(adapter);
     (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = "/tmp/fake-applog/dev-session-test.jsonl";
 
+    // Include a top-level "reason" field in fake state to verify the
+    // spread order: snapshot reason ("after_map_eval") must win.
     const fakeStore = {
-      getState: () => ({ run: { activeRunId: "abc" }, evaluation: { evals: {} } }),
+      getState: () => ({
+        run: { activeRunId: "abc" },
+        evaluation: { evals: {} },
+        reason: "this should NOT win",
+      }),
     };
     logReduxSnapshot(fakeStore, "after_map_eval");
     await flushDevLogger();
@@ -233,9 +239,26 @@ describe("dev-logger", () => {
     const event = JSON.parse(state.appendCalls[0].content.trim());
     expect(event.category).toBe("state");
     expect(event.name).toBe("snapshot");
-    expect(event.data.reason).toBe("after_map_eval");
+    expect(event.data.reason).toBe("after_map_eval"); // snapshot reason wins
     expect(event.data.run.activeRunId).toBe("abc");
     expect(event.data.evaluation).toBeDefined();
+
+    delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
+
+  it("logReduxSnapshot is a no-op when DEV mode is off", async () => {
+    __setDevModeForTest(false);
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+    (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride = "/tmp/fake-applog/dev-session-test.jsonl";
+
+    const fakeStore = {
+      getState: () => ({ run: { activeRunId: "abc" } }),
+    };
+    logReduxSnapshot(fakeStore, "after_map_eval");
+    await flushDevLogger();
+
+    expect(state.appendCalls).toHaveLength(0);
 
     delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
   });

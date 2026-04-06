@@ -288,7 +288,12 @@ export function logReduxSnapshot(
   } catch {
     return;
   }
-  logDevEvent("state", "snapshot", { reason, ...(state as object) });
+  // Type guard: refuse to log if state isn't a plain object. Spreading
+  // null throws and spreading a primitive is silently wrong.
+  if (state === null || typeof state !== "object") return;
+  // Spread order: state first, reason last. If state happens to have a
+  // top-level "reason" field, the snapshot reason still wins.
+  logDevEvent("state", "snapshot", { ...state, reason });
 }
 
 // --- Test hooks ---
