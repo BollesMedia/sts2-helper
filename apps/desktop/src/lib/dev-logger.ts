@@ -37,7 +37,10 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInFlight: Promise<void> | null = null;
 
 function resolveSessionPath(): string | null {
-  // Test override hook — bypasses initDevLogger.
+  // TEST-ONLY override: setting `globalThis.__devLoggerSessionPathOverride`
+  // bypasses initDevLogger and forces flushes to the given path. Used by
+  // unit tests to exercise buffering/flush logic without standing up a
+  // session file. Always cleared by __resetForTest in beforeEach.
   const override = (globalThis as Record<string, unknown>)
     .__devLoggerSessionPathOverride;
   if (typeof override === "string") return override;
@@ -92,7 +95,9 @@ export async function flushDevLogger(): Promise<void> {
     try {
       await fsAdapter!.appendTextFile(path, toWrite);
     } catch {
-      // Drop silently — logging an error here would loop.
+      // Drop silently — logging an error here would loop. The events
+      // in this batch are discarded, not re-queued: persistent fs
+      // failures would otherwise create an infinite retry loop.
     }
   })();
 
@@ -114,6 +119,7 @@ export function getCurrentSessionPath(): string | null {
 }
 
 // --- Test hooks ---
+// These are gated to test usage only. Do not call from production code.
 
 export function __setDevModeForTest(value: boolean): void {
   isDev = value;
