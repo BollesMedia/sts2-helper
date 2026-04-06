@@ -21,6 +21,7 @@ import { inferRunOutcome } from "../../lib/infer-run-outcome";
 import { getActPath, clearAllActPaths } from "@sts2/shared/choice-detection/act-path-tracker";
 import { buildActPathRecord } from "@sts2/shared/choice-detection/build-act-path-record";
 import { clearAllPendingChoices } from "@sts2/shared/choice-detection/pending-choice-registry";
+import { shouldResumeRun } from "./should-resume-run";
 import type { MapEvalState, RunData } from "./runSlice";
 
 function generateRunId(): string {
@@ -58,6 +59,13 @@ export function setupRunAnalyticsListener() {
   let lastRelicNames: string[] = [];
   let bossesFought = new Set<string>();
   let prevAct: number | null = null;
+  /**
+   * True until the first menu→in-run transition of the session. Used to
+   * gate the "resume persisted run" path so we only attempt resume on the
+   * very first time the session sees the player inside a run, regardless of
+   * how many menu polls preceded it.
+   */
+  let isFirstRunTransition = true;
 
   function flushActPath(
     actNumber: number,
@@ -267,20 +275,28 @@ export function setupRunAnalyticsListener() {
       const wasInMenu = prevStateType === "menu" || prevStateType === null;
 
       if (isInRun && wasInMenu && !runActive) {
-        // On app restart (prevStateType === null), check if we have a persisted
-        // active run that matches the current game. Resume it instead of creating
-        // a new one — a fresh run would have an empty deck and fail validation.
+        // First menu→in-run transition: check if we have a persisted active
+        // run that matches the current game. Resume it instead of creating a
+        // new one — a fresh run would have an empty deck and fail validation
+        // (the STS2 mod only exposes the master deck via combat/card_select).
         const existingRunId = state.run.activeRunId;
         const existingRun = existingRunId ? state.run.runs[existingRunId] : null;
         const character = getPlayer(gameState)?.character ?? "Unknown";
         const ascension = hasRun(gameState) ? gameState.run.ascension : 0;
+        const currentFloor = hasRun(gameState) ? gameState.run.floor : 0;
+        const currentAct = hasRun(gameState) ? gameState.run.act : 0;
 
-        if (
-          prevStateType === null &&
-          existingRun &&
-          existingRun.character === character &&
-          existingRun.deck.length > 0
-        ) {
+        const canResume = shouldResumeRun({
+          isFirstRunTransition,
+          existingRun,
+          character,
+          ascension,
+          currentFloor,
+          currentAct,
+        });
+        isFirstRunTransition = false;
+
+        if (canResume && existingRun && existingRunId) {
           // Resume persisted run — restore closure state from persisted data
           runActive = true;
           lastFloor = existingRun.floor;
@@ -288,7 +304,7 @@ export function setupRunAnalyticsListener() {
           lastPlayerHp = existingRun.player?.hp ?? 0;
           lastDeckNames = existingRun.deck.map((c) => c.name);
           lastRelicNames = existingRun.player?.relics?.map((r) => r.name) ?? [];
-          initializeNarrative(existingRunId!, character, ascension);
+          initializeNarrative(existingRunId, character, ascension);
           console.log("[RunAnalytics] Resumed persisted run:", existingRunId);
         } else {
           const newRunId = generateRunId();
