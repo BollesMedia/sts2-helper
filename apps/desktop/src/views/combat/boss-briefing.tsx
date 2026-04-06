@@ -3,6 +3,7 @@ import { useEvaluateBossBriefingMutation } from "../../services/evaluationApi";
 import { createClient } from "@sts2/shared/supabase/client";
 import type { Monster } from "@sts2/shared/supabase/helpers";
 import type { Enemy, CombatCard } from "@sts2/shared/types/game-state";
+import { logDevEvent } from "../../lib/dev-logger";
 
 interface MoveInfo {
   name: string;
@@ -92,9 +93,7 @@ export function BossBriefing({ enemies, ascension, deckCards }: BossBriefingProp
 
     const deckSummary = deckCards.map((c) => c.name).join(", ");
 
-    evaluateStrategy({
-      context: null as never,
-      mapPrompt: `You are fighting this boss in Slay the Spire 2. Based ONLY on the move data below and the player's deck, provide a concise 2-3 sentence strategy. Do NOT invent moves or mechanics not listed.
+    const bossBriefingPrompt = `You are fighting this boss in Slay the Spire 2. Based ONLY on the move data below and the player's deck, provide a concise 2-3 sentence strategy. Do NOT invent moves or mechanics not listed.
 
 Boss moves:
 ${bossMoveSummary}
@@ -102,10 +101,29 @@ ${bossMoveSummary}
 Player deck: ${deckSummary}
 
 Respond as JSON:
-{"strategy": "2-3 sentences of grounded tactical advice based on the actual moves listed above"}`,
+{"strategy": "2-3 sentences of grounded tactical advice based on the actual moves listed above"}`;
+
+    logDevEvent("eval", "boss_briefing_api_request", {
+      mapPrompt: bossBriefingPrompt,
+      bossNames: bossData.map((b) => b.name),
+      ascension,
+      deckSize: deckCards.length,
+    });
+
+    evaluateStrategy({
+      context: null as never,
+      mapPrompt: bossBriefingPrompt,
       runId: null,
       gameVersion: null,
-    });
+    })
+      .unwrap()
+      .then((result) => {
+        logDevEvent("eval", "boss_briefing_api_response", result);
+      })
+      .catch(() => {
+        // Errors are surfaced via the mutation hook's destructured state;
+        // we don't want to log them here because that would double-report.
+      });
   }
 
   if (!bossData || bossData.length === 0) return null;
