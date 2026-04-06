@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { generateText, Output } from "ai";
+import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
@@ -14,7 +14,12 @@ import {
   buildSimpleToolSchema,
   type EvalType,
 } from "@sts2/shared/evaluation/prompt-builder";
-import { bossBriefingSchema } from "@sts2/shared/evaluation/eval-schemas";
+import {
+  bossBriefingSchema,
+  buildMapEvalSchema,
+  genericEvalSchema,
+  simpleEvalSchema,
+} from "@sts2/shared/evaluation/eval-schemas";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import {
   parseToolUseInput,
@@ -282,90 +287,73 @@ export async function POST(request: Request) {
       }
     }
 
-    // Select tool schema based on eval type
+    // Dispatch the right zod schema per eval type. Each branch is its own
+    // generateText call so TypeScript can infer a concrete output type
+    // (Output.object infers from the schema, and a union of three different
+    // schemas can't be unified).
     const isMapEval = evalType === "map";
-    const isSimpleEval = evalType === "card_removal" || evalType === "card_upgrade" || evalType === "card_select";
-    const toolSchema = isMapEval
-      ? buildMapToolSchema(body.mapPrompt.match(/Option \d+/g)?.length ?? 3)
-      : isSimpleEval
-        ? buildSimpleToolSchema()
-        : buildGenericToolSchema(`Submit ${evalType} evaluation`);
+    const isSimpleEval =
+      evalType === "card_removal" ||
+      evalType === "card_upgrade" ||
+      evalType === "card_select";
+    const optionCount = body.mapPrompt.match(/Option \d+/g)?.length ?? 3;
+    const callOptions = {
+      model: anthropic(EVAL_MODELS.default),
+      maxOutputTokens: 2048,
+      system: systemPrompt,
+      prompt: mapPromptFull,
+    };
 
     try {
-      const message = await anthropicLegacy.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages: [{ role: "user", content: mapPromptFull }],
-        tools: [toolSchema as Anthropic.Tool],
-        tool_choice: { type: "tool", name: toolSchema.name },
-      });
+      const result = isMapEval
+        ? await generateText({
+            ...callOptions,
+            output: Output.object({ schema: buildMapEvalSchema(optionCount) }),
+          })
+        : isSimpleEval
+          ? await generateText({
+              ...callOptions,
+              output: Output.object({ schema: simpleEvalSchema }),
+            })
+          : await generateText({
+              ...callOptions,
+              output: Output.object({ schema: genericEvalSchema }),
+            });
 
-      // Log usage
       logUsage(supabase, {
         userId: body.userId ?? null,
         evalType: evalType,
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: message.usage.input_tokens,
-        outputTokens: message.usage.output_tokens,
+        model: EVAL_MODELS.default,
+        inputTokens: result.usage.inputTokens ?? 0,
+        outputTokens: result.usage.outputTokens ?? 0,
       }).catch(console.error);
 
-      // Extract tool_use result — structured, no JSON parsing needed
-      const toolUse = message.content.find((b) => b.type === "tool_use");
-      if (!toolUse || toolUse.type !== "tool_use") {
+      console.log("[Evaluate] Map/freeform output:", JSON.stringify(result.output));
+      return NextResponse.json(result.output);
+    } catch (error) {
+      // Strict-fail: surface zod validation failures as 502 instead of
+      // silently degrading. The b11bef8 incident is exactly the case we
+      // want to surface — the old workaround masked Haiku's stringified
+      // rankings quirk and silently dropped node_preferences.
+      if (NoObjectGeneratedError.isInstance(error)) {
+        // Best-effort usage logging for the failed call so token cost
+        // is still captured.
+        if (error.usage) {
+          logUsage(supabase, {
+            userId: body.userId ?? null,
+            evalType: evalType,
+            model: EVAL_MODELS.default,
+            inputTokens: error.usage.inputTokens ?? 0,
+            outputTokens: error.usage.outputTokens ?? 0,
+          }).catch(console.error);
+        }
+        const detail = error.cause instanceof Error ? error.cause.message : error.message;
+        console.error("[Evaluate] Map/freeform schema validation failed:", detail, "raw text:", error.text);
         return NextResponse.json(
-          { error: "No tool use response from Claude" },
+          { error: "Schema validation failed", detail },
           { status: 502 }
         );
       }
-
-      const result = toolUse.input as Record<string, unknown>;
-
-      // Fix Haiku quirk: rankings sometimes returned as JSON string instead of array
-      if (typeof result.rankings === "string") {
-        try {
-          const str = result.rankings as string;
-          // Extract the array portion (may have trailing fields appended)
-          const start = str.indexOf("[");
-          if (start !== -1) {
-            let depth = 0;
-            for (let i = start; i < str.length; i++) {
-              if (str[i] === "[") depth++;
-              else if (str[i] === "]") depth--;
-              if (depth === 0) {
-                result.rankings = JSON.parse(str.slice(start, i + 1));
-                break;
-              }
-            }
-          }
-          // Also extract overall_advice if embedded in the string
-          if (!result.overall_advice) {
-            const adviceMatch = str.match(/"overall_advice"\s*:\s*"([^"]*)"/);
-            if (adviceMatch) result.overall_advice = adviceMatch[1];
-          }
-          // Extract node_preferences if embedded in the string. Haiku
-          // sometimes stuffs the whole response into rankings; without
-          // this the client sees nodePreferences: null and the map
-          // constraint tracer falls back to defaults, silently
-          // defeating the LLM's per-session tuning.
-          if (!result.node_preferences) {
-            const prefsMatch = str.match(/"node_preferences"\s*:\s*(\{[^}]*\})/);
-            if (prefsMatch) {
-              try {
-                result.node_preferences = JSON.parse(prefsMatch[1]);
-              } catch {
-                // Leave unset; client will default.
-              }
-            }
-          }
-        } catch {
-          result.rankings = [];
-        }
-      }
-
-      console.log("[Evaluate] Map/freeform tool result:", JSON.stringify(result));
-      return NextResponse.json(result);
-    } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Map evaluation failed:", message);
       return NextResponse.json(
