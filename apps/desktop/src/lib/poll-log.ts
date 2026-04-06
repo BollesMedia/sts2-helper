@@ -1,4 +1,5 @@
 import type { GameState } from "@sts2/shared/types/game-state";
+import { logDevEvent } from "./dev-logger";
 
 interface PollEntry {
   timestamp: number;
@@ -29,6 +30,8 @@ export function logPoll(state: GameState): void {
   if (entries.length > MAX_ENTRIES) {
     entries.shift();
   }
+
+  logDevEvent("poll", "game_state", state);
 }
 
 /** Get all logged poll entries (most recent last). */
