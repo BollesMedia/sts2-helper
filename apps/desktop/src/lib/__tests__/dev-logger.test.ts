@@ -6,6 +6,7 @@ import {
   logDevEvent,
   flushDevLogger,
   getCurrentSessionPath,
+  initDevLogger,
 } from "../dev-logger";
 import type { FsAdapter } from "../dev-logger";
 
@@ -126,5 +127,81 @@ describe("dev-logger", () => {
     await expect(flushDevLogger()).resolves.toBeUndefined();
 
     delete (globalThis as Record<string, unknown>).__devLoggerSessionPathOverride;
+  });
+
+  it("initDevLogger creates a session file path under appLogDir", async () => {
+    const { adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+
+    await initDevLogger();
+    const path = getCurrentSessionPath();
+    expect(path).toMatch(/^\/tmp\/fake-applog\/dev-session-/);
+    expect(path).toMatch(/\.jsonl$/);
+  });
+
+  it("initDevLogger prunes session files beyond the most recent 20", async () => {
+    const { state, adapter } = makeFakeFs();
+    // Pretend 25 existing session files of varying ages
+    state.dirEntries = Array.from({ length: 25 }, (_, i) => ({
+      name: `dev-session-2026-04-0${(i % 9) + 1}T10-00-00.jsonl`,
+      mtime: 1000 + i,
+    }));
+    __setFsAdapterForTest(adapter);
+
+    await initDevLogger();
+
+    // 25 existing - 20 to keep = 5 deleted (the oldest by mtime)
+    expect(state.removed).toHaveLength(5);
+    // The 5 oldest (mtime 1000-1004) should be removed
+    const removedNames = state.removed.map((p) => p.split("/").pop());
+    expect(removedNames).toContain("dev-session-2026-04-01T10-00-00.jsonl");
+  });
+
+  it("initDevLogger ignores non-session files in the log dir", async () => {
+    const { state, adapter } = makeFakeFs();
+    state.dirEntries = [
+      { name: "tauri.log", mtime: 1000 },
+      { name: "dev-session-2026-04-06T10-00-00.jsonl", mtime: 2000 },
+      { name: "other-file.txt", mtime: 3000 },
+    ];
+    __setFsAdapterForTest(adapter);
+
+    await initDevLogger();
+
+    expect(state.removed).toHaveLength(0);
+  });
+
+  it("initDevLogger is a no-op when DEV mode is off", async () => {
+    __setDevModeForTest(false);
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+    await initDevLogger();
+    expect(getCurrentSessionPath()).toBeNull();
+    expect(state.removed).toHaveLength(0);
+  });
+
+  it("initDevLogger drains pre-init buffered events on the next flush tick", async () => {
+    const { state, adapter } = makeFakeFs();
+    __setFsAdapterForTest(adapter);
+
+    // Log events BEFORE init — they should buffer but not flush
+    logDevEvent("poll", "game_state", { early: 1 });
+    logDevEvent("poll", "game_state", { early: 2 });
+
+    // Pre-init: nothing written yet
+    expect(state.appendCalls).toHaveLength(0);
+
+    // Init resolves the session path AND should re-arm the flush timer
+    await initDevLogger();
+
+    // Allow scheduled flush to fire
+    await new Promise((r) => setTimeout(r, 1100));
+
+    // The buffered pre-init events should now be on disk
+    expect(state.appendCalls.length).toBeGreaterThan(0);
+    const totalLines = state.appendCalls
+      .flatMap((c) => c.content.trim().split("\n"))
+      .filter(Boolean).length;
+    expect(totalLines).toBe(2);
   });
 });

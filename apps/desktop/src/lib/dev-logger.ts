@@ -28,6 +28,9 @@ export interface FsAdapter {
 
 const FLUSH_THRESHOLD_LINES = 50;
 const FLUSH_INTERVAL_MS = 1000;
+const MAX_SESSIONS = 20;
+const SESSION_FILE_PREFIX = "dev-session-";
+const SESSION_FILE_EXT = ".jsonl";
 
 let isDev = import.meta.env.DEV;
 let fsAdapter: FsAdapter | null = null;
@@ -108,9 +111,80 @@ export async function flushDevLogger(): Promise<void> {
   }
 }
 
+function buildSessionFileName(timestamp: Date): string {
+  // ISO timestamp with colons → dashes for filesystem safety
+  const iso = timestamp.toISOString().replace(/:/g, "-").replace(/\..+$/, "");
+  return `${SESSION_FILE_PREFIX}${iso}${SESSION_FILE_EXT}`;
+}
+
+async function pruneOldSessions(adapter: FsAdapter, dir: string): Promise<void> {
+  let entries: { name: string; mtime: number }[];
+  try {
+    entries = await adapter.readDir(dir);
+  } catch {
+    return;
+  }
+  const sessions = entries.filter(
+    (e) => e.name.startsWith(SESSION_FILE_PREFIX) && e.name.endsWith(SESSION_FILE_EXT)
+  );
+  if (sessions.length <= MAX_SESSIONS) return;
+
+  sessions.sort((a, b) => b.mtime - a.mtime); // newest first
+  const toDelete = sessions.slice(MAX_SESSIONS);
+  for (const entry of toDelete) {
+    try {
+      await adapter.remove(`${dir}/${entry.name}`);
+    } catch {
+      // Best-effort cleanup; ignore individual failures.
+    }
+  }
+}
+
+async function loadTauriFsAdapter(): Promise<FsAdapter | null> {
+  // Real adapter implemented in Task 5. For now, return null so unit tests
+  // (which inject their own adapter) drive coverage.
+  return null;
+}
+
 export async function initDevLogger(): Promise<void> {
   if (!isDev) return;
-  // Implemented in Task 4.
+  if (sessionPath != null) return; // Already initialized.
+  if (!fsAdapter) {
+    // Production code path: lazy-load the real Tauri adapter.
+    fsAdapter = await loadTauriFsAdapter();
+  }
+  if (!fsAdapter) return;
+
+  let dir: string;
+  try {
+    dir = await fsAdapter.appLogDir();
+  } catch {
+    return;
+  }
+
+  try {
+    const dirExists = await fsAdapter.exists(dir);
+    if (!dirExists) {
+      await fsAdapter.mkdir(dir, { recursive: true });
+    }
+  } catch {
+    // mkdir failures are non-fatal; appendTextFile will surface real errors.
+  }
+
+  await pruneOldSessions(fsAdapter, dir);
+
+  const fileName = buildSessionFileName(new Date());
+  sessionPath = `${dir}/${fileName}`;
+
+  // T3 review fix: drain any events buffered before init by re-arming
+  // the flush timer. flushDevLogger's pre-init early-return left them
+  // sitting in the buffer with no scheduled flush.
+  if (buffer.length > 0) {
+    scheduleFlush();
+  }
+
+  // eslint-disable-next-line no-console
+  console.info(`[dev-logger] Session file: ${sessionPath}`);
 }
 
 export function getCurrentSessionPath(): string | null {
