@@ -197,18 +197,32 @@ describe("eval-schemas", () => {
     });
   });
 
-  // Regression: #48 — `z.number().int()` and `z.int()` both bake
-  // `minimum: -Number.MAX_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER`
-  // into the emitted JSON Schema, and Anthropic's structured-output
-  // endpoint rejects integer types that carry minimum/maximum
-  // ("For 'integer' type, properties maximum, minimum are not supported").
-  // The Phase 4.5 smoke test (route.test.ts) used MockLanguageModelV3 and
-  // never round-tripped through Anthropic's schema validator, so this
-  // class of bug ships silently. Catch it at the schema-definition layer.
-  describe("Anthropic JSON Schema compatibility (regression #48)", () => {
-    function* walk(node: unknown, path: string[] = []): Generator<{ path: string[]; node: Record<string, unknown> }> {
+  // Regression: Anthropic's structured-output endpoint rejects several JSON
+  // Schema constraints that zod v4 bakes in by default. Every time we've hit
+  // this it's been a "zod feature I reached for → Anthropic 500 → full
+  // debugging cycle" loop. The walk-and-assert below catches every known
+  // rejection at the schema-definition layer so future schemas trip CI before
+  // touching the real API.
+  //
+  // Known-rejected constraints (expand as new ones are discovered):
+  //   • #48  integer type with `minimum` or `maximum`
+  //           zod: `z.number().int()` / `z.int()`
+  //           Anthropic: "For 'integer' type, properties maximum, minimum
+  //                       are not supported"
+  //   • #52  array type with `minItems` > 1 or `maxItems` > 1
+  //           zod: `z.array(...).length(N)` / `.min(N)` / `.max(N)` where N ≥ 2
+  //           Anthropic: "For 'array' type, 'minItems' values other than 0
+  //                       or 1 are not supported"
+  //           (minItems of 0 or 1 is fine — same for maxItems.)
+  //
+  // The Phase 4.5 smoke test (route.test.ts) uses MockLanguageModelV3 so it
+  // never round-trips through Anthropic's validator. This guard closes that
+  // gap without needing a live API call.
+  describe("Anthropic JSON Schema compatibility (regression #48, #52)", () => {
+    type JsonNode = Record<string, unknown>;
+    function* walk(node: unknown, path: string[] = []): Generator<{ path: string[]; node: JsonNode }> {
       if (!node || typeof node !== "object") return;
-      const obj = node as Record<string, unknown>;
+      const obj = node as JsonNode;
       yield { path, node: obj };
       for (const [k, v] of Object.entries(obj)) {
         if (v && typeof v === "object") {
@@ -217,13 +231,28 @@ describe("eval-schemas", () => {
       }
     }
 
-    function assertNoIntegerBounds(jsonSchema: unknown, schemaName: string) {
+    function assertAnthropicCompatible(jsonSchema: unknown, schemaName: string) {
       for (const { path, node } of walk(jsonSchema)) {
+        const where = path.join(".") || "<root>";
+
+        // #48 — integer min/max
         if (node.type === "integer" && ("minimum" in node || "maximum" in node)) {
           throw new Error(
-            `[${schemaName}] integer schema at ${path.join(".") || "<root>"} carries minimum/maximum, which Anthropic structured-output rejects. ` +
+            `[${schemaName}] integer schema at ${where} carries minimum/maximum, which Anthropic structured-output rejects (#48). ` +
               `Use plain z.number() instead of z.number().int() or z.int(). Node: ${JSON.stringify(node)}`,
           );
+        }
+
+        // #52 — array minItems/maxItems > 1
+        if (node.type === "array") {
+          const minItems = typeof node.minItems === "number" ? node.minItems : undefined;
+          const maxItems = typeof node.maxItems === "number" ? node.maxItems : undefined;
+          if ((minItems !== undefined && minItems > 1) || (maxItems !== undefined && maxItems > 1)) {
+            throw new Error(
+              `[${schemaName}] array schema at ${where} carries minItems/maxItems > 1, which Anthropic structured-output rejects (#52). ` +
+                `Use .refine((arr) => arr.length === N) instead of .length(N)/.min(N)/.max(N). Node: ${JSON.stringify(node)}`,
+            );
+          }
         }
       }
     }
@@ -231,6 +260,7 @@ describe("eval-schemas", () => {
     const cases: Array<[string, unknown]> = [
       ["bossBriefingSchema", bossBriefingSchema],
       ["buildMapEvalSchema(3)", buildMapEvalSchema(3)],
+      ["buildMapEvalSchema(5)", buildMapEvalSchema(5)], // worst case for minItems rejection
       ["mapEvalResponseSchema", mapEvalResponseSchema],
       ["genericEvalSchema", genericEvalSchema],
       ["simpleEvalSchema", simpleEvalSchema],
@@ -244,18 +274,49 @@ describe("eval-schemas", () => {
       )],
     ];
 
-    it.each(cases)("%s emits no integer min/max", (name, schema) => {
+    it.each(cases)("%s is Anthropic-compatible", (name, schema) => {
       const json = z.toJSONSchema(schema as z.ZodType);
-      assertNoIntegerBounds(json, name);
+      assertAnthropicCompatible(json, name);
     });
 
-    // Sanity check: the helper actually catches the bad pattern. If this
-    // ever stops failing, the regression assertion above is silently broken.
-    it("helper detects the bug pattern when present (sanity check)", () => {
-      const bad = z.object({ confidence: z.number().int() });
-      expect(() =>
-        assertNoIntegerBounds(z.toJSONSchema(bad), "bad-fixture"),
-      ).toThrow(/integer schema at .* carries minimum\/maximum/);
+    // Sanity: the helper actually catches each bug class when present. If any
+    // of these ever stops failing, the regression assertion has silently
+    // drifted out of sync with what Anthropic rejects.
+    describe("helper sanity checks", () => {
+      it("catches integer min/max (#48)", () => {
+        const bad = z.object({ confidence: z.number().int() });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(bad), "bad-int"),
+        ).toThrow(/integer schema at .* carries minimum\/maximum/);
+      });
+
+      it("catches array .length(N) where N > 1 (#52)", () => {
+        const bad = z.object({ rankings: z.array(z.string()).length(3) });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(bad), "bad-length"),
+        ).toThrow(/array schema at .* carries minItems\/maxItems > 1/);
+      });
+
+      it("catches array .min(N) where N > 1 (#52)", () => {
+        const bad = z.object({ rankings: z.array(z.string()).min(2) });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(bad), "bad-min"),
+        ).toThrow(/array schema at .* carries minItems\/maxItems > 1/);
+      });
+
+      it("catches array .max(N) where N > 1 (#52)", () => {
+        const bad = z.object({ rankings: z.array(z.string()).max(5) });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(bad), "bad-max"),
+        ).toThrow(/array schema at .* carries minItems\/maxItems > 1/);
+      });
+
+      it("allows array .min(1) (minItems=1 is Anthropic-compatible)", () => {
+        const ok = z.object({ rankings: z.array(z.string()).min(1) });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(ok), "ok-min-1"),
+        ).not.toThrow();
+      });
     });
   });
 });

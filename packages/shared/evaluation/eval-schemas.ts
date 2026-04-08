@@ -10,16 +10,17 @@ import { z } from "zod";
  * Notes:
  * - Field names are snake_case to match what Claude outputs today (zero
  *   behavior change at the wire). camelCase conversion stays in adapters.
- * - Numeric fields use plain `z.number()` — NOT `z.number().int()` or
- *   `z.int()`. Both add `minimum: -Number.MAX_SAFE_INTEGER, maximum:
- *   Number.MAX_SAFE_INTEGER` to the emitted JSON Schema, and Anthropic's
- *   structured-output endpoint rejects integer types that carry
- *   minimum/maximum ("For 'integer' type, properties maximum, minimum are
- *   not supported"). This caused #48. Downstream consumers assign into
- *   TypeScript `number` (float) anyway, and the comment about Haiku
- *   returning out-of-range values that the consumer coerces silently
- *   already implied no real safety from the int constraint. The regression
- *   guard lives in `eval-schemas.test.ts`.
+ * - ⚠️ Avoid zod constraints that leak into the emitted JSON Schema.
+ *   Anthropic's structured-output endpoint rejects several JSON Schema
+ *   constraints that zod v4 bakes in by default. Known-rejected:
+ *     • `z.number().int()` / `z.int()` → `minimum: -MAX_SAFE_INTEGER,
+ *       maximum: MAX_SAFE_INTEGER` on integer type (#48). Use `z.number()`.
+ *     • `z.array(...).length(N)` / `.min(N)` / `.max(N)` → `minItems: N,
+ *       maxItems: N` (#52). Use `.refine()` to enforce count at parse time.
+ *   When in doubt, run the schema through `z.toJSONSchema()` and eyeball
+ *   the output before wiring it to `generateText`. The regression test in
+ *   `eval-schemas.test.ts` walks every exported schema and fails on the
+ *   known-rejected patterns above, so new instances trip CI.
  * - The `tier` enum mirrors `TierLetter` from `./tier-utils`. Kept inline as
  *   a zod enum (rather than imported) so this module has zero runtime deps
  *   beyond zod.
@@ -67,14 +68,24 @@ export type MapEvalRankingRaw = z.infer<typeof mapEvalRankingSchema>;
 /**
  * Server-side schema for map evals. Embeds the dynamic option count in the
  * `rankings` array description so Haiku is told exactly how many entries to
- * return. Also enforces `.length(optionCount)` so missing entries fail zod
- * validation → 502 (per the strict-fail decision).
+ * return. Enforces the exact count via `.refine()` so missing entries fail
+ * zod validation → 502 (per the strict-fail decision).
+ *
+ * `.refine()` rather than `.length(optionCount)` because zod v4 emits
+ * `.length(N)` as `minItems: N, maxItems: N` in the JSON Schema and
+ * Anthropic's structured-output endpoint rejects any minItems/maxItems
+ * value other than 0 or 1 ("For 'array' type, 'minItems' values other
+ * than 0 or 1 are not supported"). `.refine()` runs only at parse time
+ * and produces no JSON Schema constraints. This caused #52; regression
+ * guard lives in `eval-schemas.test.ts`.
  */
 export function buildMapEvalSchema(optionCount: number) {
   return z.object({
     rankings: z
       .array(mapEvalRankingSchema)
-      .length(optionCount)
+      .refine((arr) => arr.length === optionCount, {
+        message: `Expected exactly ${optionCount} rankings, one per path option`,
+      })
       .describe(`Exactly ${optionCount} entries, one per path option in order.`),
     overall_advice: z.string(),
     node_preferences: nodePreferencesSchema,
@@ -140,15 +151,20 @@ interface CardRewardItem {
 /**
  * Per-call schema for card_reward and shop evals. Embeds exact item position
  * labels in the `rankings` description (mirroring the inline tool schema at
- * `route.ts:479-507`) and enforces `.length(items.length)` so Haiku returning
- * fewer entries than items becomes a zod parse error → 502 (per the
+ * `route.ts:479-507`) and enforces the exact item count via `.refine()` so
+ * Haiku returning fewer entries becomes a zod parse error → 502 (per the
  * strict-fail decision; replaces the silent fallback fill at route.ts:573-592).
+ *
+ * See `buildMapEvalSchema` for why `.refine()` rather than `.length()` —
+ * same Anthropic minItems/maxItems rejection (#52).
  */
 export function buildCardRewardSchema(items: CardRewardItem[], includeShopPlan: boolean) {
   const baseShape = {
     rankings: z
       .array(cardRewardRankingSchema)
-      .length(items.length)
+      .refine((arr) => arr.length === items.length, {
+        message: `Expected exactly ${items.length} rankings, one per offered item`,
+      })
       .describe(
         `Exactly ${items.length} entries in this EXACT order: ${items
           .map((it, i) => `${i + 1}=${it.name}`)
