@@ -37,8 +37,14 @@ if (import.meta.env.DEV) {
   });
 }
 
-// Configure shared package for desktop environment
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://sts2-helper.vercel.app";
+// Configure shared package for desktop environment.
+// Dev mode defaults to the local Next.js dev server so API edits don't
+// require a Vercel deploy — #50. Shipped prod builds fall back to the
+// Vercel URL. Committed `.env.development` / `.env.production` override
+// either default; `.env.[mode].local` beats both for per-machine tweaks.
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? "http://localhost:3000" : "https://sts2-helper.vercel.app");
 const AUTH_REDIRECT_ORIGIN = "sts2replay://";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
