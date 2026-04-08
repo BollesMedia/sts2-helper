@@ -10,9 +10,16 @@ import { z } from "zod";
  * Notes:
  * - Field names are snake_case to match what Claude outputs today (zero
  *   behavior change at the wire). camelCase conversion stays in adapters.
- * - `confidence` is `z.number().int()` only — no `.min/max` clamps. Haiku
- *   occasionally returns out-of-range values and the existing code coerces
- *   silently; tightening here would introduce parse failures with no benefit.
+ * - Numeric fields use plain `z.number()` — NOT `z.number().int()` or
+ *   `z.int()`. Both add `minimum: -Number.MAX_SAFE_INTEGER, maximum:
+ *   Number.MAX_SAFE_INTEGER` to the emitted JSON Schema, and Anthropic's
+ *   structured-output endpoint rejects integer types that carry
+ *   minimum/maximum ("For 'integer' type, properties maximum, minimum are
+ *   not supported"). This caused #48. Downstream consumers assign into
+ *   TypeScript `number` (float) anyway, and the comment about Haiku
+ *   returning out-of-range values that the consumer coerces silently
+ *   already implied no real safety from the int constraint. The regression
+ *   guard lives in `eval-schemas.test.ts`.
  * - The `tier` enum mirrors `TierLetter` from `./tier-utils`. Kept inline as
  *   a zod enum (rather than imported) so this module has zero runtime deps
  *   beyond zod.
@@ -48,10 +55,10 @@ export const nodePreferencesSchema = z.object({
 export type NodePreferencesRaw = z.infer<typeof nodePreferencesSchema>;
 
 export const mapEvalRankingSchema = z.object({
-  option_index: z.number().int(),
+  option_index: z.number(),
   node_type: z.string().optional(),
   tier: tierEnum,
-  confidence: z.number().int(),
+  confidence: z.number(),
   recommendation: recommendationEnum.optional(),
   reasoning: z.string(),
 });
@@ -90,10 +97,10 @@ export const mapEvalResponseSchema = z.object({
 
 export const genericEvalRankingSchema = z.object({
   item_id: z.string(),
-  rank: z.number().int().optional(),
+  rank: z.number().optional(),
   tier: tierEnum,
-  synergy_score: z.number().int().optional(),
-  confidence: z.number().int(),
+  synergy_score: z.number().optional(),
+  confidence: z.number(),
   recommendation: recommendationEnum.optional(),
   reasoning: z.string(),
 });
@@ -119,9 +126,9 @@ export type SimpleEvalRaw = z.infer<typeof simpleEvalSchema>;
 // ─── Card reward / shop eval ───
 
 export const cardRewardRankingSchema = z.object({
-  position: z.number().int(),
+  position: z.number(),
   tier: tierEnum,
-  confidence: z.number().int(),
+  confidence: z.number(),
   reasoning: z.string(),
 });
 export type CardRewardRankingRaw = z.infer<typeof cardRewardRankingSchema>;
