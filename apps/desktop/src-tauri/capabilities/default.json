@@ -22,7 +22,8 @@
         { "url": "https://sts2replay.com/**" },
         { "url": "https://api.sts2replay.com/**" },
         { "url": "https://*.supabase.co/**" },
-        { "url": "wss://*.supabase.co/**" }
+        { "url": "wss://*.supabase.co/**" },
+        { "url": "http://localhost:3000/**" }
       ]
     }
   ]
