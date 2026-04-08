@@ -41,10 +41,12 @@ GAME FACTS:
 - Relics are vital for clearing Act 3 — maximize relic acquisition opportunities (elites, treasures, events).
 - ENCHANTED CARDS: Ancient events transform deck cards into stronger versions (e.g., Bash → Break). Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
 - READ DESCRIPTIONS CAREFULLY: A card only has a keyword (Exhaust, Retain, Innate, etc.) if the description explicitly says so OR it has a [keyword] tag. Do NOT assume a card exhausts, retains, or has other keywords unless stated. "Gain 16 Block" does NOT mean the card exhausts.
+- TARGET SCOPE: "Deal X damage" with no explicit "to ALL enemies" / "to each enemy" / "to all" language is SINGLE-TARGET. Examples: "Deal 10 damage" is single-target. "Deal 9 damage to ALL enemies" is AoE. Do NOT describe a single-target attack as AoE, multi-target, "hits all", or imply it damages multiple enemies. Only claim AoE when the description literally says so. This rule overrides any memory of how a similarly-named STS1 card behaved.
 - SYNERGY CLAIMS: Only claim a synergy if you can explain the EXACT mechanical interaction. "Pairs with Dark Embrace" is only valid if the card actually has Exhaust. Block cards do NOT trigger exhaust synergies unless they explicitly say "Exhaust."
 - UNKNOWN ITEMS: STS2 has many items that did not exist in STS1. If you don't recognize a card, relic, or event option — evaluate ONLY based on the description provided. Do NOT invent mechanics or effects. If the description is insufficient to evaluate, set confidence below 40 and say "Unknown item — evaluating from description only" in your reasoning. NEVER fabricate what an item does.
 
 OUTPUT RULES:
+- Reasoning MUST describe the card's actual mechanics as written. Do NOT invent target scope, keywords, AoE-ness, or effects that aren't in the description. If you claim a property (AoE, Exhaust, scaling, etc.), that property must appear literally in the card's description text.
 - Only name deck cards that DIRECTLY interact with the evaluated card. "Fuels Body Slam" is valid (Body Slam uses block). "Pairs with Dark Embrace" is ONLY valid if the card exhausts. Do NOT list deck cards just because they exist.
 - Reasoning: under 20 words. State the mechanical reason for the tier, not a list of deck cards.
 - Respond in JSON only. Rankings MUST have exactly one entry per item, in listed order.
