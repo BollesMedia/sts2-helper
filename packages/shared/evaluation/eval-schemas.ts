@@ -16,11 +16,23 @@ import { z } from "zod";
  *     • `z.number().int()` / `z.int()` → `minimum: -MAX_SAFE_INTEGER,
  *       maximum: MAX_SAFE_INTEGER` on integer type (#48). Use `z.number()`.
  *     • `z.array(...).length(N)` / `.min(N)` / `.max(N)` → `minItems: N,
- *       maxItems: N` (#52). Use `.refine()` to enforce count at parse time.
- *   When in doubt, run the schema through `z.toJSONSchema()` and eyeball
- *   the output before wiring it to `generateText`. The regression test in
+ *       maxItems: N` (#52). These cannot be replaced with `.refine()` at
+ *       the schema level either (see next point), so count enforcement
+ *       lives in the route handler via `sanitizeRankings`.
+ *   `z.toJSONSchema()` also throws on any schema containing a `.transform()`
+ *   ("Transforms cannot be represented in JSON Schema"), so transform-based
+ *   workarounds are off the table. The regression test in
  *   `eval-schemas.test.ts` walks every exported schema and fails on the
  *   known-rejected patterns above, so new instances trip CI.
+ * - ⚠️ Strict-fail count enforcement. After #52 removed the JSON Schema
+ *   `minItems/maxItems` constraint, Claude started drifting — adding
+ *   placeholder entries (position N+1) and summary entries (position 0)
+ *   that a schema-level `.refine()` rejected as hard 502s even though
+ *   the real rankings were all present. Count enforcement moved to the
+ *   route handler: `sanitizeRankings` filters to valid indices, dedupes,
+ *   and sorts, and the handler returns 502 only if the cleaned count is
+ *   still wrong. The describe() text on each array still hammers the
+ *   expected count as a prompt-level signal (#54).
  * - The `tier` enum mirrors `TierLetter` from `./tier-utils`. Kept inline as
  *   a zod enum (rather than imported) so this module has zero runtime deps
  *   beyond zod.
@@ -68,25 +80,18 @@ export type MapEvalRankingRaw = z.infer<typeof mapEvalRankingSchema>;
 /**
  * Server-side schema for map evals. Embeds the dynamic option count in the
  * `rankings` array description so Haiku is told exactly how many entries to
- * return. Enforces the exact count via `.refine()` so missing entries fail
- * zod validation → 502 (per the strict-fail decision).
- *
- * `.refine()` rather than `.length(optionCount)` because zod v4 emits
- * `.length(N)` as `minItems: N, maxItems: N` in the JSON Schema and
- * Anthropic's structured-output endpoint rejects any minItems/maxItems
- * value other than 0 or 1 ("For 'array' type, 'minItems' values other
- * than 0 or 1 are not supported"). `.refine()` runs only at parse time
- * and produces no JSON Schema constraints. This caused #52; regression
- * guard lives in `eval-schemas.test.ts`.
+ * return. Does NOT enforce count at the schema level — see the "strict-fail
+ * count enforcement" note in the header.
  */
 export function buildMapEvalSchema(optionCount: number) {
   return z.object({
     rankings: z
       .array(mapEvalRankingSchema)
-      .refine((arr) => arr.length === optionCount, {
-        message: `Expected exactly ${optionCount} rankings, one per path option`,
-      })
-      .describe(`Exactly ${optionCount} entries, one per path option in order.`),
+      .describe(
+        `Exactly ${optionCount} ranking objects, one per path option. ` +
+          `Use option_index values 1 through ${optionCount} (no duplicates, no gaps, no option_index 0). ` +
+          `Do NOT add placeholder entries. Do NOT add a summary entry.`,
+      ),
     overall_advice: z.string(),
     node_preferences: nodePreferencesSchema,
   });
@@ -151,24 +156,20 @@ interface CardRewardItem {
 /**
  * Per-call schema for card_reward and shop evals. Embeds exact item position
  * labels in the `rankings` description (mirroring the inline tool schema at
- * `route.ts:479-507`) and enforces the exact item count via `.refine()` so
- * Haiku returning fewer entries becomes a zod parse error → 502 (per the
- * strict-fail decision; replaces the silent fallback fill at route.ts:573-592).
- *
- * See `buildMapEvalSchema` for why `.refine()` rather than `.length()` —
- * same Anthropic minItems/maxItems rejection (#52).
+ * `route.ts:479-507`). Does NOT enforce count at the schema level — see the
+ * "strict-fail count enforcement" note in the header.
  */
 export function buildCardRewardSchema(items: CardRewardItem[], includeShopPlan: boolean) {
   const baseShape = {
     rankings: z
       .array(cardRewardRankingSchema)
-      .refine((arr) => arr.length === items.length, {
-        message: `Expected exactly ${items.length} rankings, one per offered item`,
-      })
       .describe(
-        `Exactly ${items.length} entries in this EXACT order: ${items
-          .map((it, i) => `${i + 1}=${it.name}`)
-          .join(", ")}.`,
+        `Exactly ${items.length} ranking objects, one per offered item. ` +
+          `Use position values 1 through ${items.length} in this EXACT order: ${items
+            .map((it, i) => `${i + 1}=${it.name}`)
+            .join(", ")}. ` +
+          `Do NOT add placeholder entries. Do NOT include a position 0 summary entry. ` +
+          `If skipping all, still return one ranking per item with the skip reason in each \`reasoning\`.`,
       ),
     skip_recommended: z.boolean(),
     skip_reasoning: z.string().nullish(),

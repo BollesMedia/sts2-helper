@@ -19,6 +19,7 @@ import {
 } from "@sts2/shared/evaluation/eval-schemas";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
+import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
 import { getStatisticalEvaluation } from "@sts2/shared/evaluation/statistical-evaluator";
 import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
@@ -317,6 +318,32 @@ export async function POST(request: Request) {
         outputTokens: result.usage.outputTokens ?? 0,
       }).catch(console.error);
 
+      // Sanitize rankings for the map path only. Simple/generic evals don't
+      // have a fixed count to enforce. See #54 for the drift patterns
+      // (position 0 summaries, out-of-range placeholders) this handles.
+      if (isMapEval) {
+        const mapOutput = result.output as { rankings: { option_index: number }[] };
+        const cleaned = sanitizeRankings({
+          rankings: mapOutput.rankings,
+          indexKey: "option_index",
+          expectedCount: optionCount,
+        });
+        if (cleaned.length !== optionCount) {
+          console.error(
+            `[Evaluate] Map ranking count mismatch: expected ${optionCount}, got ${cleaned.length} valid (from ${mapOutput.rankings.length} returned). Raw:`,
+            JSON.stringify(mapOutput.rankings),
+          );
+          return NextResponse.json(
+            {
+              error: "Ranking count mismatch",
+              detail: `Expected ${optionCount} rankings, got ${cleaned.length} valid after sanitization`,
+            },
+            { status: 502 },
+          );
+        }
+        mapOutput.rankings = cleaned;
+      }
+
       console.log("[Evaluate] Map/freeform output:", JSON.stringify(result.output));
       return NextResponse.json(result.output);
     } catch (error) {
@@ -487,6 +514,30 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
     }).catch(console.error);
 
     console.log("[Evaluate] Card/shop output:", JSON.stringify(result.output));
+
+    // Sanitize rankings before the camelCase adapter. See #54 for the drift
+    // patterns this handles (position 0 summary entries, out-of-range
+    // placeholders, out-of-order, duplicates).
+    const cleanedRankings = sanitizeRankings({
+      rankings: result.output.rankings,
+      indexKey: "position",
+      expectedCount: items.length,
+    });
+    if (cleanedRankings.length !== items.length) {
+      console.error(
+        `[Evaluate] Card/shop ranking count mismatch: expected ${items.length}, got ${cleanedRankings.length} valid (from ${result.output.rankings.length} returned). Raw:`,
+        JSON.stringify(result.output.rankings),
+      );
+      return NextResponse.json(
+        {
+          error: "Ranking count mismatch",
+          detail: `Expected ${items.length} rankings, got ${cleanedRankings.length} valid after sanitization`,
+        },
+        { status: 502 },
+      );
+    }
+    result.output.rankings = cleanedRankings;
+
     const evaluation = toCardRewardEvaluation(result.output, items);
     console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
 
