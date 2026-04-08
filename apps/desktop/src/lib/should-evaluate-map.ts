@@ -9,6 +9,20 @@ export interface ShouldEvaluateMapInput {
   currentPosition: { col: number; row: number } | null;
   /** Whether the current position is in the set of recommended nodes */
   isOnRecommendedPath: boolean;
+  /**
+   * Every `next_options` entry is a forced Ancient event node (#56).
+   *
+   * STS2 places Ancient nodes alone in their row, so when the player
+   * transitions into an act whose first row is an Ancient, `next_options`
+   * has a single forced entry. Running an eval at that moment wastes an
+   * API call (there's no decision to make) AND bakes stale context into
+   * the result — the Ancient event grants a relic that isn't in the
+   * player's inventory yet. The gate defers the eval until after the
+   * event resolves; the next map poll sees `actChanged` still true (no
+   * eval ran to advance `prevContext.act`) and triggers a fresh eval
+   * with the new relic in context.
+   */
+  allOptionsAreAncient: boolean;
   /** Tier 2: HP dropped more than 20% since last eval */
   hpDropExceedsThreshold: boolean;
   /** Tier 2: Gold crossed a meaningful viability boundary */
@@ -30,6 +44,7 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     actChanged,
     currentPosition,
     isOnRecommendedPath,
+    allOptionsAreAncient,
     hpDropExceedsThreshold,
     goldCrossedThreshold,
     deckSizeChangedSignificantly,
@@ -37,6 +52,11 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
 
   // Hard gate: no options at all — nothing to evaluate
   if (optionCount <= 0) return false;
+
+  // Hard gate: forced Ancient event (#56). See `allOptionsAreAncient` docstring.
+  // Must be above the `actChanged` branch so act transitions that land on an
+  // Ancient row don't trigger a stale-context eval.
+  if (allOptionsAreAncient) return false;
 
   // Soft gate: single path forward with existing eval and on path — no decision needed
   if (optionCount === 1 && hasPrevContext && isOnRecommendedPath) return false;

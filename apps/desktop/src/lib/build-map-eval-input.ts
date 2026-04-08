@@ -3,6 +3,12 @@ import type { ShouldEvaluateMapInput } from "./should-evaluate-map";
 export interface MapEvalInputSources {
   /** Number of next path options */
   optionCount: number;
+  /**
+   * Whether every `next_options` entry is a forced Ancient event node.
+   * Caller computes via `options.every((o) => o.type === "Ancient")`.
+   * See `ShouldEvaluateMapInput.allOptionsAreAncient` for the rationale.
+   */
+  allOptionsAreAncient: boolean;
   /** Current map position */
   currentPosition: { col: number; row: number } | null;
   /** Current act */
@@ -32,6 +38,7 @@ export interface MapEvalInputSources {
 export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateMapInput {
   const {
     optionCount,
+    allOptionsAreAncient,
     currentPosition,
     act,
     prevContext,
@@ -69,6 +76,7 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     actChanged,
     currentPosition,
     isOnRecommendedPath,
+    allOptionsAreAncient,
     hpDropExceedsThreshold,
     goldCrossedThreshold,
     deckSizeChangedSignificantly,

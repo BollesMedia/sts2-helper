@@ -178,12 +178,23 @@ export function setupMapEvalListener() {
         }
         prevMapPosition = currentPos;
 
+        // STS2 places Ancient nodes alone in their row, so when an act starts
+        // on an Ancient the player's only next move is into the event. Skip
+        // the eval until after the event resolves and the player gets real
+        // options (#56). `.every()` is the defensive form — if the game ever
+        // ships a row with multiple ancient options, the gate still matches,
+        // and a hypothetical mixed Ancient/non-Ancient row would NOT match
+        // (the player would have a real choice worth evaluating).
+        const allOptionsAreAncient =
+          options.length > 0 && options.every((o) => o.type === "Ancient");
+
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
           actChanged: prevContext ? prevContext.act !== run.act : false,
           currentPosition: currentPos,
           isOnRecommendedPath: isOnPath,
+          allOptionsAreAncient,
           hpDropExceedsThreshold,
           goldCrossedThreshold,
           deckSizeChangedSignificantly,
