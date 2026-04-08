@@ -8,6 +8,7 @@ const stable: ShouldEvaluateMapInput = {
   actChanged: false,
   currentPosition: { col: 2, row: 5 },
   isOnRecommendedPath: true,
+  allOptionsAreAncient: false,
   hpDropExceedsThreshold: false,
   goldCrossedThreshold: false,
   deckSizeChangedSignificantly: false,
@@ -103,6 +104,62 @@ describe("shouldEvaluateMap", () => {
 
     it("returns false with multiple options, on path, no changes", () => {
       expect(evaluate({ optionCount: 5 })).toBe(false);
+    });
+  });
+
+  describe("hard gate: forced ancient event (#56)", () => {
+    it("returns false when the only option is an Ancient node, even on act transition", () => {
+      // This is the exact Act 1 → Act 2 case: `actChanged` is true and
+      // `next_options` contains a single Ancient entry. Pre-fix, `actChanged`
+      // short-circuited to `true` and an eval fired with stale pre-Ancient
+      // context. Post-fix the Ancient gate takes precedence.
+      expect(
+        evaluate({
+          optionCount: 1,
+          actChanged: true,
+          hasPrevContext: true,
+          isOnRecommendedPath: false, // transitional state at act start
+          currentPosition: null,
+          allOptionsAreAncient: true,
+        }),
+      ).toBe(false);
+    });
+
+    it("returns false when all options are Ancient even with no prev context (fresh run)", () => {
+      expect(
+        evaluate({
+          optionCount: 1,
+          hasPrevContext: false,
+          allOptionsAreAncient: true,
+        }),
+      ).toBe(false);
+    });
+
+    it("returns true for a mixed row where only one option is Ancient (player has a real choice)", () => {
+      // Structurally disallowed in STS2 today — Ancient nodes sit alone in
+      // their row — but the gate is defensive: if the invariant is ever
+      // broken, a mixed row should still be evaluated.
+      expect(
+        evaluate({
+          optionCount: 2,
+          allOptionsAreAncient: false,
+          actChanged: true,
+        }),
+      ).toBe(true);
+    });
+
+    it("returns true for a normal non-Ancient act transition", () => {
+      // Act 2 start where the first row is Monster nodes — existing behavior.
+      expect(
+        evaluate({
+          optionCount: 3,
+          actChanged: true,
+          hasPrevContext: true,
+          currentPosition: null,
+          isOnRecommendedPath: false,
+          allOptionsAreAncient: false,
+        }),
+      ).toBe(true);
     });
   });
 

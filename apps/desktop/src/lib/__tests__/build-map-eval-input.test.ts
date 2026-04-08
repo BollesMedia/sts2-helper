@@ -6,6 +6,7 @@ import { shouldEvaluateMap } from "../should-evaluate-map";
 function shouldEval(overrides: Partial<MapEvalInputSources>) {
   const base: MapEvalInputSources = {
     optionCount: 3,
+    allOptionsAreAncient: false,
     currentPosition: { col: 2, row: 5 },
     act: 1,
     prevContext: { hpPercent: 0.9, deckSize: 14, act: 1, gold: 100, ascension: 0 },
