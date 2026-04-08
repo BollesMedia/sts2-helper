@@ -49,7 +49,12 @@ describe("eval-schemas", () => {
       expect(parsed.node_preferences.elite).toBe(0.5);
     });
 
-    it("rejects when rankings count does not match optionCount (strict-fail)", () => {
+    it("accepts wrong rankings count at schema layer — count enforcement lives in route handler post-#54", () => {
+      // Pre-#54 this threw via `.refine()`. Post-#54 the schema intentionally
+      // accepts any length so Claude's drift-added summary/placeholder
+      // entries don't hard-502 the real rankings. Count enforcement moved to
+      // `sanitizeRankings` in the route handler; see its unit tests in
+      // `sanitize-rankings.test.ts`.
       const schema = buildMapEvalSchema(3);
       expect(() =>
         schema.parse({
@@ -57,7 +62,7 @@ describe("eval-schemas", () => {
           overall_advice: "go right",
           node_preferences: validPrefs,
         }),
-      ).toThrow();
+      ).not.toThrow();
     });
 
     it("rejects missing node_preferences (the b11bef8 silent-drop case)", () => {
@@ -167,14 +172,16 @@ describe("eval-schemas", () => {
       expect(parsed.rankings).toHaveLength(3);
     });
 
-    it("rejects when rankings.length !== items.length (strict-fail, replaces fallback fill)", () => {
+    it("accepts wrong rankings count at schema layer — count enforcement lives in route handler post-#54", () => {
+      // Same migration as the map case above. See `sanitize-rankings.test.ts`
+      // for the count + drift-filtering coverage.
       const schema = buildCardRewardSchema(items, false);
       expect(() =>
         schema.parse({
           rankings: [validRanking(1), validRanking(2)], // only 2 of 3
           skip_recommended: false,
         }),
-      ).toThrow();
+      ).not.toThrow();
     });
 
     it("includes spending_plan only when includeShopPlan is true", () => {
