@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { z } from "zod";
 import {
   bossBriefingSchema,
   buildMapEvalSchema,
@@ -193,6 +194,68 @@ describe("eval-schemas", () => {
           rankings: [validRanking(1), validRanking(2), validRanking(3)],
         }),
       ).toThrow();
+    });
+  });
+
+  // Regression: #48 — `z.number().int()` and `z.int()` both bake
+  // `minimum: -Number.MAX_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER`
+  // into the emitted JSON Schema, and Anthropic's structured-output
+  // endpoint rejects integer types that carry minimum/maximum
+  // ("For 'integer' type, properties maximum, minimum are not supported").
+  // The Phase 4.5 smoke test (route.test.ts) used MockLanguageModelV3 and
+  // never round-tripped through Anthropic's schema validator, so this
+  // class of bug ships silently. Catch it at the schema-definition layer.
+  describe("Anthropic JSON Schema compatibility (regression #48)", () => {
+    function* walk(node: unknown, path: string[] = []): Generator<{ path: string[]; node: Record<string, unknown> }> {
+      if (!node || typeof node !== "object") return;
+      const obj = node as Record<string, unknown>;
+      yield { path, node: obj };
+      for (const [k, v] of Object.entries(obj)) {
+        if (v && typeof v === "object") {
+          yield* walk(v, [...path, k]);
+        }
+      }
+    }
+
+    function assertNoIntegerBounds(jsonSchema: unknown, schemaName: string) {
+      for (const { path, node } of walk(jsonSchema)) {
+        if (node.type === "integer" && ("minimum" in node || "maximum" in node)) {
+          throw new Error(
+            `[${schemaName}] integer schema at ${path.join(".") || "<root>"} carries minimum/maximum, which Anthropic structured-output rejects. ` +
+              `Use plain z.number() instead of z.number().int() or z.int(). Node: ${JSON.stringify(node)}`,
+          );
+        }
+      }
+    }
+
+    const cases: Array<[string, unknown]> = [
+      ["bossBriefingSchema", bossBriefingSchema],
+      ["buildMapEvalSchema(3)", buildMapEvalSchema(3)],
+      ["mapEvalResponseSchema", mapEvalResponseSchema],
+      ["genericEvalSchema", genericEvalSchema],
+      ["simpleEvalSchema", simpleEvalSchema],
+      ["buildCardRewardSchema(items=3, shop=false)", buildCardRewardSchema(
+        [{ name: "Strike" }, { name: "Defend" }, { name: "Bash" }],
+        false,
+      )],
+      ["buildCardRewardSchema(items=3, shop=true)", buildCardRewardSchema(
+        [{ name: "Strike" }, { name: "Defend" }, { name: "Bash" }],
+        true,
+      )],
+    ];
+
+    it.each(cases)("%s emits no integer min/max", (name, schema) => {
+      const json = z.toJSONSchema(schema as z.ZodType);
+      assertNoIntegerBounds(json, name);
+    });
+
+    // Sanity check: the helper actually catches the bad pattern. If this
+    // ever stops failing, the regression assertion above is silently broken.
+    it("helper detects the bug pattern when present (sanity check)", () => {
+      const bad = z.object({ confidence: z.number().int() });
+      expect(() =>
+        assertNoIntegerBounds(z.toJSONSchema(bad), "bad-fixture"),
+      ).toThrow(/integer schema at .* carries minimum\/maximum/);
     });
   });
 });
