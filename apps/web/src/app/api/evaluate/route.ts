@@ -29,6 +29,11 @@ import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
 
+// ─── Trailing-comma repair for LLM-generated JSON ───
+function repairJson(text: string): string {
+  return text.replace(/,(\s*[}\]])/g, "$1");
+}
+
 // ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
 
 // Boss reference
@@ -352,6 +357,34 @@ export async function POST(request: Request) {
       // want to surface — the old workaround masked Haiku's stringified
       // rankings quirk and silently dropped node_preferences.
       if (NoObjectGeneratedError.isInstance(error)) {
+        // Attempt to repair trailing commas in LLM-generated JSON
+        if (error.text) {
+          const repaired = repairJson(error.text);
+          if (repaired !== error.text) {
+            try {
+              const schema = isMapEval
+                ? buildMapEvalSchema(optionCount)
+                : isSimpleEval
+                  ? simpleEvalSchema
+                  : genericEvalSchema;
+              const parsed = schema.parse(JSON.parse(repaired));
+              console.log("[Evaluate] Map/freeform JSON repaired (trailing comma)");
+              if (error.usage) {
+                logUsage(supabase, {
+                  userId: body.userId ?? null,
+                  evalType: evalType,
+                  model: EVAL_MODELS.default,
+                  inputTokens: error.usage.inputTokens ?? 0,
+                  outputTokens: error.usage.outputTokens ?? 0,
+                }).catch(console.error);
+              }
+              return NextResponse.json(parsed);
+            } catch {
+              // Repair didn't help — fall through to original error handling
+            }
+          }
+        }
+
         // Best-effort usage logging for the failed call so token cost
         // is still captured.
         if (error.usage) {
@@ -601,6 +634,31 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
     // than items, or returns a stringified-blob shape) → 502 with detail.
     // Replaces the previous fallback fill at the now-deleted route.ts:573-592.
     if (NoObjectGeneratedError.isInstance(error)) {
+      // Attempt to repair trailing commas in LLM-generated JSON
+      if (error.text) {
+        const repaired = repairJson(error.text);
+        if (repaired !== error.text) {
+          try {
+            const parsed = cardSchema.parse(JSON.parse(repaired));
+            console.log("[Evaluate] Card/shop JSON repaired (trailing comma)");
+            if (error.usage) {
+              logUsage(supabase, {
+                userId: body.userId ?? null,
+                evalType: evalType,
+                model: EVAL_MODELS.default,
+                inputTokens: error.usage.inputTokens ?? 0,
+                outputTokens: error.usage.outputTokens ?? 0,
+              }).catch(console.error);
+            }
+            // Continue with normal post-processing
+            const evaluation = toCardRewardEvaluation(parsed, items);
+            return NextResponse.json(evaluation);
+          } catch {
+            // Repair didn't help — fall through to original error handling
+          }
+        }
+      }
+
       if (error.usage) {
         logUsage(supabase, {
           userId: body.userId ?? null,
