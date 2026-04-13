@@ -17,6 +17,7 @@ export type EvalType =
   | "map"
   | "rest_site"
   | "event"
+  | "ancient"
   | "card_removal"
   | "card_upgrade"
   | "card_select"
@@ -110,6 +111,22 @@ EVENT:
 - Curse: avoid unless reward is exceptional AND removal available soon.
 - Card transform: only if transforming a Strike/Defend.
 - Max HP: always valuable at higher ascension.`,
+
+  ancient: `
+ANCIENT EVENT:
+- You MUST choose exactly one option. Evaluate all three against your current deck needs, act timing, and ascension.
+- OPTION CATEGORIES — identify each option's category tag and apply the matching framework:
+  - CARD REMOVAL (remove N cards): High priority when Strikes/Defends remain. Value decreases as deck thins. In Acts 1-2, removal is almost always the best option.
+  - GOLD TRADE (lose/gain gold): Gold buys card removal (75-100g), relics, and potions at shops. Evaluate gold loss against remaining shop opportunities. Losing 99g at Act 1 is significant — that is one card removal. Gaining 150-300g is strong if shops remain.
+  - TRANSFORM (transform N cards): Strong when transforming Strikes/Defends into random cards. Risky when transforming engine cards. Transform + upgrade is premium.
+  - MAX HP (raise max HP by N): Scales with ascension — more valuable at Ascension 8+. Always solid, never bad.
+  - RELIC (obtain random relic/specific relic): Permanent power. High priority unless the specific relic has a downside (curse, HP loss, boss relics with drawbacks).
+  - ENCHANTMENT (enchant cards with X): Archetype-dependent. Evaluate the enchantment effect against current deck composition. Strong when it enhances core cards.
+  - CARD ADD (add specific cards): Evaluate added cards the same as a card reward — do they advance the deck's win condition?
+  - HP TRADE (lose HP/Max HP for reward): Only take if reward is high-value AND current HP can absorb the cost safely.
+- Evaluate based on DESCRIPTIONS PROVIDED. Do not assume you know what an enchantment, relic, or card does beyond what the description says.
+- If unsure about an option's effect, set confidence below 50.
+- Reasoning must reference the specific trade-off: what you gain vs what you lose.`,
 
   card_removal: `
 CARD REMOVAL:
