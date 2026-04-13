@@ -188,6 +188,22 @@ export function setupMapEvalListener() {
         const allOptionsAreAncient =
           options.length > 0 && options.every((o) => o.type === "Ancient");
 
+        // Check if the recommended path ahead contains a shop that's now worthless
+        const removalCost = selectActivePlayer(state)?.cardRemovalCost ?? 75;
+        let shopInPathBecameWorthless = false;
+        if (prevContext && isOnPath && currentGold < removalCost && prevContext.gold >= removalCost) {
+          // Gold dropped below removal cost — check if path ahead has a shop
+          const allNodes = mapState.map?.nodes ?? [];
+          const currentRow = currentPos?.row ?? 0;
+          const bestNodes = bestPathNodes;
+          for (const node of allNodes) {
+            if (node.row > currentRow && node.type === "Shop" && bestNodes.has(`${node.col},${node.row}`)) {
+              shopInPathBecameWorthless = true;
+              break;
+            }
+          }
+        }
+
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
@@ -198,6 +214,7 @@ export function setupMapEvalListener() {
           hpDropExceedsThreshold,
           goldCrossedThreshold,
           deckSizeChangedSignificantly,
+          shopInPathBecameWorthless,
         };
 
         const shouldEval = shouldEvaluateMap(input);

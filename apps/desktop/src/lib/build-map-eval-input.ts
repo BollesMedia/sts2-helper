@@ -80,5 +80,6 @@ export function buildMapEvalInput(sources: MapEvalInputSources): ShouldEvaluateM
     hpDropExceedsThreshold,
     goldCrossedThreshold,
     deckSizeChangedSignificantly,
+    shopInPathBecameWorthless: false, // Computed in mapListeners where node data is available
   };
 }

@@ -12,6 +12,7 @@ const stable: ShouldEvaluateMapInput = {
   hpDropExceedsThreshold: false,
   goldCrossedThreshold: false,
   deckSizeChangedSignificantly: false,
+  shopInPathBecameWorthless: false,
 };
 
 function evaluate(overrides: Partial<ShouldEvaluateMapInput>) {

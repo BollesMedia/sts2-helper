@@ -29,6 +29,8 @@ export interface ShouldEvaluateMapInput {
   goldCrossedThreshold: boolean;
   /** Tier 2: Deck size changed significantly (card added or removed) */
   deckSizeChangedSignificantly: boolean;
+  /** Recommended path ahead includes a shop but gold dropped below removal cost */
+  shopInPathBecameWorthless: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     hpDropExceedsThreshold,
     goldCrossedThreshold,
     deckSizeChangedSignificantly,
+    shopInPathBecameWorthless,
   } = input;
 
   // Hard gate: no options at all — nothing to evaluate
@@ -85,6 +88,11 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   // Note: these are unreachable when isOnRecommendedPath is false (line above
   // already returned true), so they effectively only gate Tier 1 → Tier 2
   // escalation in the listener. Kept here for clarity of the decision tree.
+
+  // On recommended path but shop routing became invalid — re-evaluate.
+  // The LLM may have recommended a shop when the player had gold. If gold
+  // dropped below removal cost since the eval, the shop node is wasted.
+  if (isOnRecommendedPath && shopInPathBecameWorthless) return true;
 
   // On recommended path with stable context — carry forward
   return false;
