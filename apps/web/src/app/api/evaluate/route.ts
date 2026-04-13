@@ -146,6 +146,33 @@ type WinRateRow = {
   times_skipped: number;
 };
 
+/**
+ * Categorize an ancient event option by pattern-matching its relic description.
+ * Returns a category tag that maps to guidance in the ancient addendum.
+ */
+function categorizeAncientOption(description: string): string {
+  const lower = description.toLowerCase();
+  if (lower.includes("remove") && lower.includes("card")) return "CARD REMOVAL";
+  if (lower.includes("transform")) return "TRANSFORM";
+  if (lower.includes("raise your max hp") || lower.includes("max hp")) return "MAX HP";
+  if (lower.includes("enchant")) return "ENCHANTMENT";
+  if (
+    (lower.includes("lose") && lower.includes("gold")) ||
+    (lower.includes("gain") && lower.includes("gold"))
+  ) return "GOLD TRADE";
+  if (lower.includes("obtain") && lower.includes("relic")) return "RELIC";
+  if (
+    (lower.includes("add") && lower.includes("deck")) ||
+    (lower.includes("obtain") && lower.includes("card")) ||
+    lower.includes("card reward")
+  ) return "CARD ADD";
+  if (
+    (lower.includes("lose") && lower.includes("hp")) ||
+    (lower.includes("lose") && lower.includes("max hp"))
+  ) return "HP TRADE";
+  return "UNKNOWN";
+}
+
 interface EvaluateRequest {
   type: "card_reward" | "shop" | "map";
   evalType?: string; // Specific eval type for system prompt (rest_site, event, etc.)
@@ -246,7 +273,62 @@ export async function POST(request: Request) {
 
   // ─── MAP/EVENT/REST/ETC EVALUATION (via mapPrompt) ───
   if (type === "map" && body.mapPrompt) {
+    // Ancient event enrichment: pull relic descriptions + pool from DB
+    let ancientReference = "";
+    if (evalType === "ancient") {
+      const eventIdMatch = body.mapPrompt.match(/ANCIENT_EVENT_ID:\s*(\S+)/);
+      const eventId = eventIdMatch?.[1] ?? null;
+
+      if (eventId) {
+        try {
+          const [eventResult, relicsResult] = await Promise.all([
+            supabase
+              .from("events")
+              .select("name, act, relics")
+              .eq("id", eventId)
+              .single(),
+            supabase
+              .from("relics")
+              .select("name, description")
+              .not("description", "is", null),
+          ]);
+
+          const ancientEvent = eventResult.data;
+          const allRelics = relicsResult.data;
+
+          if (ancientEvent && allRelics) {
+            const relicMap = new Map(allRelics.map((r) => [r.name, r.description]));
+            const poolSize = ancientEvent.relics?.length ?? 0;
+
+            // Extract offered option names from the mapPrompt (format: "N. Title: Description")
+            const optionMatches = body.mapPrompt.matchAll(/^\d+\.\s+(.+?):/gm);
+            const offeredOptions: { name: string; description: string; category: string }[] = [];
+            for (const match of optionMatches) {
+              const optionName = match[1].trim();
+              const relicDesc = relicMap.get(optionName) ?? "";
+              offeredOptions.push({
+                name: optionName,
+                description: relicDesc,
+                category: categorizeAncientOption(relicDesc),
+              });
+            }
+
+            if (offeredOptions.length > 0) {
+              const optionLines = offeredOptions
+                .map((o, i) => `${i + 1}. ${o.name} — ${o.description} [${o.category}]`)
+                .join("\n");
+              ancientReference = `[Ancient: ${ancientEvent.name} | ${ancientEvent.act ?? "Unknown Act"} | Pool: ${poolSize} options]\nOffered options with categories:\n${optionLines}\n\n`;
+            }
+          }
+        } catch (err) {
+          console.error("[Evaluate] Ancient enrichment failed:", err);
+          // Non-critical — continue without enrichment
+        }
+      }
+    }
+
     let mapPromptFull = "";
+    if (ancientReference) mapPromptFull += ancientReference;
     if (runHistory) mapPromptFull += `${runHistory}\n\n`;
     if (body.runNarrative) mapPromptFull += `${body.runNarrative}\n\n`;
     if (characterStrategy) mapPromptFull += `=== BUILD GUIDE ===\n${compactStrategy(characterStrategy) ?? characterStrategy}\n\n`;
