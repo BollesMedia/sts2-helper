@@ -42,12 +42,12 @@ describe("validateEvaluationContext", () => {
   });
 
   describe("errors", () => {
-    it("flags empty deck past early game", () => {
+    it("warns on empty deck past early game (degraded eval, not blocked)", () => {
       const ctx = makeValidContext({ deckSize: 0, deckCards: [], floor: 10 });
       const result = validateEvaluationContext(ctx);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({ field: "deckSize", severity: "error" })
+      expect(result.isValid).toBe(true); // degraded, not blocked
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({ field: "deckSize", severity: "warning" })
       );
     });
 
@@ -58,12 +58,12 @@ describe("validateEvaluationContext", () => {
       expect(deckError).toBeUndefined();
     });
 
-    it("flags deckCards/deckSize mismatch", () => {
+    it("warns on deckCards/deckSize mismatch (degraded eval, not blocked)", () => {
       const ctx = makeValidContext({ deckSize: 5 }); // deckCards has 12
       const result = validateEvaluationContext(ctx);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({ field: "deckCards", severity: "error" })
+      expect(result.isValid).toBe(true); // degraded, not blocked
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({ field: "deckCards", severity: "warning" })
       );
     });
 
@@ -85,12 +85,12 @@ describe("validateEvaluationContext", () => {
       );
     });
 
-    it("flags 0% HP", () => {
+    it("warns on 0% HP (degraded eval, not blocked)", () => {
       const ctx = makeValidContext({ hpPercent: 0 });
       const result = validateEvaluationContext(ctx);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({ field: "hpPercent", severity: "error" })
+      expect(result.isValid).toBe(true); // degraded, not blocked
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({ field: "hpPercent", severity: "warning" })
       );
     });
   });
@@ -158,7 +158,7 @@ describe("validateEvaluationContext", () => {
   });
 
   describe("multiple issues", () => {
-    it("collects multiple errors and warnings", () => {
+    it("collects errors and warnings", () => {
       const ctx = makeValidContext({
         character: "unknown",
         hpPercent: 0,
@@ -170,9 +170,9 @@ describe("validateEvaluationContext", () => {
         act: 2,
       });
       const result = validateEvaluationContext(ctx);
-      expect(result.isValid).toBe(false);
-      expect(result.errors.length).toBeGreaterThanOrEqual(3); // deckSize, character, hpPercent
-      expect(result.warnings.length).toBeGreaterThanOrEqual(1); // relics
+      expect(result.isValid).toBe(false); // character=unknown is still an error
+      expect(result.errors.length).toBeGreaterThanOrEqual(1); // character
+      expect(result.warnings.length).toBeGreaterThanOrEqual(3); // deckSize, hpPercent, relics
     });
   });
 });

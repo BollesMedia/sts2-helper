@@ -1,5 +1,5 @@
 import type { GameState, CombatCard } from "../types/game-state";
-import { hasRun } from "../types/game-state";
+import { hasRun, getPlayer } from "../types/game-state";
 import type { TrackedPlayer } from "../types/tracked-player";
 import type { EvaluationContext } from "./types";
 import {
@@ -31,9 +31,38 @@ export function buildEvaluationContext(
   const isLikelyStale = floor <= 2 && deckCards.length > STARTER_DECK_SIZE + 2;
   const safeDeckCards = isLikelyStale ? [] : deckCards;
 
-  const player = trackedPlayer && !isLikelyStale
-    ? trackedPlayer
-    : {
+  // Player priority: tracked player > game state player > fallback defaults
+  // On resume, trackedPlayer may be null but the game state always has state.player
+  let player: TrackedPlayer;
+  if (trackedPlayer && !isLikelyStale) {
+    player = trackedPlayer;
+  } else {
+    // Try to extract player from the game state itself (always available on non-menu states)
+    const statePlayer = getPlayer(state);
+    if (statePlayer) {
+      const relics = "relics" in statePlayer && Array.isArray(statePlayer.relics)
+        ? statePlayer.relics.map((r) => ({
+            id: "id" in r ? (r as { id: string }).id : "",
+            name: r.name,
+            description: r.description,
+          }))
+        : [];
+      const potions = "potions" in statePlayer && Array.isArray(statePlayer.potions)
+        ? statePlayer.potions.map((p) => ({ name: p.name, description: p.description }))
+        : [];
+      player = {
+        character: statePlayer.character,
+        hp: statePlayer.hp,
+        maxHp: statePlayer.max_hp,
+        gold: statePlayer.gold,
+        maxEnergy: "max_energy" in statePlayer ? (statePlayer.max_energy ?? 3) : 3,
+        relics,
+        potions,
+        cardRemovalCost: null,
+      };
+      console.warn("[EvalContext] Using game state player as fallback (tracked player unavailable)");
+    } else {
+      player = {
         character: trackedPlayer?.character ?? "Unknown",
         hp: 0,
         maxHp: 1,
@@ -41,7 +70,10 @@ export function buildEvaluationContext(
         maxEnergy: 3,
         relics: [],
         potions: [],
+        cardRemovalCost: null,
       };
+    }
+  }
 
   if (isLikelyStale) {
     console.warn("[EvalContext] Stale deck/player data detected at floor", floor, "- using defaults");

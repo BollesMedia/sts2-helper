@@ -29,19 +29,22 @@ export function validateEvaluationContext(
 
   // --- Errors (block evaluation) ---
 
+  // Deck empty past early game — downgrade to warning so evals can still
+  // run on resume (deck only populates from combat states). Less accurate
+  // but better than no evaluation at all.
   if (ctx.deckSize === 0 && ctx.floor > 2) {
-    errors.push({
+    warnings.push({
       field: "deckSize",
-      severity: "error",
-      message: "Deck is empty past early game — deck data was not populated",
+      severity: "warning",
+      message: "Deck is empty past early game — deck data not yet populated (awaiting combat). Eval will run without deck context.",
       actual: ctx.deckSize,
     });
   }
 
   if (ctx.deckCards.length !== ctx.deckSize) {
-    errors.push({
+    warnings.push({
       field: "deckCards",
-      severity: "error",
+      severity: "warning",
       message: `deckCards length (${ctx.deckCards.length}) does not match deckSize (${ctx.deckSize})`,
       actual: ctx.deckCards.length,
     });
@@ -57,10 +60,10 @@ export function validateEvaluationContext(
   }
 
   if (ctx.hpPercent === 0) {
-    errors.push({
+    warnings.push({
       field: "hpPercent",
-      severity: "error",
-      message: "HP is 0% — player appears dead, context likely stale or missing",
+      severity: "warning",
+      message: "HP is 0% — player data may not be populated yet. Eval will proceed with limited context.",
       actual: ctx.hpPercent,
     });
   }
