@@ -110,7 +110,8 @@ EVENT:
 - HP loss: only take if reward advances win condition AND HP >60%.
 - Curse: avoid unless reward is exceptional AND removal available soon.
 - Card transform: only if transforming a Strike/Defend.
-- Max HP: always valuable at higher ascension.`,
+- Max HP: always valuable at higher ascension.
+- RANDOM EFFECTS: If an option says "random" (e.g., "upgrade 2 random cards"), the player does NOT choose which cards are affected. Do NOT name specific cards that will be upgraded/transformed/removed. Evaluate random effects by expected value across the whole deck, not by cherry-picking best targets.`,
 
   ancient: `
 ANCIENT EVENT:
