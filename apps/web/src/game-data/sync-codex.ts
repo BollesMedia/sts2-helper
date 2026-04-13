@@ -447,8 +447,9 @@ async function main() {
     .from("game_versions")
     .upsert({ version, synced_at: new Date().toISOString() });
 
+  // Existing syncs
   await syncCards(version);
-  await delay(1200); // respect rate limit
+  await delay(1200);
   await syncRelics(version);
   await delay(1200);
   await syncPotions(version);
@@ -456,6 +457,22 @@ async function main() {
   await syncMonsters(version);
   await delay(1200);
   await syncKeywords(version);
+  await delay(1200);
+
+  // New syncs
+  await syncEvents(version);
+  await delay(1200);
+  await syncEnchantments(version);
+  await delay(1200);
+  await syncPowers(version);
+  await delay(1200);
+  await syncEncounters(version);
+  await delay(1200);
+  await syncOrbs(version);
+  await delay(1200);
+  await syncAfflictions(version);
+  await delay(1200);
+  await syncCharacters(version);
 
   console.log("\n✓ All game data synced successfully!\n");
 }
