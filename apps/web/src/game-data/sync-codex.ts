@@ -137,6 +137,49 @@ interface CodexPower {
   image_url: string | null;
 }
 
+interface CodexEncounter {
+  id: string;
+  name: string;
+  room_type: string;
+  is_weak: boolean;
+  act: string | null;
+  tags: string[] | null;
+  monsters: { id: string; name: string }[] | null;
+  loss_text: string | null;
+}
+
+interface CodexOrb {
+  id: string;
+  name: string;
+  description: string;
+  description_raw: string | null;
+  image_url: string | null;
+}
+
+interface CodexAffliction {
+  id: string;
+  name: string;
+  description: string;
+  extra_card_text: string | null;
+  is_stackable: boolean;
+}
+
+interface CodexCharacter {
+  id: string;
+  name: string;
+  description: string | null;
+  starting_hp: number;
+  starting_gold: number;
+  max_energy: number;
+  orb_slots: number | null;
+  starting_deck: string[];
+  starting_relics: string[];
+  unlocks_after: string | null;
+  gender: string | null;
+  color: string | null;
+  image_url: string | null;
+}
+
 async function syncCards(version: string) {
   console.log("Syncing cards...");
   const cards = await fetchCodex<CodexCard[]>("/cards");
@@ -309,6 +352,90 @@ async function syncPowers(version: string) {
   const { error } = await supabase.from("powers").upsert(rows);
   if (error) throw error;
   console.log(`  ✓ ${rows.length} powers synced`);
+}
+
+async function syncEncounters(version: string) {
+  console.log("Syncing encounters...");
+  const encounters = await fetchCodex<CodexEncounter[]>("/encounters");
+
+  const rows = encounters.map((e) => ({
+    id: e.id,
+    name: e.name,
+    room_type: e.room_type,
+    is_weak: e.is_weak,
+    act: e.act ?? null,
+    tags: e.tags ?? null,
+    monsters: e.monsters ? JSON.parse(JSON.stringify(e.monsters)) : null,
+    loss_text: e.loss_text ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("encounters").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} encounters synced`);
+}
+
+async function syncOrbs(version: string) {
+  console.log("Syncing orbs...");
+  const orbs = await fetchCodex<CodexOrb[]>("/orbs");
+
+  const rows = orbs.map((o) => ({
+    id: o.id,
+    name: o.name,
+    description: o.description,
+    description_raw: o.description_raw ?? null,
+    image_url: o.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("orbs").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} orbs synced`);
+}
+
+async function syncAfflictions(version: string) {
+  console.log("Syncing afflictions...");
+  const afflictions = await fetchCodex<CodexAffliction[]>("/afflictions");
+
+  const rows = afflictions.map((a) => ({
+    id: a.id,
+    name: a.name,
+    description: a.description,
+    extra_card_text: a.extra_card_text ?? null,
+    is_stackable: a.is_stackable,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("afflictions").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} afflictions synced`);
+}
+
+async function syncCharacters(version: string) {
+  console.log("Syncing characters...");
+  const characters = await fetchCodex<CodexCharacter[]>("/characters");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- new columns may not be in generated types yet
+  const rows: any[] = characters.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description ?? null,
+    starting_hp: c.starting_hp,
+    starting_gold: c.starting_gold,
+    starting_energy: c.max_energy,
+    orb_slots: c.orb_slots ?? null,
+    starting_deck: c.starting_deck,
+    starting_relics: c.starting_relics,
+    unlocks_after: c.unlocks_after ?? null,
+    gender: c.gender ?? null,
+    color: c.color ?? null,
+    image_url: c.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("characters").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} characters synced`);
 }
 
 async function main() {
