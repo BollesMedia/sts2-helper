@@ -36,7 +36,7 @@ CORE RULES (priority order):
 6. DUPLICATES. Second copy of a core engine card (draw, scaling, key damage) is GOOD. Second copy of a mediocre card is bad. Evaluate duplicates by card quality, not by being a duplicate.
 
 GAME FACTS:
-- STS2 has 3 acts. There is no Act 4. Gold is worthless after the Act 3 boss.
+- STS2 has 3 acts. There is no Act 4.
 - Unplayable and Curse cards are always the #1 removal priority, above Strikes.
 - Relics are vital for clearing Act 3 — maximize relic acquisition opportunities (elites, treasures, events).
 - ENCHANTED CARDS: Ancient events transform deck cards into stronger versions (e.g., Bash → Break). Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
@@ -108,7 +108,6 @@ REST SITE:
 EVENT:
 - HP loss: only take if reward advances win condition AND HP >60%.
 - Curse: avoid unless reward is exceptional AND removal available soon.
-- Gold: only valuable if shop is coming AND you need something from it.
 - Card transform: only if transforming a Strike/Defend.
 - Max HP: always valuable at higher ascension.`,
 
