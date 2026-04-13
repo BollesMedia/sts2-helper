@@ -11,6 +11,12 @@ export type GameVersion = Database["public"]["Tables"]["game_versions"]["Row"];
 export type Run = Database["public"]["Tables"]["runs"]["Row"];
 export type Evaluation = Database["public"]["Tables"]["evaluations"]["Row"];
 export type Choice = Database["public"]["Tables"]["choices"]["Row"];
+export type Event = Database["public"]["Tables"]["events"]["Row"];
+export type Enchantment = Database["public"]["Tables"]["enchantments"]["Row"];
+export type Power = Database["public"]["Tables"]["powers"]["Row"];
+export type Encounter = Database["public"]["Tables"]["encounters"]["Row"];
+export type Orb = Database["public"]["Tables"]["orbs"]["Row"];
+export type Affliction = Database["public"]["Tables"]["afflictions"]["Row"];
 
 // Insert types (what you pass to inserts)
 export type CardInsert = Database["public"]["Tables"]["cards"]["Insert"];
@@ -22,6 +28,12 @@ export type CharacterInsert = Database["public"]["Tables"]["characters"]["Insert
 export type RunInsert = Database["public"]["Tables"]["runs"]["Insert"];
 export type EvaluationInsert = Database["public"]["Tables"]["evaluations"]["Insert"];
 export type ChoiceInsert = Database["public"]["Tables"]["choices"]["Insert"];
+export type EventInsert = Database["public"]["Tables"]["events"]["Insert"];
+export type EnchantmentInsert = Database["public"]["Tables"]["enchantments"]["Insert"];
+export type PowerInsert = Database["public"]["Tables"]["powers"]["Insert"];
+export type EncounterInsert = Database["public"]["Tables"]["encounters"]["Insert"];
+export type OrbInsert = Database["public"]["Tables"]["orbs"]["Insert"];
+export type AfflictionInsert = Database["public"]["Tables"]["afflictions"]["Insert"];
 
 // View types
 export type EvaluationStat = Database["public"]["Views"]["evaluation_stats"]["Row"];

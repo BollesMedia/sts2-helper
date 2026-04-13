@@ -99,6 +99,87 @@ interface CodexKeyword {
   description: string;
 }
 
+interface CodexEvent {
+  id: string;
+  name: string;
+  type: string;
+  act: string | null;
+  description: string | null;
+  preconditions: unknown[] | null;
+  options: { id: string; title: string; description: string }[] | null;
+  pages: { id: string; description: string; options: { id: string; title: string; description: string }[] | null }[] | null;
+  epithet: string | null;
+  dialogue: Record<string, { order: string; speaker: string; text: string }[]> | null;
+  image_url: string | null;
+  relics: string[] | null;
+}
+
+interface CodexEnchantment {
+  id: string;
+  name: string;
+  description: string;
+  description_raw: string | null;
+  extra_card_text: string | null;
+  card_type: string | null;
+  applicable_to: string | null;
+  is_stackable: boolean;
+  image_url: string | null;
+}
+
+interface CodexPower {
+  id: string;
+  name: string;
+  description: string;
+  description_raw: string | null;
+  type: string;
+  stack_type: string | null;
+  allow_negative: boolean | null;
+  image_url: string | null;
+}
+
+interface CodexEncounter {
+  id: string;
+  name: string;
+  room_type: string;
+  is_weak: boolean;
+  act: string | null;
+  tags: string[] | null;
+  monsters: { id: string; name: string }[] | null;
+  loss_text: string | null;
+}
+
+interface CodexOrb {
+  id: string;
+  name: string;
+  description: string;
+  description_raw: string | null;
+  image_url: string | null;
+}
+
+interface CodexAffliction {
+  id: string;
+  name: string;
+  description: string;
+  extra_card_text: string | null;
+  is_stackable: boolean;
+}
+
+interface CodexCharacter {
+  id: string;
+  name: string;
+  description: string | null;
+  starting_hp: number;
+  starting_gold: number;
+  max_energy: number;
+  orb_slots: number | null;
+  starting_deck: string[];
+  starting_relics: string[];
+  unlocks_after: string | null;
+  gender: string | null;
+  color: string | null;
+  image_url: string | null;
+}
+
 async function syncCards(version: string) {
   console.log("Syncing cards...");
   const cards = await fetchCodex<CodexCard[]>("/cards");
@@ -205,6 +286,158 @@ async function syncKeywords(version: string) {
   console.log(`  ✓ ${rows.length} keywords synced`);
 }
 
+async function syncEvents(version: string) {
+  console.log("Syncing events...");
+  const events = await fetchCodex<CodexEvent[]>("/events");
+
+  const rows = events.map((e) => ({
+    id: e.id,
+    name: e.name,
+    type: e.type,
+    act: e.act ?? null,
+    description: e.description ?? null,
+    preconditions: e.preconditions ? JSON.parse(JSON.stringify(e.preconditions)) : null,
+    options: e.options ? JSON.parse(JSON.stringify(e.options)) : null,
+    pages: e.pages ? JSON.parse(JSON.stringify(e.pages)) : null,
+    epithet: e.epithet ?? null,
+    dialogue: e.dialogue ? JSON.parse(JSON.stringify(e.dialogue)) : null,
+    image_url: e.image_url ?? null,
+    relics: e.relics ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("events").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} events synced`);
+}
+
+async function syncEnchantments(version: string) {
+  console.log("Syncing enchantments...");
+  const enchantments = await fetchCodex<CodexEnchantment[]>("/enchantments");
+
+  const rows = enchantments.map((e) => ({
+    id: e.id,
+    name: e.name,
+    description: e.description,
+    description_raw: e.description_raw ?? null,
+    extra_card_text: e.extra_card_text ?? null,
+    card_type: e.card_type ?? null,
+    applicable_to: e.applicable_to ?? null,
+    is_stackable: e.is_stackable,
+    image_url: e.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("enchantments").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} enchantments synced`);
+}
+
+async function syncPowers(version: string) {
+  console.log("Syncing powers...");
+  const powers = await fetchCodex<CodexPower[]>("/powers");
+
+  const rows = powers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    description_raw: p.description_raw ?? null,
+    type: p.type,
+    stack_type: p.stack_type ?? null,
+    allow_negative: p.allow_negative ?? null,
+    image_url: p.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("powers").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} powers synced`);
+}
+
+async function syncEncounters(version: string) {
+  console.log("Syncing encounters...");
+  const encounters = await fetchCodex<CodexEncounter[]>("/encounters");
+
+  const rows = encounters.map((e) => ({
+    id: e.id,
+    name: e.name,
+    room_type: e.room_type,
+    is_weak: e.is_weak,
+    act: e.act ?? null,
+    tags: e.tags ?? null,
+    monsters: e.monsters ? JSON.parse(JSON.stringify(e.monsters)) : null,
+    loss_text: e.loss_text ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("encounters").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} encounters synced`);
+}
+
+async function syncOrbs(version: string) {
+  console.log("Syncing orbs...");
+  const orbs = await fetchCodex<CodexOrb[]>("/orbs");
+
+  const rows = orbs.map((o) => ({
+    id: o.id,
+    name: o.name,
+    description: o.description,
+    description_raw: o.description_raw ?? null,
+    image_url: o.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("orbs").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} orbs synced`);
+}
+
+async function syncAfflictions(version: string) {
+  console.log("Syncing afflictions...");
+  const afflictions = await fetchCodex<CodexAffliction[]>("/afflictions");
+
+  const rows = afflictions.map((a) => ({
+    id: a.id,
+    name: a.name,
+    description: a.description,
+    extra_card_text: a.extra_card_text ?? null,
+    is_stackable: a.is_stackable,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("afflictions").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} afflictions synced`);
+}
+
+async function syncCharacters(version: string) {
+  console.log("Syncing characters...");
+  const characters = await fetchCodex<CodexCharacter[]>("/characters");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- new columns may not be in generated types yet
+  const rows: any[] = characters.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description ?? null,
+    starting_hp: c.starting_hp,
+    starting_gold: c.starting_gold,
+    starting_energy: c.max_energy,
+    orb_slots: c.orb_slots ?? null,
+    starting_deck: c.starting_deck,
+    starting_relics: c.starting_relics,
+    unlocks_after: c.unlocks_after ?? null,
+    gender: c.gender ?? null,
+    color: c.color ?? null,
+    image_url: c.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("characters").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} characters synced`);
+}
+
 async function main() {
   const version = process.argv[2] ?? "unknown";
   console.log(`\nSyncing Spire Codex data (version: ${version})...\n`);
@@ -214,8 +447,9 @@ async function main() {
     .from("game_versions")
     .upsert({ version, synced_at: new Date().toISOString() });
 
+  // Existing syncs
   await syncCards(version);
-  await delay(1200); // respect rate limit
+  await delay(1200);
   await syncRelics(version);
   await delay(1200);
   await syncPotions(version);
@@ -223,6 +457,22 @@ async function main() {
   await syncMonsters(version);
   await delay(1200);
   await syncKeywords(version);
+  await delay(1200);
+
+  // New syncs
+  await syncEvents(version);
+  await delay(1200);
+  await syncEnchantments(version);
+  await delay(1200);
+  await syncPowers(version);
+  await delay(1200);
+  await syncEncounters(version);
+  await delay(1200);
+  await syncOrbs(version);
+  await delay(1200);
+  await syncAfflictions(version);
+  await delay(1200);
+  await syncCharacters(version);
 
   console.log("\n✓ All game data synced successfully!\n");
 }
