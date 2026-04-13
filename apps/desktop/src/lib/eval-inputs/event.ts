@@ -47,8 +47,8 @@ export function buildEventPrompt(params: {
     .join("\n");
 
   const eventHeader = params.isAncient
-    ? `ANCIENT_EVENT_ID: ${params.eventId}\nANCIENT EVENT: ${params.eventName}`
-    : `EVENT: ${params.eventName}`;
+    ? `EVENT_ID: ${params.eventId}\nANCIENT EVENT: ${params.eventName}`
+    : `EVENT_ID: ${params.eventId}\nEVENT: ${params.eventName}`;
 
   return `${contextStr}
 

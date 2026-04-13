@@ -278,126 +278,153 @@ export async function POST(request: Request) {
 
   // ─── MAP/EVENT/REST/ETC EVALUATION (via mapPrompt) ───
   if (type === "map" && body.mapPrompt) {
-    // Ancient event enrichment: pull relic descriptions + pool from DB
-    let ancientReference = "";
-    if (evalType === "ancient") {
-      const eventIdMatch = body.mapPrompt.match(/ANCIENT_EVENT_ID:\s*(\S+)/);
+    // Event enrichment: pull authoritative data from DB for all events
+    let eventReference = "";
+    if (evalType === "ancient" || evalType === "event") {
+      const eventIdMatch = body.mapPrompt.match(/EVENT_ID:\s*(\S+)/);
       const eventId = eventIdMatch?.[1] ?? null;
 
       if (eventId) {
         try {
+          const isAncient = evalType === "ancient";
+
+          // Fetch event data + relics (for ancients) in parallel
+          const eventQuery = supabase
+            .from("events")
+            .select("name, type, act, options, pages, relics")
+            .eq("id", eventId)
+            .single();
+          const relicsQuery = isAncient
+            ? supabase.from("relics").select("name, description").not("description", "is", null)
+            : null;
+
           const [eventResult, relicsResult] = await Promise.all([
-            supabase
-              .from("events")
-              .select("name, act, relics")
-              .eq("id", eventId)
-              .single(),
-            supabase
-              .from("relics")
-              .select("name, description")
-              .not("description", "is", null),
+            eventQuery,
+            relicsQuery,
           ]);
 
-          const ancientEvent = eventResult.data;
-          const allRelics = relicsResult.data;
+          const eventData = eventResult.data as {
+            name: string; type: string; act: string | null;
+            options: { id: string; title: string; description: string }[] | null;
+            pages: { id: string; description: string; options: { id: string; title: string; description: string }[] | null }[] | null;
+            relics: string[] | null;
+          } | null;
 
-          if (ancientEvent && allRelics) {
-            const relicMap = new Map(allRelics.map((r) => [r.name, r.description]));
-            const poolSize = ancientEvent.relics?.length ?? 0;
+          if (eventData) {
+            if (isAncient) {
+              // --- ANCIENT EVENT ENRICHMENT ---
+              const allRelics = relicsResult?.data as { name: string; description: string }[] | null;
+              if (allRelics) {
+                const relicMap = new Map(allRelics.map((r) => [r.name, r.description]));
+                const poolSize = eventData.relics?.length ?? 0;
 
-            // Extract offered option names from the mapPrompt (format: "N. Title: Description")
-            const optionMatches = body.mapPrompt.matchAll(/^\d+\.\s+(.+?):/gm);
-            const offeredOptions: { name: string; description: string; category: string; cardInfo?: string; enchantInfo?: string }[] = [];
-            for (const match of optionMatches) {
-              const optionName = match[1].trim();
-              const relicDesc = relicMap.get(optionName) ?? "";
-              offeredOptions.push({
-                name: optionName,
-                description: relicDesc,
-                category: categorizeAncientOption(relicDesc),
-              });
-            }
+                const optionMatches = body.mapPrompt.matchAll(/^\d+\.\s+(.+?):/gm);
+                const offeredOptions: { name: string; description: string; category: string; cardInfo?: string; enchantInfo?: string }[] = [];
+                for (const match of optionMatches) {
+                  const optionName = match[1].trim();
+                  const relicDesc = relicMap.get(optionName) ?? "";
+                  offeredOptions.push({
+                    name: optionName,
+                    description: relicDesc,
+                    category: categorizeAncientOption(relicDesc),
+                  });
+                }
 
-            // Enrich CARD ADD options with actual card descriptions from DB
-            // Matches patterns like "add 1 Neow's Fury to your Deck"
-            const cardNames: string[] = [];
-            for (const o of offeredOptions) {
-              const clean = stripMarkup(o.description);
-              const cardMatch = clean.match(/add \d+ (.+?) to your Deck/i);
-              if (cardMatch) cardNames.push(cardMatch[1]);
-            }
-            if (cardNames.length > 0) {
-              const { data: cards } = await supabase
-                .from("cards")
-                .select("name, description, type, cost, keywords")
-                .in("name", cardNames);
-              if (cards) {
-                const cardMap = new Map(cards.map((c) => [c.name, c]));
+                // Enrich CARD ADD options with actual card descriptions
+                const cardNames: string[] = [];
                 for (const o of offeredOptions) {
                   const clean = stripMarkup(o.description);
                   const cardMatch = clean.match(/add \d+ (.+?) to your Deck/i);
-                  if (cardMatch) {
-                    const card = cardMap.get(cardMatch[1]);
-                    if (card) {
-                      const kw = card.keywords?.length ? ` [${card.keywords.join(", ")}]` : "";
-                      o.cardInfo = `${card.name} (${card.type}, Cost ${card.cost ?? 0}): ${stripMarkup(card.description)}${kw}`;
+                  if (cardMatch) cardNames.push(cardMatch[1]);
+                }
+                if (cardNames.length > 0) {
+                  const { data: cards } = await supabase
+                    .from("cards")
+                    .select("name, description, type, cost, keywords")
+                    .in("name", cardNames);
+                  if (cards) {
+                    const cardMap = new Map(cards.map((c) => [c.name, c]));
+                    for (const o of offeredOptions) {
+                      const clean = stripMarkup(o.description);
+                      const cardMatch = clean.match(/add \d+ (.+?) to your Deck/i);
+                      if (cardMatch) {
+                        const card = cardMap.get(cardMatch[1]);
+                        if (card) {
+                          const kw = card.keywords?.length ? ` [${card.keywords.join(", ")}]` : "";
+                          o.cardInfo = `${card.name} (${card.type}, Cost ${card.cost ?? 0}): ${stripMarkup(card.description)}${kw}`;
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
 
-            // Enrich ENCHANTMENT options with enchantment descriptions from DB
-            // Matches patterns like "Enchant ... with Swift 3" or "Enchant ... with Goopy"
-            const enchantNames: string[] = [];
-            for (const o of offeredOptions) {
-              const clean = stripMarkup(o.description);
-              const enchantMatch = clean.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
-              if (enchantMatch) enchantNames.push(enchantMatch[1].replace(/\s*\d+$/, "").trim());
-            }
-            if (enchantNames.length > 0) {
-              const { data: enchantments } = await supabase
-                .from("enchantments")
-                .select("name, description, extra_card_text")
-                .in("name", enchantNames);
-              if (enchantments) {
-                const enchantMap = new Map(enchantments.map((e) => [e.name, e]));
+                // Enrich ENCHANTMENT options with enchantment descriptions
+                const enchantNames: string[] = [];
                 for (const o of offeredOptions) {
                   const clean = stripMarkup(o.description);
                   const enchantMatch = clean.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
-                  if (enchantMatch) {
-                    const enchantName = enchantMatch[1].replace(/\s*\d+$/, "").trim();
-                    const enchant = enchantMap.get(enchantName);
-                    if (enchant) {
-                      const extra = enchant.extra_card_text ? ` Effect: ${enchant.extra_card_text}` : "";
-                      o.enchantInfo = `${enchant.name}: ${stripMarkup(enchant.description)}${extra}`;
+                  if (enchantMatch) enchantNames.push(enchantMatch[1].replace(/\s*\d+$/, "").trim());
+                }
+                if (enchantNames.length > 0) {
+                  const { data: enchantments } = await supabase
+                    .from("enchantments")
+                    .select("name, description, extra_card_text")
+                    .in("name", enchantNames);
+                  if (enchantments) {
+                    const enchantMap = new Map(enchantments.map((e) => [e.name, e]));
+                    for (const o of offeredOptions) {
+                      const clean = stripMarkup(o.description);
+                      const enchantMatch = clean.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
+                      if (enchantMatch) {
+                        const enchantName = enchantMatch[1].replace(/\s*\d+$/, "").trim();
+                        const enchant = enchantMap.get(enchantName);
+                        if (enchant) {
+                          const extra = enchant.extra_card_text ? ` Effect: ${enchant.extra_card_text}` : "";
+                          o.enchantInfo = `${enchant.name}: ${stripMarkup(enchant.description)}${extra}`;
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
 
-            if (offeredOptions.length > 0) {
-              const optionLines = offeredOptions
-                .map((o, i) => {
-                  let line = `${i + 1}. ${o.name} — ${stripMarkup(o.description)} [${o.category}]`;
-                  if (o.cardInfo) line += `\n   Card: ${o.cardInfo}`;
-                  if (o.enchantInfo) line += `\n   Enchantment: ${o.enchantInfo}`;
-                  return line;
-                })
-                .join("\n");
-              ancientReference = `[Ancient: ${ancientEvent.name} | ${ancientEvent.act ?? "Unknown Act"} | Pool: ${poolSize} options]\nOffered options with categories:\n${optionLines}\n\n`;
+                if (offeredOptions.length > 0) {
+                  const optionLines = offeredOptions
+                    .map((o, i) => {
+                      let line = `${i + 1}. ${o.name} — ${stripMarkup(o.description)} [${o.category}]`;
+                      if (o.cardInfo) line += `\n   Card: ${o.cardInfo}`;
+                      if (o.enchantInfo) line += `\n   Enchantment: ${o.enchantInfo}`;
+                      return line;
+                    })
+                    .join("\n");
+                  eventReference = `[Ancient: ${eventData.name} | ${eventData.act ?? "Unknown Act"} | Pool: ${poolSize} options]\nOffered options with categories:\n${optionLines}\n\n`;
+                }
+              }
+            } else {
+              // --- SHRINE / REGULAR EVENT ENRICHMENT ---
+              // Use authoritative option descriptions from DB
+              const dbOptions = eventData.options ?? [];
+              if (dbOptions.length > 0) {
+                const optionLines = dbOptions.map((o, i) => {
+                  let desc = stripMarkup(o.description);
+                  // Flag random effects so the model doesn't cherry-pick targets
+                  if (desc.toLowerCase().includes("random")) {
+                    desc += " [RANDOM — player does NOT choose targets]";
+                  }
+                  return `${i + 1}. ${o.title} — ${desc}`;
+                }).join("\n");
+                eventReference = `[Event: ${eventData.name} | ${eventData.act ?? "Unknown Act"}]\nAuthoritative option descriptions:\n${optionLines}\n\n`;
+              }
             }
           }
         } catch (err) {
-          console.error("[Evaluate] Ancient enrichment failed:", err);
+          console.error("[Evaluate] Event enrichment failed:", err);
           // Non-critical — continue without enrichment
         }
       }
     }
 
     let mapPromptFull = "";
-    if (ancientReference) mapPromptFull += ancientReference;
+    if (eventReference) mapPromptFull += eventReference;
     if (runHistory) mapPromptFull += `${runHistory}\n\n`;
     if (body.runNarrative) mapPromptFull += `${body.runNarrative}\n\n`;
     if (characterStrategy) mapPromptFull += `=== BUILD GUIDE ===\n${compactStrategy(characterStrategy) ?? characterStrategy}\n\n`;
