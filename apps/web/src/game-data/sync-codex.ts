@@ -99,6 +99,44 @@ interface CodexKeyword {
   description: string;
 }
 
+interface CodexEvent {
+  id: string;
+  name: string;
+  type: string;
+  act: string | null;
+  description: string | null;
+  preconditions: unknown[] | null;
+  options: { id: string; title: string; description: string }[] | null;
+  pages: { id: string; description: string; options: { id: string; title: string; description: string }[] | null }[] | null;
+  epithet: string | null;
+  dialogue: Record<string, { order: string; speaker: string; text: string }[]> | null;
+  image_url: string | null;
+  relics: string[] | null;
+}
+
+interface CodexEnchantment {
+  id: string;
+  name: string;
+  description: string;
+  description_raw: string | null;
+  extra_card_text: string | null;
+  card_type: string | null;
+  applicable_to: string | null;
+  is_stackable: boolean;
+  image_url: string | null;
+}
+
+interface CodexPower {
+  id: string;
+  name: string;
+  description: string;
+  description_raw: string | null;
+  type: string;
+  stack_type: string | null;
+  allow_negative: boolean | null;
+  image_url: string | null;
+}
+
 async function syncCards(version: string) {
   console.log("Syncing cards...");
   const cards = await fetchCodex<CodexCard[]>("/cards");
@@ -203,6 +241,74 @@ async function syncKeywords(version: string) {
   const { error } = await supabase.from("keywords").upsert(rows);
   if (error) throw error;
   console.log(`  ✓ ${rows.length} keywords synced`);
+}
+
+async function syncEvents(version: string) {
+  console.log("Syncing events...");
+  const events = await fetchCodex<CodexEvent[]>("/events");
+
+  const rows = events.map((e) => ({
+    id: e.id,
+    name: e.name,
+    type: e.type,
+    act: e.act ?? null,
+    description: e.description ?? null,
+    preconditions: e.preconditions ? JSON.parse(JSON.stringify(e.preconditions)) : null,
+    options: e.options ? JSON.parse(JSON.stringify(e.options)) : null,
+    pages: e.pages ? JSON.parse(JSON.stringify(e.pages)) : null,
+    epithet: e.epithet ?? null,
+    dialogue: e.dialogue ? JSON.parse(JSON.stringify(e.dialogue)) : null,
+    image_url: e.image_url ?? null,
+    relics: e.relics ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("events").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} events synced`);
+}
+
+async function syncEnchantments(version: string) {
+  console.log("Syncing enchantments...");
+  const enchantments = await fetchCodex<CodexEnchantment[]>("/enchantments");
+
+  const rows = enchantments.map((e) => ({
+    id: e.id,
+    name: e.name,
+    description: e.description,
+    description_raw: e.description_raw ?? null,
+    extra_card_text: e.extra_card_text ?? null,
+    card_type: e.card_type ?? null,
+    applicable_to: e.applicable_to ?? null,
+    is_stackable: e.is_stackable,
+    image_url: e.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("enchantments").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} enchantments synced`);
+}
+
+async function syncPowers(version: string) {
+  console.log("Syncing powers...");
+  const powers = await fetchCodex<CodexPower[]>("/powers");
+
+  const rows = powers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    description_raw: p.description_raw ?? null,
+    type: p.type,
+    stack_type: p.stack_type ?? null,
+    allow_negative: p.allow_negative ?? null,
+    image_url: p.image_url ?? null,
+    game_version: version,
+  }));
+
+  const { error } = await supabase.from("powers").upsert(rows);
+  if (error) throw error;
+  console.log(`  ✓ ${rows.length} powers synced`);
 }
 
 async function main() {
