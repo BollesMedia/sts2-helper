@@ -99,8 +99,14 @@ export function buildMapPrompt(params: {
     const rests = pathTypes.filter((t) => t === "Rest").length;
     const shops = pathTypes.filter((t) => t === "Shop").length;
     const summary = pathTypes.join(" → ");
+    const gold = mapPlayer?.gold ?? 0;
     const stats = [`${fights} fights`, `${elites} elites`, `${rests} rests`, `${shops} shops`].join(", ");
-    const warning = fights >= 4 && rests === 0 ? " ⚠ NO REST SITE" : "";
+    const warnings: string[] = [];
+    if (fights >= 4 && rests === 0) warnings.push("⚠ NO REST SITE");
+    if (shops > 0 && cardRemovalCost !== null && gold < cardRemovalCost) {
+      warnings.push(`⚠ SHOP UNAFFORDABLE (${gold}g < ${cardRemovalCost}g removal cost)`);
+    }
+    const warning = warnings.length > 0 ? " " + warnings.join(" ") : "";
 
     const tree = buildTree(opt.col, opt.row, 0, 6, "   ");
     return `Option ${i + 1} (${opt.type}): ${summary} (${stats}${warning})\n${tree.join("\n")}`;
