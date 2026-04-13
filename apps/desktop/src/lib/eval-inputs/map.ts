@@ -76,9 +76,34 @@ export function buildMapPrompt(params: {
     return lines;
   }
 
+  // Walk the primary path (first child at branches) to build a flat summary
+  function walkPath(col: number, row: number, maxDepth: number): string[] {
+    const types: string[] = [];
+    let c = col, r = row;
+    for (let d = 0; d < maxDepth; d++) {
+      const node = nodeMap.get(`${c},${r}`);
+      if (!node) break;
+      types.push(node.type);
+      if (node.children.length === 0) break;
+      [c, r] = node.children[0];
+    }
+    return types;
+  }
+
+  const COMBAT_TYPES = new Set(["Monster", "Elite", "Boss"]);
+
   const optionsStr = options.map((opt, i) => {
+    const pathTypes = walkPath(opt.col, opt.row, 7);
+    const fights = pathTypes.filter((t) => COMBAT_TYPES.has(t)).length;
+    const elites = pathTypes.filter((t) => t === "Elite").length;
+    const rests = pathTypes.filter((t) => t === "Rest").length;
+    const shops = pathTypes.filter((t) => t === "Shop").length;
+    const summary = pathTypes.join(" → ");
+    const stats = [`${fights} fights`, `${elites} elites`, `${rests} rests`, `${shops} shops`].join(", ");
+    const warning = fights >= 4 && rests === 0 ? " ⚠ NO REST SITE" : "";
+
     const tree = buildTree(opt.col, opt.row, 0, 6, "   ");
-    return `Option ${i + 1}:\n${tree.join("\n")}`;
+    return `Option ${i + 1} (${opt.type}): ${summary} (${stats}${warning})\n${tree.join("\n")}`;
   }).join("\n\n");
 
   const futureNodes = allNodes.filter((n) => n.row > currentRow);
