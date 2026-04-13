@@ -23,6 +23,7 @@ export function computeEventEvalKey(
 export function buildEventPrompt(params: {
   context: EvaluationContext;
   eventName: string;
+  eventId: string;
   isAncient: boolean;
   options: EventOption[];
   runNarrative: string | null;
@@ -45,13 +46,13 @@ export function buildEventPrompt(params: {
     })
     .join("\n");
 
-  const ancientWarning = params.isAncient
-    ? " (ANCIENT — this is an STS2-specific event. Do NOT assume you know what enchantments, relics, or effects do. Evaluate ONLY from the descriptions provided. If an option mentions an enchantment or effect you don't recognize, set confidence below 50.)"
-    : "";
+  const eventHeader = params.isAncient
+    ? `ANCIENT_EVENT_ID: ${params.eventId}\nANCIENT EVENT: ${params.eventName}`
+    : `EVENT: ${params.eventName}`;
 
   return `${contextStr}
 
-EVENT: ${params.eventName}${ancientWarning}
+${eventHeader}
 You must choose EXACTLY ONE option:
 ${optionsStr}
 

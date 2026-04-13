@@ -72,6 +72,7 @@ export function setupEventEvalListener() {
         const mapPrompt = buildEventPrompt({
           context: ctx,
           eventName: eventState.event.event_name,
+          eventId: eventState.event.event_id,
           isAncient: eventState.event.is_ancient,
           options,
           runNarrative: getPromptContext(),
@@ -85,7 +86,7 @@ export function setupEventEvalListener() {
         const raw = await listenerApi
           .dispatch(
             evaluationApi.endpoints.evaluateEvent.initiate({
-              evalType: "event",
+              evalType: eventState.event.is_ancient ? "ancient" : "event",
               context: ctx,
               runNarrative: getPromptContext(),
               mapPrompt,
