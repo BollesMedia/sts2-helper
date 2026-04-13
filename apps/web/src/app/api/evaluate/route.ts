@@ -146,12 +146,17 @@ type WinRateRow = {
   times_skipped: number;
 };
 
+/** Strip Spire Codex formatting tags like [blue], [gold], [/gold], etc. */
+function stripMarkup(text: string): string {
+  return text.replace(/\[\/?\w+\]/g, "");
+}
+
 /**
  * Categorize an ancient event option by pattern-matching its relic description.
  * Returns a category tag that maps to guidance in the ancient addendum.
  */
 function categorizeAncientOption(description: string): string {
-  const lower = description.toLowerCase();
+  const lower = stripMarkup(description).toLowerCase();
   if (lower.includes("remove") && lower.includes("card")) return "CARD REMOVAL";
   if (lower.includes("transform")) return "TRANSFORM";
   if (lower.includes("raise your max hp") || lower.includes("max hp")) return "MAX HP";
@@ -317,7 +322,8 @@ export async function POST(request: Request) {
             // Matches patterns like "add 1 Neow's Fury to your Deck"
             const cardNames: string[] = [];
             for (const o of offeredOptions) {
-              const cardMatch = o.description.match(/add \d+ (.+?) to your Deck/i);
+              const clean = stripMarkup(o.description);
+              const cardMatch = clean.match(/add \d+ (.+?) to your Deck/i);
               if (cardMatch) cardNames.push(cardMatch[1]);
             }
             if (cardNames.length > 0) {
@@ -328,12 +334,13 @@ export async function POST(request: Request) {
               if (cards) {
                 const cardMap = new Map(cards.map((c) => [c.name, c]));
                 for (const o of offeredOptions) {
-                  const cardMatch = o.description.match(/add \d+ (.+?) to your Deck/i);
+                  const clean = stripMarkup(o.description);
+                  const cardMatch = clean.match(/add \d+ (.+?) to your Deck/i);
                   if (cardMatch) {
                     const card = cardMap.get(cardMatch[1]);
                     if (card) {
                       const kw = card.keywords?.length ? ` [${card.keywords.join(", ")}]` : "";
-                      o.cardInfo = `${card.name} (${card.type}, Cost ${card.cost ?? 0}): ${card.description}${kw}`;
+                      o.cardInfo = `${card.name} (${card.type}, Cost ${card.cost ?? 0}): ${stripMarkup(card.description)}${kw}`;
                     }
                   }
                 }
@@ -344,7 +351,8 @@ export async function POST(request: Request) {
             // Matches patterns like "Enchant ... with Swift 3" or "Enchant ... with Goopy"
             const enchantNames: string[] = [];
             for (const o of offeredOptions) {
-              const enchantMatch = o.description.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
+              const clean = stripMarkup(o.description);
+              const enchantMatch = clean.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
               if (enchantMatch) enchantNames.push(enchantMatch[1].replace(/\s*\d+$/, "").trim());
             }
             if (enchantNames.length > 0) {
@@ -355,13 +363,14 @@ export async function POST(request: Request) {
               if (enchantments) {
                 const enchantMap = new Map(enchantments.map((e) => [e.name, e]));
                 for (const o of offeredOptions) {
-                  const enchantMatch = o.description.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
+                  const clean = stripMarkup(o.description);
+                  const enchantMatch = clean.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
                   if (enchantMatch) {
                     const enchantName = enchantMatch[1].replace(/\s*\d+$/, "").trim();
                     const enchant = enchantMap.get(enchantName);
                     if (enchant) {
                       const extra = enchant.extra_card_text ? ` Effect: ${enchant.extra_card_text}` : "";
-                      o.enchantInfo = `${enchant.name}: ${enchant.description}${extra}`;
+                      o.enchantInfo = `${enchant.name}: ${stripMarkup(enchant.description)}${extra}`;
                     }
                   }
                 }
@@ -371,7 +380,7 @@ export async function POST(request: Request) {
             if (offeredOptions.length > 0) {
               const optionLines = offeredOptions
                 .map((o, i) => {
-                  let line = `${i + 1}. ${o.name} — ${o.description} [${o.category}]`;
+                  let line = `${i + 1}. ${o.name} — ${stripMarkup(o.description)} [${o.category}]`;
                   if (o.cardInfo) line += `\n   Card: ${o.cardInfo}`;
                   if (o.enchantInfo) line += `\n   Enchantment: ${o.enchantInfo}`;
                   return line;
