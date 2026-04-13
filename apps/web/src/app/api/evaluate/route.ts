@@ -302,7 +302,7 @@ export async function POST(request: Request) {
 
             // Extract offered option names from the mapPrompt (format: "N. Title: Description")
             const optionMatches = body.mapPrompt.matchAll(/^\d+\.\s+(.+?):/gm);
-            const offeredOptions: { name: string; description: string; category: string }[] = [];
+            const offeredOptions: { name: string; description: string; category: string; cardInfo?: string; enchantInfo?: string }[] = [];
             for (const match of optionMatches) {
               const optionName = match[1].trim();
               const relicDesc = relicMap.get(optionName) ?? "";
@@ -313,9 +313,69 @@ export async function POST(request: Request) {
               });
             }
 
+            // Enrich CARD ADD options with actual card descriptions from DB
+            // Matches patterns like "add 1 Neow's Fury to your Deck"
+            const cardNames: string[] = [];
+            for (const o of offeredOptions) {
+              const cardMatch = o.description.match(/add \d+ (.+?) to your Deck/i);
+              if (cardMatch) cardNames.push(cardMatch[1]);
+            }
+            if (cardNames.length > 0) {
+              const { data: cards } = await supabase
+                .from("cards")
+                .select("name, description, type, cost, keywords")
+                .in("name", cardNames);
+              if (cards) {
+                const cardMap = new Map(cards.map((c) => [c.name, c]));
+                for (const o of offeredOptions) {
+                  const cardMatch = o.description.match(/add \d+ (.+?) to your Deck/i);
+                  if (cardMatch) {
+                    const card = cardMap.get(cardMatch[1]);
+                    if (card) {
+                      const kw = card.keywords?.length ? ` [${card.keywords.join(", ")}]` : "";
+                      o.cardInfo = `${card.name} (${card.type}, Cost ${card.cost ?? 0}): ${card.description}${kw}`;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Enrich ENCHANTMENT options with enchantment descriptions from DB
+            // Matches patterns like "Enchant ... with Swift 3" or "Enchant ... with Goopy"
+            const enchantNames: string[] = [];
+            for (const o of offeredOptions) {
+              const enchantMatch = o.description.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
+              if (enchantMatch) enchantNames.push(enchantMatch[1].replace(/\s*\d+$/, "").trim());
+            }
+            if (enchantNames.length > 0) {
+              const { data: enchantments } = await supabase
+                .from("enchantments")
+                .select("name, description, extra_card_text")
+                .in("name", enchantNames);
+              if (enchantments) {
+                const enchantMap = new Map(enchantments.map((e) => [e.name, e]));
+                for (const o of offeredOptions) {
+                  const enchantMatch = o.description.match(/[Ee]nchant.*?with (.+?)(?:\s*\d+)?\.?$/);
+                  if (enchantMatch) {
+                    const enchantName = enchantMatch[1].replace(/\s*\d+$/, "").trim();
+                    const enchant = enchantMap.get(enchantName);
+                    if (enchant) {
+                      const extra = enchant.extra_card_text ? ` Effect: ${enchant.extra_card_text}` : "";
+                      o.enchantInfo = `${enchant.name}: ${enchant.description}${extra}`;
+                    }
+                  }
+                }
+              }
+            }
+
             if (offeredOptions.length > 0) {
               const optionLines = offeredOptions
-                .map((o, i) => `${i + 1}. ${o.name} — ${o.description} [${o.category}]`)
+                .map((o, i) => {
+                  let line = `${i + 1}. ${o.name} — ${o.description} [${o.category}]`;
+                  if (o.cardInfo) line += `\n   Card: ${o.cardInfo}`;
+                  if (o.enchantInfo) line += `\n   Enchantment: ${o.enchantInfo}`;
+                  return line;
+                })
                 .join("\n");
               ancientReference = `[Ancient: ${ancientEvent.name} | ${ancientEvent.act ?? "Unknown Act"} | Pool: ${poolSize} options]\nOffered options with categories:\n${optionLines}\n\n`;
             }
