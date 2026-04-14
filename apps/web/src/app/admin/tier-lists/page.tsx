@@ -150,9 +150,10 @@ function TierListContent() {
     setSubmitting(true);
     setError(null);
 
-    // Downscale full-page screenshots before upload. Gemini is happy with
-    // 2048px long-edge and this cuts 15MB screenshots to ~1-2MB.
-    const uploadFile = await downscaleImage(imageFile, 2048);
+    // Prepare image for upload — preserves original when under Gemini's
+    // 20MB cap, otherwise lossless-resizes to 3000px long-edge (enough
+    // pixels for card-name OCR on dense grids). No lossy compression.
+    const uploadFile = await downscaleImage(imageFile, 3000);
 
     const formData = new FormData();
     formData.append("image", uploadFile);
@@ -1102,11 +1103,22 @@ function resolveExtractedName(
   return canonical ?? null;
 }
 
-// Resize an image file so its longest edge is at most `maxEdge` pixels,
-// re-encoding as JPEG at 0.92 quality. Skips re-encoding if the image is
-// already smaller than the target and the source is PNG/JPEG (keeps the
-// original to preserve transparency on PNG).
+// Prepare a tier list screenshot for upload without sacrificing text quality.
+// Card name OCR is the bottleneck — lossy compression softens text edges
+// and hurts extraction accuracy, so we avoid it whenever possible.
+//
+// Strategy:
+//   1. File is small enough → send as-is (no processing, no quality loss).
+//   2. Dimensions are too large → lossless resize via canvas, output as PNG.
+//   3. Source is something else weird → fall through and send the original.
+//
+// We never use JPEG here — tier list text would suffer.
 async function downscaleImage(file: File, maxEdge: number): Promise<File> {
+  const MAX_SIZE_NO_TOUCH = 20 * 1024 * 1024; // 20MB — Gemini's per-image cap
+
+  // Fast path: file is already under Gemini's limit, don't re-encode.
+  if (file.size <= MAX_SIZE_NO_TOUCH) return file;
+
   const bitmap = await createImageBitmap(file);
   const { width, height } = bitmap;
   const longest = Math.max(width, height);
@@ -1128,16 +1140,21 @@ async function downscaleImage(file: File, maxEdge: number): Promise<File> {
     bitmap.close();
     return file;
   }
+  // High-quality downscale for text legibility
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bitmap, 0, 0, targetW, targetH);
   bitmap.close();
 
+  // Lossless PNG preserves text edges — size cost is acceptable at these
+  // dimensions and we've already resized so it won't be huge.
   const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/jpeg", 0.92),
+    canvas.toBlob(resolve, "image/png"),
   );
   if (!blob) return file;
 
-  return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), {
-    type: "image/jpeg",
+  return new File([blob], file.name.replace(/\.\w+$/, ".png"), {
+    type: "image/png",
     lastModified: Date.now(),
   });
 }
