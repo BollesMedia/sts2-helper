@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
 import type { TierExtractionResult } from "@sts2/shared/evaluation/tier-extraction";
@@ -711,23 +711,14 @@ function PreviewStep({
                               {card.name}
                             </span>
                             <span className="text-xs text-orange-500/60 shrink-0">→</span>
-                            <input
-                              list={`cards-${idx}`}
+                            <CardCombobox
                               value={card.matchedName ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                updateCard(idx, {
-                                  matchedName: cardIdMap[val] ? val : undefined,
-                                });
-                              }}
-                              placeholder="Match to card…"
-                              className={`flex-1 min-w-0 ${inputCls}`}
+                              cardIdMap={cardIdMap}
+                              defaultQuery={card.name}
+                              onChange={(name) =>
+                                updateCard(idx, { matchedName: name ?? undefined })
+                              }
                             />
-                            <datalist id={`cards-${idx}`}>
-                              {Object.keys(cardIdMap).map((name) => (
-                                <option key={name} value={name} />
-                              ))}
-                            </datalist>
                           </div>
                         )}
                         <div className="flex items-center gap-2 shrink-0">
@@ -830,6 +821,131 @@ function SuccessStep({
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Filterable combobox for matching extracted names to canonical cards.
+// Substring match, case-insensitive, prefix matches rank first, up to 20 results.
+// Keyboard: ↑↓ navigate, Enter select, Esc close. Seeds the input with the
+// extracted name so the admin can skim matches without retyping.
+function CardCombobox({
+  value,
+  cardIdMap,
+  defaultQuery,
+  onChange,
+}: {
+  value: string;
+  cardIdMap: Record<string, string>;
+  defaultQuery?: string;
+  onChange: (name: string | null) => void;
+}) {
+  const allNames = useMemo(
+    () => Object.keys(cardIdMap).sort((a, b) => a.localeCompare(b)),
+    [cardIdMap],
+  );
+
+  const [query, setQuery] = useState(value || defaultQuery || "");
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Sync external value changes (e.g. "Unmatch" button)
+  useEffect(() => {
+    setQuery(value || "");
+  }, [value]);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allNames.slice(0, 20);
+    const prefix: string[] = [];
+    const contains: string[] = [];
+    for (const name of allNames) {
+      const lower = name.toLowerCase();
+      if (lower.startsWith(q)) prefix.push(name);
+      else if (lower.includes(q)) contains.push(name);
+    }
+    return [...prefix, ...contains].slice(0, 20);
+  }, [query, allNames]);
+
+  const commit = (name: string) => {
+    setQuery(name);
+    onChange(name);
+    setOpen(false);
+  };
+
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlight((h) => Math.min(h + 1, matches.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && matches[highlight]) commit(matches[highlight]);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  const isValidMatch = !!cardIdMap[query];
+
+  return (
+    <div ref={containerRef} className="relative flex-1 min-w-0">
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setHighlight(0);
+          setOpen(true);
+          // Clear matched state if query no longer corresponds to a valid card
+          if (!cardIdMap[e.target.value] && value) onChange(null);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKey}
+        placeholder="Type to search cards…"
+        className={`w-full rounded border ${
+          isValidMatch
+            ? "border-emerald-600/50 bg-emerald-900/10"
+            : "border-zinc-700 bg-zinc-900"
+        } px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500`}
+      />
+      {open && matches.length > 0 && (
+        <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 shadow-lg">
+          {matches.map((name, i) => (
+            <li
+              key={name}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                commit(name);
+              }}
+              onMouseEnter={() => setHighlight(i)}
+              className={`cursor-pointer px-2 py-1 text-xs ${
+                i === highlight
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-300"
+              }`}
+            >
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   const pct = Math.round(confidence * 100);
