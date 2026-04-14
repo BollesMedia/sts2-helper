@@ -6,6 +6,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@sts2/shared/types/database.types";
 import type {
   CardInsert,
@@ -16,16 +17,6 @@ import type {
 } from "@sts2/shared/supabase/helpers";
 
 const CODEX_BASE = "https://spire-codex.com/api";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-  process.exit(1);
-}
-
-const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
 async function fetchCodex<T>(path: string): Promise<T> {
   const url = `${CODEX_BASE}${path}`;
@@ -180,7 +171,7 @@ interface CodexCharacter {
   image_url: string | null;
 }
 
-async function syncCards(version: string) {
+async function syncCards(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing cards...");
   const cards = await fetchCodex<CodexCard[]>("/cards");
 
@@ -212,7 +203,7 @@ async function syncCards(version: string) {
   console.log(`  ✓ ${rows.length} cards synced`);
 }
 
-async function syncRelics(version: string) {
+async function syncRelics(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing relics...");
   const relics = await fetchCodex<CodexRelic[]>("/relics");
 
@@ -231,7 +222,7 @@ async function syncRelics(version: string) {
   console.log(`  ✓ ${rows.length} relics synced`);
 }
 
-async function syncPotions(version: string) {
+async function syncPotions(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing potions...");
   const potions = await fetchCodex<CodexPotion[]>("/potions");
 
@@ -250,7 +241,7 @@ async function syncPotions(version: string) {
   console.log(`  ✓ ${rows.length} potions synced`);
 }
 
-async function syncMonsters(version: string) {
+async function syncMonsters(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing monsters...");
   const monsters = await fetchCodex<CodexMonster[]>("/monsters");
 
@@ -270,7 +261,7 @@ async function syncMonsters(version: string) {
   console.log(`  ✓ ${rows.length} monsters synced`);
 }
 
-async function syncKeywords(version: string) {
+async function syncKeywords(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing keywords...");
   const keywords = await fetchCodex<CodexKeyword[]>("/keywords");
 
@@ -286,7 +277,7 @@ async function syncKeywords(version: string) {
   console.log(`  ✓ ${rows.length} keywords synced`);
 }
 
-async function syncEvents(version: string) {
+async function syncEvents(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing events...");
   const events = await fetchCodex<CodexEvent[]>("/events");
 
@@ -311,7 +302,7 @@ async function syncEvents(version: string) {
   console.log(`  ✓ ${rows.length} events synced`);
 }
 
-async function syncEnchantments(version: string) {
+async function syncEnchantments(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing enchantments...");
   const enchantments = await fetchCodex<CodexEnchantment[]>("/enchantments");
 
@@ -333,7 +324,7 @@ async function syncEnchantments(version: string) {
   console.log(`  ✓ ${rows.length} enchantments synced`);
 }
 
-async function syncPowers(version: string) {
+async function syncPowers(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing powers...");
   const powers = await fetchCodex<CodexPower[]>("/powers");
 
@@ -354,7 +345,7 @@ async function syncPowers(version: string) {
   console.log(`  ✓ ${rows.length} powers synced`);
 }
 
-async function syncEncounters(version: string) {
+async function syncEncounters(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing encounters...");
   const encounters = await fetchCodex<CodexEncounter[]>("/encounters");
 
@@ -375,7 +366,7 @@ async function syncEncounters(version: string) {
   console.log(`  ✓ ${rows.length} encounters synced`);
 }
 
-async function syncOrbs(version: string) {
+async function syncOrbs(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing orbs...");
   const orbs = await fetchCodex<CodexOrb[]>("/orbs");
 
@@ -393,7 +384,7 @@ async function syncOrbs(version: string) {
   console.log(`  ✓ ${rows.length} orbs synced`);
 }
 
-async function syncAfflictions(version: string) {
+async function syncAfflictions(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing afflictions...");
   const afflictions = await fetchCodex<CodexAffliction[]>("/afflictions");
 
@@ -411,7 +402,7 @@ async function syncAfflictions(version: string) {
   console.log(`  ✓ ${rows.length} afflictions synced`);
 }
 
-async function syncCharacters(version: string) {
+async function syncCharacters(supabase: SupabaseClient<Database>, version: string) {
   console.log("Syncing characters...");
   const characters = await fetchCodex<CodexCharacter[]>("/characters");
 
@@ -438,8 +429,7 @@ async function syncCharacters(version: string) {
   console.log(`  ✓ ${rows.length} characters synced`);
 }
 
-async function main() {
-  const version = process.argv[2] ?? "unknown";
+export async function runCodexSync(supabase: SupabaseClient<Database>, version: string) {
   console.log(`\nSyncing Spire Codex data (version: ${version})...\n`);
 
   // Ensure version exists
@@ -447,34 +437,46 @@ async function main() {
     .from("game_versions")
     .upsert({ version, synced_at: new Date().toISOString() });
 
-  // Existing syncs
-  await syncCards(version);
+  await syncCards(supabase, version);
   await delay(1200);
-  await syncRelics(version);
+  await syncRelics(supabase, version);
   await delay(1200);
-  await syncPotions(version);
+  await syncPotions(supabase, version);
   await delay(1200);
-  await syncMonsters(version);
+  await syncMonsters(supabase, version);
   await delay(1200);
-  await syncKeywords(version);
+  await syncKeywords(supabase, version);
   await delay(1200);
-
-  // New syncs
-  await syncEvents(version);
+  await syncEvents(supabase, version);
   await delay(1200);
-  await syncEnchantments(version);
+  await syncEnchantments(supabase, version);
   await delay(1200);
-  await syncPowers(version);
+  await syncPowers(supabase, version);
   await delay(1200);
-  await syncEncounters(version);
+  await syncEncounters(supabase, version);
   await delay(1200);
-  await syncOrbs(version);
+  await syncOrbs(supabase, version);
   await delay(1200);
-  await syncAfflictions(version);
+  await syncAfflictions(supabase, version);
   await delay(1200);
-  await syncCharacters(version);
+  await syncCharacters(supabase, version);
 
   console.log("\n✓ All game data synced successfully!\n");
+}
+
+// CLI entrypoint — only runs when executed directly via tsx/node
+async function main() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    process.exit(1);
+  }
+
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+  const version = process.argv[2] ?? "unknown";
+  await runCodexSync(supabase, version);
 }
 
 main().catch((err) => {
