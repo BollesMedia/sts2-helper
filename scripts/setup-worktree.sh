@@ -51,4 +51,14 @@ link_from_main() {
 link_from_main .vercel
 link_from_main .env.local
 
+# Next.js loads env from the app directory, not the monorepo root. Replicate
+# main's apps/web/.env.local -> ../../.env.local symlink so pnpm --filter
+# @sts2/web dev picks up the env vars.
+if [ ! -e apps/web/.env.local ] && [ ! -L apps/web/.env.local ]; then
+  if [ -e .env.local ] || [ -L .env.local ]; then
+    (cd apps/web && ln -s ../../.env.local .env.local)
+    echo "Linked apps/web/.env.local -> ../../.env.local"
+  fi
+fi
+
 echo "Worktree setup complete: $CURRENT_WT"
