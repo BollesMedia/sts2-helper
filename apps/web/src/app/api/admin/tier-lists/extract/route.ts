@@ -85,7 +85,10 @@ export async function POST(request: Request) {
   try {
     const result = await generateText({
       model: google(VISION_MODEL),
-      maxOutputTokens: 8192,
+      // Gemini 2.5 Pro reserves part of this budget for internal "thinking"
+      // tokens, leaving less for the actual structured-output JSON. A
+      // 150-card tier list needs ~12K output tokens; give plenty of headroom.
+      maxOutputTokens: 32768,
       system: systemPrompt,
       messages: [
         {
@@ -120,11 +123,29 @@ export async function POST(request: Request) {
       cardIdMap,
     });
   } catch (err) {
-    console.error("[Tier Lists Extract] Vision call failed:", err);
+    // Surface the raw model output (when available) so we can diagnose
+    // whether it's a token-budget issue, schema-mismatch, or refusal.
+    const rawOutput =
+      err && typeof err === "object" && "text" in err
+        ? (err as { text?: unknown }).text
+        : undefined;
+    const finishReason =
+      err && typeof err === "object" && "finishReason" in err
+        ? (err as { finishReason?: unknown }).finishReason
+        : undefined;
+
+    console.error("[Tier Lists Extract] Vision call failed:", {
+      message: err instanceof Error ? err.message : String(err),
+      finishReason,
+      rawOutputPreview:
+        typeof rawOutput === "string" ? rawOutput.slice(0, 500) : rawOutput,
+    });
+
     return NextResponse.json(
       {
         error: "Extraction failed",
         detail: err instanceof Error ? err.message : String(err),
+        finishReason,
       },
       { status: 500 },
     );
