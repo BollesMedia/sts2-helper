@@ -6,7 +6,9 @@ import { z } from "zod";
  *
  * ⚠️ Avoid zod constraints that emit JSON Schema features rejected by
  * Anthropic's structured-output endpoint — see the notes in eval-schemas.ts.
- * In particular: no z.number().int(), no z.array().min/max/length().
+ * In particular: no z.number().int(), no z.array().min/max/length(),
+ * no z.number().min/max() — numeric bounds are also rejected. Enforce
+ * via prompt instructions + post-parse clamping in the caller instead.
  */
 
 export const tierExtractionSchema = z.object({
@@ -31,7 +33,9 @@ export const tierExtractionSchema = z.object({
             name: z
               .string()
               .describe("Canonical card name from the provided authoritative list"),
-            confidence: z.number().min(0).max(1),
+            confidence: z
+              .number()
+              .describe("0.0–1.0 — how confident the match is. Clamped server-side."),
           }),
         ),
       }),

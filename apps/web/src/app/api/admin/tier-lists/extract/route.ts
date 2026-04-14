@@ -99,9 +99,18 @@ export async function POST(request: Request) {
       output: Output.object({ schema: tierExtractionSchema }),
     });
 
+    // Clamp confidence values to [0, 1] — schema can't enforce bounds
+    // on number fields (Anthropic rejects min/max on number/integer types)
+    const extraction = result.output;
+    for (const tier of extraction.tiers ?? []) {
+      for (const card of tier.cards) {
+        card.confidence = Math.max(0, Math.min(1, card.confidence));
+      }
+    }
+
     return NextResponse.json({
       imageUrl,
-      extraction: result.output,
+      extraction,
       cardIdMap,
     });
   } catch (err) {
