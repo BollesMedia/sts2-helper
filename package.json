@@ -2,18 +2,14 @@
   "name": "sts2-replay",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "npm@11.8.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "packageManager": "pnpm@10.30.1",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "db:migrate": "supabase db push",
     "db:migrate:dry": "supabase db push --dry-run",
-    "db:gen-types": "npm run gen-types -w apps/web"
+    "db:gen-types": "pnpm --filter @sts2/web gen-types"
   },
   "devDependencies": {
     "turbo": "^2"

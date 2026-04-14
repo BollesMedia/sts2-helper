@@ -15,7 +15,7 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
     "@sentry/react": "^10.47.0",
-    "@sts2/shared": "*",
+    "@sts2/shared": "workspace:*",
     "@supabase/supabase-js": "^2.100.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-deep-link": "^2.4.7",
