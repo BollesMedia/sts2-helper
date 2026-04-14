@@ -43,9 +43,13 @@ export async function POST(request: Request) {
     .getPublicUrl(filename);
   const imageUrl = publicUrlData.publicUrl;
 
-  // Fetch all known card names for the extraction prompt
-  const { data: cards } = await supabase.from("cards").select("name");
+  // Fetch all known cards for the extraction prompt and name→id map
+  const { data: cards } = await supabase.from("cards").select("id, name");
   const cardNames = (cards ?? []).map((c) => c.name);
+  const cardIdMap: Record<string, string> = {};
+  for (const c of cards ?? []) {
+    cardIdMap[c.name] = c.id;
+  }
 
   // Call Claude Sonnet with vision
   const systemPrompt = buildTierExtractionSystemPrompt(cardNames);
@@ -76,6 +80,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       imageUrl,
       extraction: result.output,
+      cardIdMap,
     });
   } catch (err) {
     console.error("[Tier Lists Extract] Vision call failed:", err);
