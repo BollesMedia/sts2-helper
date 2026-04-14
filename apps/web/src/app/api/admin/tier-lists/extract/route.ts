@@ -71,16 +71,15 @@ export async function POST(request: Request) {
     .getPublicUrl(filename);
   const imageUrl = publicUrlData.publicUrl;
 
-  // Fetch all known cards for the extraction prompt and name→id map
+  // Fetch all known cards — client uses this to match extracted names
+  // to canonical IDs (matching happens client-side, not in the prompt).
   const { data: cards } = await supabase.from("cards").select("id, name");
-  const cardNames = (cards ?? []).map((c) => c.name);
   const cardIdMap: Record<string, string> = {};
   for (const c of cards ?? []) {
     cardIdMap[c.name] = c.id;
   }
 
-  // Call Claude Sonnet with vision
-  const systemPrompt = buildTierExtractionSystemPrompt(cardNames);
+  const systemPrompt = buildTierExtractionSystemPrompt();
 
   try {
     const result = await generateText({

@@ -168,11 +168,25 @@ function TierListContent() {
     const result = data as ExtractResult;
     setExtractResult(result);
 
-    // Flatten tiers → card rows
+    // Build a normalized lookup so we can auto-match common variants
+    // (case differences, trailing "+", whitespace) without bothering the admin.
+    const normalizedLookup = new Map<string, string>();
+    for (const canonical of Object.keys(result.cardIdMap)) {
+      normalizedLookup.set(normalizeCardName(canonical), canonical);
+    }
+
+    // Flatten tiers → card rows. Auto-populate matchedName for fuzzy matches
+    // so the admin only has to resolve truly unknown cards.
     const flat: ExtractedCard[] = [];
     for (const tier of result.extraction.tiers ?? []) {
       for (const card of tier.cards) {
-        flat.push({ name: card.name, tier: tier.label, confidence: card.confidence });
+        const matched = resolveExtractedName(card.name, result.cardIdMap, normalizedLookup);
+        flat.push({
+          name: card.name,
+          tier: tier.label,
+          confidence: card.confidence,
+          matchedName: matched && matched !== card.name ? matched : undefined,
+        });
       }
     }
     setCards(flat);
@@ -899,6 +913,31 @@ function CheckIcon() {
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
+}
+
+// Normalize a card name for fuzzy matching: lowercase, strip trailing "+"
+// variants, collapse whitespace. Used to auto-resolve OCR/casing drift
+// from the extracted text against the canonical cardIdMap.
+function normalizeCardName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Resolve an extracted name to a canonical one via:
+//   1. Exact match against cardIdMap (return as-is, no matchedName needed)
+//   2. Normalized match against the pre-built lookup (return canonical)
+// Returns null when no match is found — card goes to the unmatched section.
+function resolveExtractedName(
+  extracted: string,
+  cardIdMap: Record<string, string>,
+  normalizedLookup: Map<string, string>,
+): string | null {
+  if (cardIdMap[extracted]) return extracted;
+  const canonical = normalizedLookup.get(normalizeCardName(extracted));
+  return canonical ?? null;
 }
 
 // Resize an image file so its longest edge is at most `maxEdge` pixels,

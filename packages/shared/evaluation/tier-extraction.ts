@@ -48,19 +48,13 @@ export type TierExtractionResult = z.infer<typeof tierExtractionSchema>;
 
 /**
  * Build the system prompt for tier list extraction.
- * Intentionally minimal — Gemini 2.5 Pro one-shots this task with a short prompt
- * and degrades under verbose instructions (thinking-token burn). The
- * authoritative card list is the only load-bearing anti-hallucination lever;
- * everything else is a hint.
+ * Intentionally minimal. Matching to canonical card names happens client-side —
+ * the model's job is to read whatever text is on each card and return it.
  */
-export function buildTierExtractionSystemPrompt(cardNames: string[]): string {
-  const nameList = cardNames.slice().sort().join(", ");
+export function buildTierExtractionSystemPrompt(): string {
   return `This is a Slay the Spire 2 card tier list. Extract every card into the JSON schema.
 
-Layout: tier labels in the leftmost column, cards arranged horizontally in each row. Card names appear at the top-center of each card sprite.
+Layout: tier labels in the leftmost column, cards arranged horizontally in each row. Card names appear at the top-center of each card sprite — read the name text directly from there.
 
-Card names must match this canonical list exactly (case-sensitive):
-${nameList}
-
-Every card visible in the image must appear in the output. If a name isn't in the canonical list, omit it and note the read text in warnings.`;
+Every card visible in the image must appear in the output. Return the name exactly as printed on the card, including any "+" for upgraded variants. Do not omit cards whose names look unfamiliar — extract them as-is.`;
 }
