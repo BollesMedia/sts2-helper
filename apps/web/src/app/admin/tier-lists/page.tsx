@@ -12,7 +12,6 @@ type ScaleType = "letter_6" | "letter_5" | "numeric_10" | "numeric_5" | "binary"
 type Character = "any" | "ironclad" | "silent" | "defect" | "regent" | "necrobinder";
 
 interface SourceMeta {
-  id: string;
   author: string;
   source_type: SourceType;
   source_url: string;
@@ -21,6 +20,19 @@ interface SourceMeta {
   character: Character;
   game_version: string;
   published_at: string;
+}
+
+/**
+ * Derive a stable source_id slug from author + source_type.
+ * Same author + type always maps to the same row, so re-uploads hit
+ * upsert correctly and share trust history.
+ */
+function deriveSourceId(author: string, sourceType: SourceType): string {
+  const slug = author
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${slug || "unknown"}-${sourceType}`;
 }
 
 interface ExtractedCard {
@@ -77,7 +89,6 @@ function getTierColor(tier: string): string {
 // ── Default form values ───────────────────────────────────────────────────────
 
 const defaultMeta: SourceMeta = {
-  id: "",
   author: "",
   source_type: "image",
   source_url: "",
@@ -199,7 +210,7 @@ function TierListContent() {
     const body = {
       imageUrl,
       source: {
-        id: meta.id,
+        id: deriveSourceId(meta.author, meta.source_type),
         author: meta.author,
         source_type: meta.source_type,
         source_url: meta.source_url || null,
@@ -358,17 +369,6 @@ function UploadStep({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelCls}>Source ID (slug)</label>
-            <input
-              type="text"
-              required
-              value={meta.id}
-              onChange={(e) => set("id", e.target.value)}
-              placeholder="e.g. alphabetical-ironclad-v035"
-              className={`mt-1 ${inputCls}`}
-            />
-          </div>
-          <div>
             <label className={labelCls}>Author</label>
             <input
               type="text"
@@ -378,10 +378,12 @@ function UploadStep({
               placeholder="e.g. alphabetical"
               className={`mt-1 ${inputCls}`}
             />
+            {meta.author && (
+              <p className="mt-1 text-[11px] text-zinc-600">
+                source_id: <code className="font-mono text-zinc-500">{deriveSourceId(meta.author, meta.source_type)}</code>
+              </p>
+            )}
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Source Type</label>
             <select
@@ -396,16 +398,17 @@ function UploadStep({
               <option value="youtube">YouTube</option>
             </select>
           </div>
-          <div>
-            <label className={labelCls}>Source URL (optional)</label>
-            <input
-              type="url"
-              value={meta.source_url}
-              onChange={(e) => set("source_url", e.target.value)}
-              placeholder="https://..."
-              className={`mt-1 ${inputCls}`}
-            />
-          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Source URL (optional)</label>
+          <input
+            type="url"
+            value={meta.source_url}
+            onChange={(e) => set("source_url", e.target.value)}
+            placeholder="https://..."
+            className={`mt-1 ${inputCls}`}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
