@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { generateText, Output } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
 import { requireAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   tierExtractionSchema,
   buildTierExtractionSystemPrompt,
 } from "@sts2/shared/evaluation/tier-extraction";
-import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
+
+// Gemini 2.5 Pro one-shots tier list extraction where Claude Opus 4.6 struggled
+// (tested against dense horizontal-row tier list screenshots with ~150 cards).
+// Requires GOOGLE_GENERATIVE_AI_API_KEY env var.
+const VISION_MODEL = "gemini-2.5-pro";
 
 // Allowlist MIME types to prevent attacker-controlled extensions serving as HTML
 // from the public storage bucket. Keep in sync with migration 023 bucket config.
@@ -78,8 +82,8 @@ export async function POST(request: Request) {
 
   try {
     const result = await generateText({
-      model: anthropic(EVAL_MODELS.vision),
-      maxOutputTokens: 4096,
+      model: google(VISION_MODEL),
+      maxOutputTokens: 8192,
       system: systemPrompt,
       messages: [
         {
