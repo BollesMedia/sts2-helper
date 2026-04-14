@@ -542,26 +542,22 @@ function PreviewStep({
   const updateCard = (idx: number, patch: Partial<ExtractedCard>) =>
     onCardsChange(cards.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
 
-  // Separate matched vs unmatched
-  const unmatchedCards = cards
+  // Group ALL cards (matched + unmatched) by tier so unmatched cards stay
+  // in their extracted position — admin can match them inline while
+  // comparing against the source image.
+  const allByTier = cards
     .map((c, i) => ({ card: c, idx: i }))
-    .filter(({ card }) => !cardIdMap[card.matchedName ?? card.name]);
-
-  const matchedCards = cards
-    .map((c, i) => ({ card: c, idx: i }))
-    .filter(({ card }) => !!cardIdMap[card.matchedName ?? card.name]);
-
-  // Group matched cards by tier for display
-  const byTier = matchedCards.reduce<Record<string, Array<{ card: ExtractedCard; idx: number }>>>(
-    (acc, entry) => {
-      acc[entry.card.tier] = acc[entry.card.tier] ?? [];
-      acc[entry.card.tier].push(entry);
-      return acc;
-    },
-    {}
-  );
+    .reduce<Record<string, Array<{ card: ExtractedCard; idx: number }>>>(
+      (acc, entry) => {
+        acc[entry.card.tier] = acc[entry.card.tier] ?? [];
+        acc[entry.card.tier].push(entry);
+        return acc;
+      },
+      {},
+    );
 
   const saveableCount = cards.filter((c) => cardIdMap[c.matchedName ?? c.name]).length;
+  const unmatchedCount = cards.length - saveableCount;
 
   const detectedScale = extraction.detected_scale;
   const detectedCharacter = extraction.detected_character;
@@ -664,74 +660,25 @@ function PreviewStep({
           </div>
         </div>
 
-        {/* Right column: unmatched + tier groups */}
+        {/* Right column: tier groups with inline matched/unmatched cards */}
         <div className="space-y-4">
-          {/* Unmatched cards section */}
-          {unmatchedCards.length > 0 && (
-            <div className="rounded-lg border border-orange-500/40 bg-orange-500/5 overflow-hidden">
-              <div className="px-3 py-2 border-b border-orange-500/30 bg-orange-500/10">
-                <span className="text-sm font-semibold text-orange-300">
-                  Unmatched Cards
-                </span>
-                <span className="ml-2 text-xs text-orange-400/70">
-                  {unmatchedCards.length} — resolve or skip before saving
-                </span>
-              </div>
-              <div className="divide-y divide-orange-500/10">
-                {unmatchedCards.map(({ card, idx }) => (
-                  <div
-                    key={`unmatched-${idx}`}
-                    className="px-3 py-2.5 space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-orange-300 font-mono truncate max-w-[60%]">
-                        {card.name}
-                      </span>
-                      <button
-                        onClick={() => removeCard(idx)}
-                        className="text-xs text-zinc-600 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded border border-zinc-800 hover:border-red-500/40"
-                        aria-label={`Skip ${card.name}`}
-                      >
-                        Skip
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        list={`cards-${idx}`}
-                        value={card.matchedName ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (cardIdMap[val]) {
-                            updateCard(idx, { matchedName: val });
-                          } else {
-                            updateCard(idx, { matchedName: undefined });
-                          }
-                        }}
-                        placeholder="Search card name..."
-                        className={`flex-1 ${inputCls}`}
-                      />
-                      <datalist id={`cards-${idx}`}>
-                        {Object.keys(cardIdMap).map((name) => (
-                          <option key={name} value={name} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-zinc-500 uppercase tracking-wide">
+              Extracted Tiers
+            </p>
+            {unmatchedCount > 0 && (
+              <span className="text-xs text-orange-300">
+                {unmatchedCount} unmatched — resolve inline
+              </span>
+            )}
+          </div>
 
-          {/* Tier groups (matched cards only) */}
-          <p className="text-xs text-zinc-500 uppercase tracking-wide">
-            Extracted Tiers
-          </p>
-          {Object.entries(byTier).map(([tier, entries]) => (
+          {Object.entries(allByTier).map(([tier, entries]) => (
             <div
               key={tier}
               className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden"
             >
-              <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-900">
+              <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-900 flex items-center">
                 <span className={`text-sm font-semibold ${getTierColor(tier)}`}>
                   Tier {tier}
                 </span>
@@ -740,52 +687,84 @@ function PreviewStep({
                 </span>
               </div>
               <div className="divide-y divide-zinc-900">
-                {entries.map(({ card, idx }) => (
-                  <div
-                    key={`${tier}-${card.name}-${idx}`}
-                    className="flex items-center justify-between px-3 py-2 hover:bg-zinc-900/50 transition-colors"
-                  >
-                    <span className="text-sm text-zinc-200 truncate min-w-0 mr-2">
-                      {card.matchedName ?? card.name}
-                      {card.matchedName && card.matchedName !== card.name && (
-                        <span className="ml-1 text-xs text-zinc-500">
-                          ({card.name})
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <ConfidenceBadge confidence={card.confidence} />
-                      <select
-                        value={card.tier}
-                        onChange={(e) => updateCard(idx, { tier: e.target.value })}
-                        className={inputCls}
-                        aria-label={`Tier for ${card.name}`}
-                      >
-                        {tierOptions.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                      {card.matchedName && card.matchedName !== card.name && (
-                        <button
-                          onClick={() => updateCard(idx, { matchedName: undefined })}
-                          className="text-xs text-zinc-600 hover:text-orange-400 transition-colors"
-                          aria-label={`Unmatch ${card.name}`}
-                        >
-                          Unmatch
-                        </button>
-                      )}
-                      <button
-                        onClick={() => removeCard(idx)}
-                        className="text-zinc-600 hover:text-red-400 transition-colors"
-                        aria-label={`Remove ${card.name}`}
-                      >
-                        <TrashIcon />
-                      </button>
+                {entries.map(({ card, idx }) => {
+                  const resolvedName = card.matchedName ?? card.name;
+                  const isMatched = !!cardIdMap[resolvedName];
+                  return (
+                    <div
+                      key={`${tier}-${idx}`}
+                      className={`px-3 py-2 ${isMatched ? "hover:bg-zinc-900/50" : "bg-orange-500/5 border-l-2 border-orange-500/50"} transition-colors`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isMatched ? (
+                          <span className="text-sm text-zinc-200 truncate min-w-0 flex-1">
+                            {resolvedName}
+                            {card.matchedName && card.matchedName !== card.name && (
+                              <span className="ml-1 text-xs text-zinc-500">
+                                ({card.name})
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                            <span className="text-xs text-orange-300 font-mono truncate shrink-0 max-w-[45%]">
+                              {card.name}
+                            </span>
+                            <span className="text-xs text-orange-500/60 shrink-0">→</span>
+                            <input
+                              list={`cards-${idx}`}
+                              value={card.matchedName ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateCard(idx, {
+                                  matchedName: cardIdMap[val] ? val : undefined,
+                                });
+                              }}
+                              placeholder="Match to card…"
+                              className={`flex-1 min-w-0 ${inputCls}`}
+                            />
+                            <datalist id={`cards-${idx}`}>
+                              {Object.keys(cardIdMap).map((name) => (
+                                <option key={name} value={name} />
+                              ))}
+                            </datalist>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <ConfidenceBadge confidence={card.confidence} />
+                          <select
+                            value={card.tier}
+                            onChange={(e) => updateCard(idx, { tier: e.target.value })}
+                            className={inputCls}
+                            aria-label={`Tier for ${card.name}`}
+                          >
+                            {tierOptions.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                          {card.matchedName && card.matchedName !== card.name && (
+                            <button
+                              onClick={() => updateCard(idx, { matchedName: undefined })}
+                              className="text-xs text-zinc-600 hover:text-orange-400 transition-colors"
+                              aria-label={`Unmatch ${card.name}`}
+                            >
+                              Unmatch
+                            </button>
+                          )}
+                          <button
+                            onClick={() => removeCard(idx)}
+                            className="text-zinc-600 hover:text-red-400 transition-colors"
+                            aria-label={`Remove ${card.name}`}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -793,14 +772,6 @@ function PreviewStep({
           {cards.length === 0 && (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-8 text-center">
               <p className="text-sm text-zinc-500">No cards remaining.</p>
-            </div>
-          )}
-
-          {cards.length > 0 && matchedCards.length === 0 && unmatchedCards.length > 0 && (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-8 text-center">
-              <p className="text-sm text-zinc-500">
-                All cards are unmatched. Resolve or skip them above.
-              </p>
             </div>
           )}
         </div>
