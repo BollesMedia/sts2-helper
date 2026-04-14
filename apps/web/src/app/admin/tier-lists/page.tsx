@@ -1078,13 +1078,19 @@ function clearDraft(): void {
   }
 }
 
-// Normalize a card name for fuzzy matching: lowercase, strip trailing "+"
-// variants, collapse whitespace. Used to auto-resolve OCR/casing drift
-// from the extracted text against the canonical cardIdMap.
+// Normalize a card name for fuzzy matching. Common OCR / source-format drift
+// that should still match the canonical entry:
+//   - Casing ("Pact's End" vs "pact's end")
+//   - Upgraded variants ("Strike+" vs "Strike")
+//   - Apostrophes dropped by OCR ("Pacts End" vs "Pact's End")
+//   - Hyphen/en-dash variants
+//   - Extra whitespace
+// We strip all non-alphanumeric characters (except spaces) to canonicalize.
 function normalizeCardName(name: string): string {
   return name
     .toLowerCase()
     .replace(/\+/g, "")
+    .replace(/[^a-z0-9\s]/g, "") // drop apostrophes, hyphens, punctuation
     .replace(/\s+/g, " ")
     .trim();
 }
