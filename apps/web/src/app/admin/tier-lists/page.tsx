@@ -145,8 +145,12 @@ function TierListContent() {
     setSubmitting(true);
     setError(null);
 
+    // Downscale full-page screenshots before upload. Gemini is happy with
+    // 2048px long-edge and this cuts 15MB screenshots to ~1-2MB.
+    const uploadFile = await downscaleImage(imageFile, 2048);
+
     const formData = new FormData();
-    formData.append("image", imageFile);
+    formData.append("image", uploadFile);
 
     const res = await fetch("/api/admin/tier-lists/extract", {
       method: "POST",
@@ -895,4 +899,44 @@ function CheckIcon() {
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
+}
+
+// Resize an image file so its longest edge is at most `maxEdge` pixels,
+// re-encoding as JPEG at 0.92 quality. Skips re-encoding if the image is
+// already smaller than the target and the source is PNG/JPEG (keeps the
+// original to preserve transparency on PNG).
+async function downscaleImage(file: File, maxEdge: number): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  const longest = Math.max(width, height);
+
+  if (longest <= maxEdge) {
+    bitmap.close();
+    return file;
+  }
+
+  const scale = maxEdge / longest;
+  const targetW = Math.round(width * scale);
+  const targetH = Math.round(height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close();
+    return file;
+  }
+  ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.92),
+  );
+  if (!blob) return file;
+
+  return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
 }

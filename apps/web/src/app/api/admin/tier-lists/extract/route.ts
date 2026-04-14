@@ -22,7 +22,7 @@ const ALLOWED_MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/webp": "webp",
 };
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25 MB — matches next.config proxyClientMaxBodySize
 
 export async function POST(request: Request) {
   const auth = await requireAdmin();
