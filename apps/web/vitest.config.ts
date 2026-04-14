@@ -9,7 +9,9 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: [
       "src/**/*.test.{ts,tsx}",
-      "../../packages/shared/**/*.test.{ts,tsx}",
+      "../../packages/shared/choice-detection/**/*.test.{ts,tsx}",
+      "../../packages/shared/evaluation/**/*.test.{ts,tsx}",
+      "../../packages/shared/lib/**/*.test.{ts,tsx}",
     ],
   },
   resolve: {

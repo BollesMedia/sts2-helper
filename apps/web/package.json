@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.67",
-    "@sts2/shared": "*",
+    "@sts2/shared": "workspace:*",
+    "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.100.1",
     "ai": "^6.0.148",
     "next": "16.2.1",
@@ -30,7 +31,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "jsdom": "^29.0.1",
