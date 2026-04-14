@@ -14,8 +14,7 @@ export default function HomePage() {
     );
   }
 
-  const isDev = process.env.NODE_ENV === "development";
-  if (!user && !isDev) {
+  if (!user) {
     return <LoginScreen />;
   }
 

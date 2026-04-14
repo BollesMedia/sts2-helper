@@ -7,7 +7,6 @@ import { createClient } from "@sts2/shared/supabase/client";
 
 export default function AccountPage() {
   const { user, loading, signOut } = useAuth();
-  const isDev = process.env.NODE_ENV === "development";
 
   if (loading) {
     return (
@@ -17,7 +16,7 @@ export default function AccountPage() {
     );
   }
 
-  if (!user && !isDev) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <LoginScreen />

@@ -92,7 +92,6 @@ const defaultMeta: SourceMeta = {
 
 export default function TierListIngestionPage() {
   const { user, loading } = useAuth();
-  const isDev = process.env.NODE_ENV === "development";
 
   if (loading) {
     return (
@@ -102,7 +101,7 @@ export default function TierListIngestionPage() {
     );
   }
 
-  if (!user && !isDev) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <LoginScreen />
