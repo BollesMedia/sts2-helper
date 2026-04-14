@@ -21,6 +21,7 @@ import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
 import { getStatisticalEvaluation } from "@sts2/shared/evaluation/statistical-evaluator";
+import { getCommunityTierSignals } from "@sts2/shared/evaluation/community-tier";
 import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { applyPostEvalWeights, buildWeightContext, adjustTier as adjustTierByDelta, reconcileSkipRecommended } from "@sts2/shared/evaluation/post-eval-weights";
@@ -646,6 +647,36 @@ export async function POST(request: Request) {
     }
   }
 
+  // Community tier list consensus — prior from pro player / community sources
+  let communityTierContext = "";
+  try {
+    const signals = await getCommunityTierSignals(
+      supabase,
+      items.map((i) => i.id),
+      context.character,
+      gameVersion,
+    );
+    if (signals.size > 0) {
+      const ctLines = items
+        .filter((i) => signals.has(i.id))
+        .map((i) => {
+          const s = signals.get(i.id)!;
+          const agreementTag =
+            s.agreement === "strong" ? " [consensus]"
+            : s.agreement === "split" ? ` [sources disagree: stddev ${s.stddev.toFixed(2)}]`
+            : "";
+          const stalenessTag = s.staleness === "aging" ? " [aging]" : "";
+          return `${i.name}: community ${s.consensusTierLetter}-tier (${s.sourceCount} source${s.sourceCount === 1 ? "" : "s"}${agreementTag})${stalenessTag}`;
+        });
+      if (ctLines.length > 0) {
+        communityTierContext = `\n[Community tier lists]\n${ctLines.join("\n")}\nTreat as a prior; trust your analysis of the current deck over it.`;
+      }
+    }
+  } catch (err) {
+    console.warn("[Evaluate] Community tier signal fetch failed:", err);
+    // Non-critical — continue without the signal
+  }
+
   // Build compact prompt — history + narrative + strategy + compact context + items LAST (Haiku recency bias)
   let contextStr = "";
   if (runHistory) {
@@ -668,6 +699,7 @@ export async function POST(request: Request) {
   // Inject historical data before items (gives Claude context without overriding)
   if (historicalContext) contextStr += historicalContext;
   if (winRateContext) contextStr += winRateContext;
+  if (communityTierContext) contextStr += communityTierContext;
 
   // Items go LAST for Haiku's recency bias
   // Flag duplicates and cost inline so Claude can't miss them
