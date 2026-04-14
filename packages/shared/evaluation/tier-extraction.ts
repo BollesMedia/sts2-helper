@@ -54,20 +54,45 @@ export function buildTierExtractionSystemPrompt(cardNames: string[]): string {
   const nameList = cardNames.slice().sort().join(", ");
   return `You are extracting a Slay the Spire 2 tier list from an image.
 
-The user will provide an image showing STS2 cards organized in tiers (S/A/B/C/D/F, 1-10, good/bad, etc.).
+## Image layout
 
-For each tier section visible in the image, identify the cards in that tier.
-Match card names against this authoritative list of STS2 cards:
+The image is a horizontal-row tier list, cascading vertically:
+
+    S  | [card] [card] [card] [card] [card] ...
+    A  | [card] [card] [card] ...
+    B  | [card] [card] ...
+    C  | [card] ...
+    D  | [card] [card] ...
+
+Each row is one tier. The tier label (S, A, B, C, D, F, 1–10, etc.) is at the LEFT edge of the row. Cards belonging to that tier extend horizontally to the RIGHT of the label, arranged left-to-right.
+
+A card's tier is determined by which ROW it sits in. Horizontal position within a row carries no meaning — a card on the left of the S row is equally S-tier to one on the right.
+
+## Process
+
+1. Identify the tier labels (the leftmost column) and their vertical bands.
+2. For each tier row, scan left-to-right and identify every card visible in that horizontal band.
+3. A card belongs to a row if its vertical center is within that row's band. If a card straddles two bands, note it in warnings and assign to the row containing most of its area.
+4. Do NOT assign cards from outside the tier-list grid (e.g., labels, icons, thumbnails in sidebars, or cards shown in legends/examples).
+
+## Card identification
+
+Match each card against this authoritative list of STS2 cards. Use BOTH the card name text and the card art to match:
+
 ${nameList}
 
-Output structured JSON per the schema. Follow these rules:
+Return the EXACT canonical name from the list above. Case-sensitive. Do not abbreviate or paraphrase.
+
+## Output rules
 
 1. If the image is NOT an STS2 tier list, return { "error": "not_a_tier_list" } and empty tiers array.
-2. detected_scale: infer from the tier labels present. If labels are S/A/B/C/D/F → "letter_6". If S/A/B/C/D (no F) → "letter_5". If numeric 1-10 → "numeric_10". If 1-5 → "numeric_5". If only "good"/"bad" or "pick"/"skip" → "binary".
-3. detected_character: if the image targets one character (e.g. "Ironclad Tier List"), return that character name lowercase. If no character specified or cross-character, return null.
-4. For each card, return the exact canonical name from the authoritative list. Do NOT invent card names.
-5. confidence: 0.9+ when you clearly recognize the card art and name. 0.7-0.9 when reasonably confident. Below 0.7 means uncertain — prefer to omit the card rather than guess.
-6. warnings: include notes about ambiguous sections, cards you couldn't identify, unusual tier scales, or anything the admin should review.
+2. detected_scale: infer from the tier labels present. S/A/B/C/D/F → "letter_6". S/A/B/C/D (no F) → "letter_5". 1–10 → "numeric_10". 1–5 → "numeric_5". good/bad or pick/skip → "binary".
+3. detected_character: if the image targets one character (e.g., "Ironclad Tier List" in the header), return that character name lowercase. If no character specified or cross-character, return null.
+4. Every card must appear in the authoritative list above. Do NOT invent names.
+5. confidence: 0.9+ = clearly recognize both art and name. 0.7–0.9 = reasonably confident from context. Below 0.7 = uncertain — prefer to omit rather than guess.
+6. warnings: list any cards you couldn't identify (describe their position), unusual tier scales, cards that straddle rows, duplicate cards, or anything the admin should review.
 
-Be thorough but accurate. Omitting a card is better than guessing wrong.`;
+Be thorough: scan every row completely before moving on. A missing card is worse than no output — if the image is clear and you skip cards, you've done the task poorly.
+
+Omitting an uncertain card is better than fabricating a match.`;
 }
