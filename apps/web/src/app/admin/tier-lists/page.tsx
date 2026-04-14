@@ -126,11 +126,16 @@ export default function TierListIngestionPage() {
 // ── Main content ──────────────────────────────────────────────────────────────
 
 function TierListContent() {
-  const [step, setStep] = useState<Step>("upload");
-  const [meta, setMeta] = useState<SourceMeta>(defaultMeta);
+  // Lazy init from localStorage so a page reload (HMR, accidental close)
+  // restores an in-progress extraction without re-running the upload.
+  const draft = typeof window !== "undefined" ? loadDraft() : null;
+  const [step, setStep] = useState<Step>(draft?.step ?? "upload");
+  const [meta, setMeta] = useState<SourceMeta>(draft?.meta ?? defaultMeta);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [extractResult, setExtractResult] = useState<ExtractResult | null>(null);
-  const [cards, setCards] = useState<ExtractedCard[]>([]);
+  const [extractResult, setExtractResult] = useState<ExtractResult | null>(
+    draft?.extractResult ?? null,
+  );
+  const [cards, setCards] = useState<ExtractedCard[]>(draft?.cards ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
@@ -263,6 +268,7 @@ function TierListContent() {
     setRefreshWarning(data.refreshWarning ?? null);
     setStep("success");
     setSubmitting(false);
+    clearDraft();
   };
 
   // ── Step 3: Reset ───────────────────────────────────────────────────────────
@@ -276,7 +282,17 @@ function TierListContent() {
     setError(null);
     setSavedCount(0);
     setRefreshWarning(null);
+    clearDraft();
   };
+
+  // Persist in-progress extraction draft so page reloads / HMR don't
+  // wipe out an extraction the admin is mid-way through reviewing.
+  // Only persist when there's actual extraction state to save.
+  useEffect(() => {
+    if (step === "preview" && extractResult) {
+      saveDraft({ step, meta, extractResult, cards });
+    }
+  }, [step, meta, extractResult, cards]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -323,6 +339,7 @@ function TierListContent() {
             submitting={submitting}
             onCardsChange={setCards}
             onBack={() => setStep("upload")}
+            onDiscard={handleReset}
             onConfirm={handleConfirm}
           />
         )}
@@ -524,6 +541,7 @@ function PreviewStep({
   submitting,
   onCardsChange,
   onBack,
+  onDiscard,
   onConfirm,
 }: {
   meta: SourceMeta;
@@ -532,6 +550,7 @@ function PreviewStep({
   submitting: boolean;
   onCardsChange: (cards: ExtractedCard[]) => void;
   onBack: () => void;
+  onDiscard: () => void;
   onConfirm: () => void;
 }) {
   const { extraction, imageUrl, cardIdMap } = result;
@@ -575,7 +594,20 @@ function PreviewStep({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Review Extraction</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100">Review Extraction</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Draft auto-saved — safe to reload.{" "}
+            <button
+              onClick={() => {
+                if (confirm("Discard the current extraction draft?")) onDiscard();
+              }}
+              className="text-zinc-500 hover:text-red-400 underline-offset-2 hover:underline transition-colors"
+            >
+              Discard
+            </button>
+          </p>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={onBack}
@@ -1000,6 +1032,49 @@ function CheckIcon() {
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
+}
+
+// Persist in-progress extraction drafts to localStorage. The image lives
+// in Supabase Storage so only its URL needs to be persisted — no binary
+// data. Versioned key so schema changes don't resurrect stale drafts.
+const DRAFT_KEY = "sts2-tier-list-draft-v1";
+
+interface Draft {
+  step: Step;
+  meta: SourceMeta;
+  extractResult: ExtractResult;
+  cards: ExtractedCard[];
+}
+
+function loadDraft(): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Draft;
+    // Minimal sanity check — require the shape we need to render preview
+    if (!parsed.extractResult?.imageUrl || !Array.isArray(parsed.cards)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(draft: Draft): void {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Quota exceeded or storage unavailable — not critical, skip silently
+  }
+}
+
+function clearDraft(): void {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Ignore
+  }
 }
 
 // Normalize a card name for fuzzy matching: lowercase, strip trailing "+"
