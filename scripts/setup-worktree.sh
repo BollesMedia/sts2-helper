@@ -33,8 +33,8 @@ link_from_main() {
   if [ ! -e "$target" ]; then
     echo "Skip $name — not present in main ($target). Run setup in main first:"
     case "$name" in
-      .vercel) echo "    (cd \"$MAIN_WT\" && vercel link)" ;;
-      .env.local) echo "    (cd \"$MAIN_WT\" && vercel env pull .env.local)" ;;
+      apps/web/.vercel) echo "    (cd \"$MAIN_WT/apps/web\" && vercel link)" ;;
+      .env.local) echo "    (cd \"$MAIN_WT/apps/web\" && vercel env pull .env.local)" ;;
     esac
     return
   fi
@@ -44,12 +44,13 @@ link_from_main() {
     return
   fi
 
+  mkdir -p "$(dirname "$name")"
   ln -s "$target" "$name"
   echo "Linked $name -> $target"
 }
 
-link_from_main .vercel
 link_from_main .env.local
+link_from_main apps/web/.vercel
 
 # Next.js loads env from the app directory, not the monorepo root. Replicate
 # main's apps/web/.env.local -> ../../.env.local symlink so pnpm --filter
