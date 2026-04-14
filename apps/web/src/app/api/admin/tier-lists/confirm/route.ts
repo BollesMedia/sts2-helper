@@ -85,17 +85,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Source upsert failed" }, { status: 500 });
   }
 
-  // 2. Mark prior active lists inactive for same source/character scope
-  await supabase
-    .from("tier_lists")
-    .update({ is_active: false })
-    .eq("source_id", source.id)
-    .eq("is_active", true)
-    .filter(
-      "character",
-      list.character === null ? "is" : "eq",
-      list.character,
-    );
+  // 2. Mark prior active lists inactive for the SAME (source, game_version, character)
+  // scope only. Deactivating across versions would hide legitimate historical
+  // snapshots (e.g. a v0.3.5 list when uploading a v0.4.0 list).
+  //
+  // NOTE: steps 2–5 are NOT wrapped in a transaction. If step 4 fails, step 3
+  // leaves an orphan tier_lists row with entry_count > 0 but no entries, and
+  // step 2 has already deactivated the prior list. Monitor logs for partial
+  // failures and clean up manually. Moving to a single RPC is a follow-up.
+  {
+    let q = supabase
+      .from("tier_lists")
+      .update({ is_active: false })
+      .eq("source_id", source.id)
+      .eq("is_active", true);
+    q = list.game_version === null
+      ? q.is("game_version", null)
+      : q.eq("game_version", list.game_version);
+    q = list.character === null
+      ? q.is("character", null)
+      : q.eq("character", list.character);
+    const { error: deactivateError } = await q;
+    if (deactivateError) {
+      console.error("[Tier Lists Confirm] Deactivation failed:", deactivateError);
+      return NextResponse.json(
+        { error: "Failed to deactivate prior lists", detail: deactivateError.message },
+        { status: 500 },
+      );
+    }
+  }
 
   // 3. Insert new tier_lists row
   const { data: newList, error: listError } = await supabase
@@ -115,6 +133,16 @@ export async function POST(request: Request) {
 
   if (listError || !newList) {
     console.error("[Tier Lists Confirm] List insert failed:", listError);
+    // Postgres unique_violation — same (source_id, game_version, published_at, character)
+    // tuple already exists. Tell the admin how to fix it.
+    if (listError && (listError as { code?: string }).code === "23505") {
+      return NextResponse.json(
+        {
+          error: "Tier list already exists for this source, version, date, and character. Change the published_at date or use a different source ID to create a new snapshot.",
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ error: "List insert failed" }, { status: 500 });
   }
 
@@ -148,7 +176,11 @@ export async function POST(request: Request) {
     );
   }
 
-  // 5. Refresh materialized view (best-effort)
+  // 5. Refresh materialized view (best-effort). The RPC uses REFRESH MATERIALIZED
+  // VIEW CONCURRENTLY which requires an exclusive lock — concurrent admin
+  // submissions can collide. Surface the error to the client so the UI can
+  // prompt a retry rather than silently serving stale consensus.
+  //
   // NOTE: refresh_community_tier_consensus is defined in migration 024 but not
   // yet reflected in the generated types. Cast to any to bypass the type-level
   // restriction until types are regenerated.
@@ -156,7 +188,9 @@ export async function POST(request: Request) {
   const { error: refreshError } = await (supabase as any).rpc(
     "refresh_community_tier_consensus",
   );
+  let refreshWarning: string | null = null;
   if (refreshError) {
+    refreshWarning = refreshError.message ?? "Refresh failed";
     console.warn(
       "[Tier Lists Confirm] MV refresh failed (data saved, admin can retry):",
       refreshError,
@@ -167,5 +201,6 @@ export async function POST(request: Request) {
     success: true,
     tier_list_id: newList.id,
     entry_count: entryRows.length,
+    refreshWarning,
   });
 }

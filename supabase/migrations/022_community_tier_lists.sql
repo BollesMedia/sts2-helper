@@ -31,7 +31,7 @@ create table tier_lists (
   source_id text not null references tier_list_sources(id) on delete cascade,
   game_version text references game_versions(version),
   published_at date not null,
-  character text,                         -- null = cross-character
+  character text check (character is null or character = lower(character)),
   is_active boolean not null default true,
   source_image_url text,                  -- Supabase Storage URL for original image
   ingestion_method text not null check (ingestion_method in ('vision_llm', 'manual_confirm', 'scraped')),
@@ -59,14 +59,16 @@ create table tier_list_entries (
 create index idx_tier_list_entries_card on tier_list_entries (card_id);
 create index idx_tier_list_entries_list on tier_list_entries (tier_list_id);
 
--- Materialized view: aggregated consensus across active tier lists
+-- Materialized view: aggregated consensus across active tier lists.
+-- `character_scope` is lowercased so 'Ironclad' and 'ironclad' merge into
+-- a single group regardless of how source rows are stored.
 create materialized view community_tier_consensus as
 with active as (
   select
     tle.card_id,
     tle.normalized_tier,
     tls.trust_weight,
-    coalesce(tl.character, 'any') as character_scope,
+    coalesce(lower(tl.character), 'any') as character_scope,
     tl.game_version,
     tl.published_at
   from tier_list_entries tle

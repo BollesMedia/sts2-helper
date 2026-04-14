@@ -87,6 +87,7 @@ function TierListContent() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
 
   // ── Step 1: Extract ─────────────────────────────────────────────────────────
 
@@ -193,6 +194,7 @@ function TierListContent() {
     }
 
     setSavedCount(data.entry_count ?? entries.length);
+    setRefreshWarning(data.refreshWarning ?? null);
     setStep("success");
     setSubmitting(false);
   };
@@ -207,6 +209,7 @@ function TierListContent() {
     setCards([]);
     setError(null);
     setSavedCount(0);
+    setRefreshWarning(null);
   };
 
   return (
@@ -259,7 +262,7 @@ function TierListContent() {
         )}
 
         {step === "success" && (
-          <SuccessStep count={savedCount} onReset={handleReset} />
+          <SuccessStep count={savedCount} refreshWarning={refreshWarning} onReset={handleReset} />
         )}
       </main>
     </div>
@@ -663,7 +666,15 @@ function PreviewStep({
 
 // ── Step 3: Success ───────────────────────────────────────────────────────────
 
-function SuccessStep({ count, onReset }: { count: number; onReset: () => void }) {
+function SuccessStep({
+  count,
+  refreshWarning,
+  onReset,
+}: {
+  count: number;
+  refreshWarning: string | null;
+  onReset: () => void;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-24 space-y-6">
       <div className="rounded-full bg-emerald-500/10 border border-emerald-500/30 p-6">
@@ -675,6 +686,23 @@ function SuccessStep({ count, onReset }: { count: number; onReset: () => void })
           {count} {count === 1 ? "entry" : "entries"} persisted to the database.
         </p>
       </div>
+      {refreshWarning && (
+        <div className="max-w-md rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-300">
+          <p className="font-medium">Consensus view not refreshed</p>
+          <p className="mt-1 text-xs text-yellow-400/80">
+            Data saved but the aggregation view could not be refreshed (likely
+            a concurrent write). Retry another ingest to trigger a refresh, or
+            run{" "}
+            <code className="font-mono">
+              select refresh_community_tier_consensus();
+            </code>{" "}
+            manually.
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-yellow-400/60">
+            {refreshWarning}
+          </p>
+        </div>
+      )}
       <button
         onClick={onReset}
         className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors"

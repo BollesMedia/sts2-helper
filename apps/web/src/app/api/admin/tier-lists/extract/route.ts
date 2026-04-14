@@ -9,6 +9,15 @@ import {
 } from "@sts2/shared/evaluation/tier-extraction";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 
+// Allowlist MIME types to prevent attacker-controlled extensions serving as HTML
+// from the public storage bucket. Keep in sync with migration 023 bucket config.
+const ALLOWED_MIME_TO_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+
 export async function POST(request: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
@@ -19,10 +28,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing image file" }, { status: 400 });
   }
 
+  const ext = ALLOWED_MIME_TO_EXT[file.type];
+  if (!ext) {
+    return NextResponse.json(
+      { error: `Unsupported image type: ${file.type}. Allowed: PNG, JPEG, WEBP.` },
+      { status: 400 },
+    );
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json(
+      { error: `Image too large (${file.size} bytes). Max ${MAX_IMAGE_BYTES} bytes.` },
+      { status: 413 },
+    );
+  }
+
   const supabase = createServiceClient();
 
-  // Upload to Supabase Storage
-  const ext = file.name.split(".").pop() || "png";
+  // Upload to Supabase Storage with canonical extension + server-controlled content-type
   const filename = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
   const bytes = await file.arrayBuffer();
 

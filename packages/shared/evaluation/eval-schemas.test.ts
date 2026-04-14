@@ -8,6 +8,7 @@ import {
   simpleEvalSchema,
   buildCardRewardSchema,
 } from "./eval-schemas";
+import { tierExtractionSchema } from "./tier-extraction";
 
 describe("eval-schemas", () => {
   describe("bossBriefingSchema", () => {
@@ -279,6 +280,7 @@ describe("eval-schemas", () => {
         [{ name: "Strike" }, { name: "Defend" }, { name: "Bash" }],
         true,
       )],
+      ["tierExtractionSchema", tierExtractionSchema],
     ];
 
     it.each(cases)("%s is Anthropic-compatible", (name, schema) => {

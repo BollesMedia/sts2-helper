@@ -2,10 +2,20 @@
 -- Supabase Storage bucket for tier list images
 -- ============================================
 
--- Public read bucket for admin-uploaded tier list images
-insert into storage.buckets (id, name, public)
-values ('tier-list-images', 'tier-list-images', true)
-on conflict (id) do nothing;
+-- Public read bucket for admin-uploaded tier list images.
+-- MIME allowlist prevents attacker-controlled content-types (e.g. HTML) from
+-- being served through the public URL. Keep in sync with extract/route.ts.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'tier-list-images',
+  'tier-list-images',
+  true,
+  10485760,  -- 10 MB
+  array['image/png', 'image/jpeg', 'image/webp']
+)
+on conflict (id) do update set
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 -- Allow public read access
 create policy "Public read tier list images" on storage.objects
