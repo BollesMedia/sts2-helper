@@ -8,11 +8,12 @@ import {
   buildTierExtractionSystemPrompt,
 } from "@sts2/shared/evaluation/tier-extraction";
 
-// Gemini one-shots tier list extraction where Claude Opus 4.6 struggled
-// (tested against dense horizontal-row tier list screenshots with ~150 cards).
-// Requires GOOGLE_GENERATIVE_AI_API_KEY env var.
-// Flash works on AI Studio free tier; Pro requires paid billing.
-const VISION_MODEL = "gemini-2.5-flash";
+// Gemini 2.5 Pro one-shots tier list extraction where Claude Opus 4.6 and
+// Gemini 2.5 Flash both struggled (tested against dense horizontal-row tier
+// list screenshots with ~150 cards). Requires GOOGLE_GENERATIVE_AI_API_KEY
+// with paid billing on the associated Cloud project.
+// Extraction cost: ~$0.05 per image.
+const VISION_MODEL = "gemini-2.5-pro";
 
 // Allowlist MIME types to prevent attacker-controlled extensions serving as HTML
 // from the public storage bucket. Keep in sync with migration 023 bucket config.
