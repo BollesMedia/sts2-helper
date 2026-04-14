@@ -19,6 +19,7 @@
 export const EVAL_MODELS = {
   default: "claude-haiku-4-5",
   boss: "claude-haiku-4-5",
+  vision: "claude-sonnet-4-5",
 } as const;
 
 export type EvalModelId = (typeof EVAL_MODELS)[keyof typeof EVAL_MODELS];
