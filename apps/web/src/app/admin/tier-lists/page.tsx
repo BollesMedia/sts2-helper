@@ -27,6 +27,7 @@ interface ExtractedCard {
   name: string;
   tier: string;
   confidence: number;
+  matchedName?: string;
 }
 
 interface ExtractResult {
@@ -36,6 +37,42 @@ interface ExtractResult {
 }
 
 type Step = "upload" | "preview" | "success";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getTierOptions(scale: ScaleType): string[] {
+  switch (scale) {
+    case "letter_6":
+      return ["S", "A", "B", "C", "D", "F"];
+    case "letter_5":
+      return ["S", "A", "B", "C", "D"];
+    case "numeric_10":
+      return ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+    case "numeric_5":
+      return ["1", "2", "3", "4", "5"];
+    case "binary":
+      return ["good", "bad"];
+  }
+}
+
+function getTierColor(tier: string): string {
+  switch (tier.toUpperCase()) {
+    case "S":
+      return "text-yellow-300";
+    case "A":
+      return "text-emerald-400";
+    case "B":
+      return "text-blue-400";
+    case "C":
+      return "text-zinc-300";
+    case "D":
+      return "text-orange-400";
+    case "F":
+      return "text-red-400";
+    default:
+      return "text-zinc-400";
+  }
+}
 
 // ── Default form values ───────────────────────────────────────────────────────
 
@@ -142,7 +179,8 @@ function TierListContent() {
 
     const entries = cards
       .map((c) => {
-        const card_id = cardIdMap[c.name];
+        const resolvedName = c.matchedName ?? c.name;
+        const card_id = cardIdMap[resolvedName];
         if (!card_id) {
           skipped.push(c.name);
           return null;
@@ -481,25 +519,42 @@ function PreviewStep({
   const removeCard = (idx: number) =>
     onCardsChange(cards.filter((_, i) => i !== idx));
 
-  // Group cards by tier for display
-  const byTier = cards.reduce<Record<string, ExtractedCard[]>>((acc, card) => {
-    acc[card.tier] = acc[card.tier] ?? [];
-    acc[card.tier].push(card);
-    return acc;
-  }, {});
+  const updateCard = (idx: number, patch: Partial<ExtractedCard>) =>
+    onCardsChange(cards.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
 
-  const unresolvedNames = cards
-    .filter((c) => !cardIdMap[c.name])
-    .map((c) => c.name);
+  // Separate matched vs unmatched
+  const unmatchedCards = cards
+    .map((c, i) => ({ card: c, idx: i }))
+    .filter(({ card }) => !cardIdMap[card.matchedName ?? card.name]);
+
+  const matchedCards = cards
+    .map((c, i) => ({ card: c, idx: i }))
+    .filter(({ card }) => !!cardIdMap[card.matchedName ?? card.name]);
+
+  // Group matched cards by tier for display
+  const byTier = matchedCards.reduce<Record<string, Array<{ card: ExtractedCard; idx: number }>>>(
+    (acc, entry) => {
+      acc[entry.card.tier] = acc[entry.card.tier] ?? [];
+      acc[entry.card.tier].push(entry);
+      return acc;
+    },
+    {}
+  );
+
+  const saveableCount = cards.filter((c) => cardIdMap[c.matchedName ?? c.name]).length;
 
   const detectedScale = extraction.detected_scale;
   const detectedCharacter = extraction.detected_character;
-  const scaleMismatch =
-    detectedScale && detectedScale !== meta.scale_type;
+  const scaleMismatch = detectedScale && detectedScale !== meta.scale_type;
   const characterMismatch =
     detectedCharacter &&
     meta.character !== "any" &&
     detectedCharacter.toLowerCase() !== meta.character;
+
+  const tierOptions = getTierOptions(meta.scale_type);
+
+  const inputCls =
+    "rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500";
 
   return (
     <div className="space-y-6">
@@ -515,10 +570,12 @@ function PreviewStep({
           </button>
           <button
             onClick={onConfirm}
-            disabled={submitting || cards.length === 0}
+            disabled={submitting || saveableCount === 0}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? "Saving..." : `Confirm & Save (${cards.length} cards)`}
+            {submitting
+              ? "Saving..."
+              : `Confirm & Save (${saveableCount} cards${saveableCount < cards.length ? `, ${cards.length - saveableCount} unmatched` : ""})`}
           </button>
         </div>
       </div>
@@ -559,19 +616,6 @@ function PreviewStep({
         </div>
       )}
 
-      {/* Unresolved cards warning */}
-      {unresolvedNames.length > 0 && (
-        <div className="rounded-md border border-orange-500/30 bg-orange-500/10 px-4 py-3 space-y-1">
-          <p className="text-xs font-medium text-orange-400 uppercase tracking-wide">
-            Unresolved Cards ({unresolvedNames.length})
-          </p>
-          <p className="text-sm text-orange-300">
-            These cards were not found in the card database and will be skipped:{" "}
-            {unresolvedNames.join(", ")}
-          </p>
-        </div>
-      )}
-
       <div className="grid grid-cols-[1fr_2fr] gap-6">
         {/* Uploaded image */}
         <div className="space-y-2">
@@ -600,55 +644,128 @@ function PreviewStep({
           </div>
         </div>
 
-        {/* Card list grouped by tier */}
+        {/* Right column: unmatched + tier groups */}
         <div className="space-y-4">
+          {/* Unmatched cards section */}
+          {unmatchedCards.length > 0 && (
+            <div className="rounded-lg border border-orange-500/40 bg-orange-500/5 overflow-hidden">
+              <div className="px-3 py-2 border-b border-orange-500/30 bg-orange-500/10">
+                <span className="text-sm font-semibold text-orange-300">
+                  Unmatched Cards
+                </span>
+                <span className="ml-2 text-xs text-orange-400/70">
+                  {unmatchedCards.length} — resolve or skip before saving
+                </span>
+              </div>
+              <div className="divide-y divide-orange-500/10">
+                {unmatchedCards.map(({ card, idx }) => (
+                  <div
+                    key={`unmatched-${idx}`}
+                    className="px-3 py-2.5 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-orange-300 font-mono truncate max-w-[60%]">
+                        {card.name}
+                      </span>
+                      <button
+                        onClick={() => removeCard(idx)}
+                        className="text-xs text-zinc-600 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded border border-zinc-800 hover:border-red-500/40"
+                        aria-label={`Skip ${card.name}`}
+                      >
+                        Skip
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        list={`cards-${idx}`}
+                        value={card.matchedName ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (cardIdMap[val]) {
+                            updateCard(idx, { matchedName: val });
+                          } else {
+                            updateCard(idx, { matchedName: undefined });
+                          }
+                        }}
+                        placeholder="Search card name..."
+                        className={`flex-1 ${inputCls}`}
+                      />
+                      <datalist id={`cards-${idx}`}>
+                        {Object.keys(cardIdMap).map((name) => (
+                          <option key={name} value={name} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tier groups (matched cards only) */}
           <p className="text-xs text-zinc-500 uppercase tracking-wide">
             Extracted Tiers
           </p>
-          {Object.entries(byTier).map(([tier, tierCards]) => (
-            <div key={tier} className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden">
+          {Object.entries(byTier).map(([tier, entries]) => (
+            <div
+              key={tier}
+              className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden"
+            >
               <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-900">
-                <span className="text-sm font-semibold text-zinc-100">
+                <span className={`text-sm font-semibold ${getTierColor(tier)}`}>
                   Tier {tier}
                 </span>
                 <span className="ml-2 text-xs text-zinc-500">
-                  {tierCards.length} cards
+                  {entries.length} cards
                 </span>
               </div>
               <div className="divide-y divide-zinc-900">
-                {tierCards.map((card) => {
-                  const globalIdx = cards.indexOf(card);
-                  const isUnresolved = !cardIdMap[card.name];
-                  return (
-                    <div
-                      key={`${tier}-${card.name}`}
-                      className="flex items-center justify-between px-3 py-2 hover:bg-zinc-900/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span
-                          className={`text-sm truncate ${isUnresolved ? "text-orange-400" : "text-zinc-200"}`}
-                        >
-                          {card.name}
-                          {isUnresolved && (
-                            <span className="ml-1 text-xs text-orange-500">
-                              (unresolved)
-                            </span>
-                          )}
+                {entries.map(({ card, idx }) => (
+                  <div
+                    key={`${tier}-${card.name}-${idx}`}
+                    className="flex items-center justify-between px-3 py-2 hover:bg-zinc-900/50 transition-colors"
+                  >
+                    <span className="text-sm text-zinc-200 truncate min-w-0 mr-2">
+                      {card.matchedName ?? card.name}
+                      {card.matchedName && card.matchedName !== card.name && (
+                        <span className="ml-1 text-xs text-zinc-500">
+                          ({card.name})
                         </span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <ConfidenceBadge confidence={card.confidence} />
+                      )}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <ConfidenceBadge confidence={card.confidence} />
+                      <select
+                        value={card.tier}
+                        onChange={(e) => updateCard(idx, { tier: e.target.value })}
+                        className={inputCls}
+                        aria-label={`Tier for ${card.name}`}
+                      >
+                        {tierOptions.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                      {card.matchedName && card.matchedName !== card.name && (
                         <button
-                          onClick={() => removeCard(globalIdx)}
-                          className="text-zinc-600 hover:text-red-400 transition-colors"
-                          aria-label={`Remove ${card.name}`}
+                          onClick={() => updateCard(idx, { matchedName: undefined })}
+                          className="text-xs text-zinc-600 hover:text-orange-400 transition-colors"
+                          aria-label={`Unmatch ${card.name}`}
                         >
-                          <TrashIcon />
+                          Unmatch
                         </button>
-                      </div>
+                      )}
+                      <button
+                        onClick={() => removeCard(idx)}
+                        className="text-zinc-600 hover:text-red-400 transition-colors"
+                        aria-label={`Remove ${card.name}`}
+                      >
+                        <TrashIcon />
+                      </button>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -656,6 +773,14 @@ function PreviewStep({
           {cards.length === 0 && (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-8 text-center">
               <p className="text-sm text-zinc-500">No cards remaining.</p>
+            </div>
+          )}
+
+          {cards.length > 0 && matchedCards.length === 0 && unmatchedCards.length > 0 && (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-8 text-center">
+              <p className="text-sm text-zinc-500">
+                All cards are unmatched. Resolve or skip them above.
+              </p>
             </div>
           )}
         </div>
