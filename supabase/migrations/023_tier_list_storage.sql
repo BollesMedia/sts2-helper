@@ -10,7 +10,7 @@ values (
   'tier-list-images',
   'tier-list-images',
   true,
-  10485760,  -- 10 MB
+  26214400,  -- 25 MB — matches next.config proxyClientMaxBodySize + route limit
   array['image/png', 'image/jpeg', 'image/webp']
 )
 on conflict (id) do update set
