@@ -7,6 +7,7 @@ import {
   classifyByVersion,
   buildSignal,
   computeStaleness,
+  normalizeCharacter,
   type ConsensusRow,
   type GameVersionMeta,
 } from "./community-tier";
@@ -337,10 +338,12 @@ describe("buildSignal", () => {
 
   it("character-specific row takes precedence over 'any'", () => {
     const anyRow = makeRow({ character_scope: "any", weighted_tier: 3 });
-    const charRow = makeRow({ character_scope: "the ironclad", weighted_tier: 6 });
+    // Tier lists store the short form ("ironclad"); game state sends
+    // "The Ironclad" which the query normalizes before matching.
+    const charRow = makeRow({ character_scope: "ironclad", weighted_tier: 6 });
     const signal = buildSignal(
       [anyRow, charRow],
-      "The Ironclad", // uppercase — should be lowercased for matching
+      "The Ironclad",
       null,
       emptyVersionMeta,
     );
@@ -483,10 +486,11 @@ describe("getCommunityTierSignals – end-to-end", () => {
           most_recent_published: listDate,
           game_versions: ["1.0"],
         },
-        // character-specific — should win
+        // character-specific — should win. Tier lists store "ironclad"
+        // (short form); the query normalizes "The Ironclad" → "ironclad".
         {
           card_id: "STRIKE",
-          character_scope: "the ironclad",
+          character_scope: "ironclad",
           source_count: 10,
           weighted_tier: 5,
           tier_stddev: 0.2,
@@ -513,6 +517,30 @@ describe("getCommunityTierSignals – end-to-end", () => {
     expect(signal.consensusTierLetter).toBe("A");
     expect(signal.agreement).toBe("strong"); // stddev 0.2
     expect(signal.staleness).toBe("fresh"); // version matches current, recent date
+  });
+});
+
+describe("normalizeCharacter", () => {
+  it("strips 'The ' prefix and lowercases", () => {
+    expect(normalizeCharacter("The Ironclad")).toBe("ironclad");
+    expect(normalizeCharacter("THE SILENT")).toBe("silent");
+    expect(normalizeCharacter("Defect")).toBe("defect");
+  });
+
+  it("handles already-normalized input", () => {
+    expect(normalizeCharacter("ironclad")).toBe("ironclad");
+    expect(normalizeCharacter("silent")).toBe("silent");
+  });
+
+  it("returns null for null, empty, or 'unknown'", () => {
+    expect(normalizeCharacter(null)).toBeNull();
+    expect(normalizeCharacter("")).toBeNull();
+    expect(normalizeCharacter("Unknown")).toBeNull();
+    expect(normalizeCharacter("   ")).toBeNull();
+  });
+
+  it("trims whitespace", () => {
+    expect(normalizeCharacter("  The Ironclad  ")).toBe("ironclad");
   });
 
   it("excludes card when time-based staleness is excluded (>365 days)", async () => {

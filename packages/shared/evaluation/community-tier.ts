@@ -41,8 +41,12 @@ export async function getCommunityTierSignals(
   const result = new Map<string, CommunityTierSignal>();
   if (cardIds.length === 0) return result;
 
-  // Fetch character-specific entries + 'any' fallback entries in one query
-  const scopes = character ? [character.toLowerCase(), "any"] : ["any"];
+  // Fetch character-specific entries + 'any' fallback entries in one query.
+  // The game client sends "The Ironclad" style names (lowercased to "the
+  // ironclad"); tier list admins enter "ironclad". Normalize both to the
+  // short form so the scope matches.
+  const normalized = normalizeCharacter(character);
+  const scopes = normalized ? [normalized, "any"] : ["any"];
 
   const { data: rows, error } = await supabase
     .from("community_tier_consensus")
@@ -116,6 +120,20 @@ export type ConsensusRow = {
   game_versions: string[] | null;
 };
 
+/**
+ * Normalize a character name to the short canonical form used by tier list
+ * `character_scope` ("ironclad", "silent", etc.). The game client sends
+ * "The Ironclad" while admins enter "ironclad" — strip the "the " prefix
+ * and lowercase so the scope matches either way.
+ * Returns null when the input is null/unknown.
+ */
+export function normalizeCharacter(character: string | null): string | null {
+  if (!character) return null;
+  const trimmed = character.trim().toLowerCase();
+  if (!trimmed || trimmed === "unknown") return null;
+  return trimmed.replace(/^the\s+/, "");
+}
+
 export function buildSignal(
   rows: ConsensusRow[],
   character: string | null,
@@ -124,7 +142,7 @@ export function buildSignal(
 ): CommunityTierSignal | null {
   // Prefer character-specific row when available; fall back to 'any'
   const characterRow = character
-    ? rows.find((r) => r.character_scope === character.toLowerCase())
+    ? rows.find((r) => r.character_scope === normalizeCharacter(character))
     : null;
   const anyRow = rows.find((r) => r.character_scope === "any");
   const chosen = characterRow ?? anyRow;
