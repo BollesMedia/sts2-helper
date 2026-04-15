@@ -146,16 +146,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "List insert failed" }, { status: 500 });
   }
 
-  // 4. Normalize tiers and insert entries
+  // 4. Normalize tiers, dedupe by card_id (fuzzy client-side matching can
+  // collapse variants like "Pacts End" + "Pact's End" to the same card_id),
+  // and insert entries. When a card appears multiple times, keep the entry
+  // with the highest extraction_confidence — ties go to the first seen.
   const normSource = {
     scale_type: source.scale_type as ScaleType,
     scale_config: (source.scale_config ?? null) as {
       map?: Record<string, number>;
     } | null,
   };
-  const entryRows = entries.map((e) => {
+
+  type EntryRow = {
+    tier_list_id: string;
+    card_id: string;
+    raw_tier: string;
+    normalized_tier: number;
+    note: string | null;
+    extraction_confidence: number | null;
+  };
+  const byCardId = new Map<string, EntryRow>();
+  const duplicates: string[] = [];
+
+  for (const e of entries) {
     const { normalizedTier } = normalizeTier(e.raw_tier, normSource);
-    return {
+    const row: EntryRow = {
       tier_list_id: newList.id,
       card_id: e.card_id,
       raw_tier: e.raw_tier,
@@ -163,7 +178,24 @@ export async function POST(request: Request) {
       note: e.note ?? null,
       extraction_confidence: e.extraction_confidence ?? null,
     };
-  });
+    const existing = byCardId.get(e.card_id);
+    if (!existing) {
+      byCardId.set(e.card_id, row);
+      continue;
+    }
+    duplicates.push(e.card_id);
+    if ((row.extraction_confidence ?? 0) > (existing.extraction_confidence ?? 0)) {
+      byCardId.set(e.card_id, row);
+    }
+  }
+  const entryRows = Array.from(byCardId.values());
+
+  if (duplicates.length > 0) {
+    console.warn(
+      "[Tier Lists Confirm] Collapsed duplicate card_ids (kept highest confidence):",
+      duplicates,
+    );
+  }
 
   const { error: entriesError } = await supabase
     .from("tier_list_entries")
@@ -174,6 +206,14 @@ export async function POST(request: Request) {
       { error: "Entries insert failed" },
       { status: 500 },
     );
+  }
+
+  // Update entry_count on the list to reflect post-dedup count
+  if (duplicates.length > 0) {
+    await supabase
+      .from("tier_lists")
+      .update({ entry_count: entryRows.length })
+      .eq("id", newList.id);
   }
 
   // 5. Refresh materialized view (best-effort). The RPC uses REFRESH MATERIALIZED
