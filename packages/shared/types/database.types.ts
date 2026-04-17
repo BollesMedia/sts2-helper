@@ -457,16 +457,28 @@ export type Database = {
       game_versions: {
         Row: {
           id: string
+          is_major_balance_patch: boolean
+          notes_url: string | null
+          release_notes: string | null
+          released_at: string | null
           synced_at: string | null
           version: string
         }
         Insert: {
           id?: string
+          is_major_balance_patch?: boolean
+          notes_url?: string | null
+          release_notes?: string | null
+          released_at?: string | null
           synced_at?: string | null
           version: string
         }
         Update: {
           id?: string
+          is_major_balance_patch?: boolean
+          notes_url?: string | null
+          release_notes?: string | null
+          released_at?: string | null
           synced_at?: string | null
           version?: string
         }
@@ -765,6 +777,147 @@ export type Database = {
         }
         Relationships: []
       }
+      tier_list_entries: {
+        Row: {
+          card_id: string
+          created_at: string
+          extraction_confidence: number | null
+          id: string
+          normalized_tier: number
+          note: string | null
+          raw_tier: string
+          tier_list_id: string
+        }
+        Insert: {
+          card_id: string
+          created_at?: string
+          extraction_confidence?: number | null
+          id?: string
+          normalized_tier: number
+          note?: string | null
+          raw_tier: string
+          tier_list_id: string
+        }
+        Update: {
+          card_id?: string
+          created_at?: string
+          extraction_confidence?: number | null
+          id?: string
+          normalized_tier?: number
+          note?: string | null
+          raw_tier?: string
+          tier_list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_list_entries_tier_list_id_fkey"
+            columns: ["tier_list_id"]
+            isOneToOne: false
+            referencedRelation: "tier_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tier_list_entries_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tier_list_sources: {
+        Row: {
+          author: string
+          created_at: string
+          id: string
+          notes: string | null
+          scale_config: Json | null
+          scale_type: string
+          source_type: string
+          source_url: string | null
+          trust_weight: number
+          updated_at: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          id: string
+          notes?: string | null
+          scale_config?: Json | null
+          scale_type: string
+          source_type: string
+          source_url?: string | null
+          trust_weight?: number
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          scale_config?: Json | null
+          scale_type?: string
+          source_type?: string
+          source_url?: string | null
+          trust_weight?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tier_lists: {
+        Row: {
+          character: string | null
+          entry_count: number
+          game_version: string | null
+          id: string
+          ingested_at: string
+          ingestion_method: string
+          is_active: boolean
+          published_at: string
+          source_id: string
+          source_image_url: string | null
+        }
+        Insert: {
+          character?: string | null
+          entry_count?: number
+          game_version?: string | null
+          id?: string
+          ingested_at?: string
+          ingestion_method: string
+          is_active?: boolean
+          published_at: string
+          source_id: string
+          source_image_url?: string | null
+        }
+        Update: {
+          character?: string | null
+          entry_count?: number
+          game_version?: string | null
+          id?: string
+          ingested_at?: string
+          ingestion_method?: string
+          is_active?: boolean
+          published_at?: string
+          source_id?: string
+          source_image_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_lists_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "tier_list_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tier_lists_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
       afflictions: {
         Row: {
           description: string
@@ -1046,6 +1199,19 @@ export type Database = {
       }
     }
     Views: {
+      community_tier_consensus: {
+        Row: {
+          card_id: string | null
+          character_scope: string | null
+          game_versions: string[] | null
+          most_recent_published: string | null
+          oldest_published: string | null
+          source_count: number | null
+          tier_stddev: number | null
+          weighted_tier: number | null
+        }
+        Relationships: []
+      }
       card_win_rates: {
         Row: {
           act: number | null

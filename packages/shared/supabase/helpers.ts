@@ -35,6 +35,16 @@ export type EncounterInsert = Database["public"]["Tables"]["encounters"]["Insert
 export type OrbInsert = Database["public"]["Tables"]["orbs"]["Insert"];
 export type AfflictionInsert = Database["public"]["Tables"]["afflictions"]["Insert"];
 
+export type TierListSource = Database["public"]["Tables"]["tier_list_sources"]["Row"];
+export type TierList = Database["public"]["Tables"]["tier_lists"]["Row"];
+export type TierListEntry = Database["public"]["Tables"]["tier_list_entries"]["Row"];
+export type CommunityTierConsensus = Database["public"]["Views"]["community_tier_consensus"]["Row"];
+
+// Insert types
+export type TierListSourceInsert = Database["public"]["Tables"]["tier_list_sources"]["Insert"];
+export type TierListInsert = Database["public"]["Tables"]["tier_lists"]["Insert"];
+export type TierListEntryInsert = Database["public"]["Tables"]["tier_list_entries"]["Insert"];
+
 // View types
 export type EvaluationStat = Database["public"]["Views"]["evaluation_stats"]["Row"];
 export type EvaluationStatV2 = Database["public"]["Views"]["evaluation_stats_v2"]["Row"];

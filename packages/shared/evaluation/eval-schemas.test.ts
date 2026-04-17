@@ -8,6 +8,7 @@ import {
   simpleEvalSchema,
   buildCardRewardSchema,
 } from "./eval-schemas";
+import { tierExtractionSchema } from "./tier-extraction";
 
 describe("eval-schemas", () => {
   describe("bossBriefingSchema", () => {
@@ -221,6 +222,11 @@ describe("eval-schemas", () => {
   //           Anthropic: "For 'array' type, 'minItems' values other than 0
   //                       or 1 are not supported"
   //           (minItems of 0 or 1 is fine — same for maxItems.)
+  //   • #68  number type with `minimum` or `maximum`
+  //           zod: `z.number().min(X)` / `.max(X)` / `.gte(X)` / `.lte(X)`
+  //           Anthropic: "For 'number' type, properties maximum, minimum
+  //                       are not supported"
+  //           Enforce via prompt + post-parse clamping in caller instead.
   //
   // The Phase 4.5 smoke test (route.test.ts) uses MockLanguageModelV3 so it
   // never round-trips through Anthropic's validator. This guard closes that
@@ -247,6 +253,14 @@ describe("eval-schemas", () => {
           throw new Error(
             `[${schemaName}] integer schema at ${where} carries minimum/maximum, which Anthropic structured-output rejects (#48). ` +
               `Use plain z.number() instead of z.number().int() or z.int(). Node: ${JSON.stringify(node)}`,
+          );
+        }
+
+        // #68 — number min/max
+        if (node.type === "number" && ("minimum" in node || "maximum" in node)) {
+          throw new Error(
+            `[${schemaName}] number schema at ${where} carries minimum/maximum, which Anthropic structured-output rejects (#68). ` +
+              `Use plain z.number() and clamp post-parse in the caller. Node: ${JSON.stringify(node)}`,
           );
         }
 
@@ -279,6 +293,7 @@ describe("eval-schemas", () => {
         [{ name: "Strike" }, { name: "Defend" }, { name: "Bash" }],
         true,
       )],
+      ["tierExtractionSchema", tierExtractionSchema],
     ];
 
     it.each(cases)("%s is Anthropic-compatible", (name, schema) => {
@@ -295,6 +310,20 @@ describe("eval-schemas", () => {
         expect(() =>
           assertAnthropicCompatible(z.toJSONSchema(bad), "bad-int"),
         ).toThrow(/integer schema at .* carries minimum\/maximum/);
+      });
+
+      it("catches number .min() (#68)", () => {
+        const bad = z.object({ confidence: z.number().min(0) });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(bad), "bad-num-min"),
+        ).toThrow(/number schema at .* carries minimum\/maximum/);
+      });
+
+      it("catches number .max() (#68)", () => {
+        const bad = z.object({ confidence: z.number().max(1) });
+        expect(() =>
+          assertAnthropicCompatible(z.toJSONSchema(bad), "bad-num-max"),
+        ).toThrow(/number schema at .* carries minimum\/maximum/);
       });
 
       it("catches array .length(N) where N > 1 (#52)", () => {

@@ -1,8 +1,7 @@
 @import "tailwindcss" source(none);
 @source "../";
 
-/* Outfit (display) + DM Sans (body) */
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
+/* Outfit (display) + DM Sans (body) are loaded via next/font in layout.tsx */
 
 :root {
   /* STS2-inspired palette — blue-violet undertone, not pure grey */
@@ -44,8 +43,8 @@
   --color-spire-text-muted: var(--spire-text-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: "Outfit", system-ui, sans-serif;
-  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-display: var(--font-outfit), system-ui, sans-serif;
+  --font-body: var(--font-dm-sans), system-ui, sans-serif;
 }
 
 body {

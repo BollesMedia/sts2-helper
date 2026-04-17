@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   useCallback,
   type ReactNode,
@@ -44,11 +45,9 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
-  if (!initialized) {
-    setInitialized(true);
-    // Initialize shared Supabase client with web app env vars
+  useEffect(() => {
+    // Initialize shared Supabase client with web app env vars (client-only)
     initSupabase(
       process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
@@ -63,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
       if (session?.user?.id) {
@@ -72,7 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("sts2-user-id");
       }
     });
-  }
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const signOut = useCallback(async () => {
     await authSignOut();

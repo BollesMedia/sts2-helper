@@ -51,7 +51,6 @@ function formatDate(dateStr: string): string {
 
 export default function RunsPage() {
   const { user, loading: authLoading } = useAuth();
-  const isDev = process.env.NODE_ENV === "development";
 
   if (authLoading) {
     return (
@@ -61,7 +60,7 @@ export default function RunsPage() {
     );
   }
 
-  if (!user && !isDev) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col">
         <LoginScreen />
