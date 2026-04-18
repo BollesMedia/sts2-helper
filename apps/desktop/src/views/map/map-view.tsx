@@ -149,8 +149,9 @@ export function MapView({ state }: MapViewProps) {
 
   return (
     <div className="flex gap-3 h-full min-h-0">
-      {/* Map area */}
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-1.5">
+      {/* Map area — capped width; SVG already preserveAspectRatio, so a cap
+          just trims dead horizontal padding around the tall map graph. */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-1.5 max-w-[26rem]">
         <div className="flex-1 min-h-0 rounded-lg border border-zinc-800 bg-zinc-950/80 p-1.5 relative">
           {/* Status indicators */}
           {isMultiplayer && votes && !allVoted && (
@@ -303,7 +304,7 @@ export function MapView({ state }: MapViewProps) {
       </div>
 
       {/* Sidebar — Coach output */}
-      <div className="w-64 shrink-0 flex flex-col gap-2 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-w-[20rem] flex flex-col gap-2 min-h-0 overflow-y-auto">
         {evaluation && evalMatchesCurrentOptions && (
           <>
             {/* Headline + confidence */}
