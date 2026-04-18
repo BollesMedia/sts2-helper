@@ -291,13 +291,12 @@ export function MapView({ state }: MapViewProps) {
 
         {/* Legend — compact inline strip */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[9px] text-zinc-600">
-          {Object.entries(NODE_TYPE_ICONS).map(([type, icon]) => (
+          {Object.keys(NODE_TYPE_ICONS).map((type) => (
             <span key={type} className="flex items-center gap-1">
               <span
                 className="inline-block h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: NODE_FILL[type] }}
               />
-              <span>{icon}</span>
               <span>{type}</span>
             </span>
           ))}
@@ -388,7 +387,6 @@ export function MapView({ state }: MapViewProps) {
                     : "inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400"
                 }
               >
-                <span aria-hidden>{NODE_TYPE_ICONS[opt.type] ?? "•"}</span>
                 <span>{opt.type}</span>
                 {isBest && (
                   <span className="ml-1 text-[8px] font-bold uppercase tracking-wider">Best</span>
