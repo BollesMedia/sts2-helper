@@ -3,7 +3,10 @@
 //! polling cadence so the JS side doesn't have to run a timer.
 
 use serde::Serialize;
+use std::sync::Arc;
 use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::RwLock;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub enum Mode {
@@ -104,6 +107,84 @@ fn endpoint_path(mode: Mode) -> &'static str {
     match mode {
         Mode::Singleplayer => "/api/v1/singleplayer",
         Mode::Multiplayer => "/api/v1/multiplayer",
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum PollResult {
+    #[serde(rename = "ok")]
+    Ok { data: serde_json::Value },
+    #[serde(rename = "error")]
+    Error { status: String, message: String },
+}
+
+#[derive(Default)]
+pub struct PollerState {
+    pub latest: RwLock<Option<PollResult>>,
+}
+
+pub type PollerHandle = Arc<PollerState>;
+
+pub fn spawn_poller(app: AppHandle, base_url: String) {
+    let state: PollerHandle = Arc::new(PollerState::default());
+    app.manage(state.clone());
+
+    tauri::async_runtime::spawn(async move {
+        run_poll_loop(app, base_url, state).await;
+    });
+}
+
+async fn run_poll_loop(app: AppHandle, base_url: String, state: PollerHandle) {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(4))
+        .build()
+        .expect("reqwest client build");
+
+    let mut mode = Mode::Singleplayer;
+
+    loop {
+        let outcome = fetch_once_against(&client, &base_url, mode).await;
+
+        let (next_state_type, had_error, poll_result) = match outcome {
+            FetchOutcome::Ok { mode: new_mode, body } => {
+                mode = new_mode;
+                let state_type = body
+                    .get("state_type")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let result = PollResult::Ok { data: body };
+                (state_type, false, result)
+            }
+            FetchOutcome::HttpError { status, message } => (
+                None,
+                true,
+                PollResult::Error {
+                    status: status.to_string(),
+                    message,
+                },
+            ),
+            FetchOutcome::Network(msg) => (
+                None,
+                true,
+                PollResult::Error {
+                    status: "FETCH_ERROR".to_string(),
+                    message: msg,
+                },
+            ),
+        };
+
+        *state.latest.write().await = Some(poll_result.clone());
+
+        let event_name = match &poll_result {
+            PollResult::Ok { .. } => "game-state-updated",
+            PollResult::Error { .. } => "game-state-error",
+        };
+        if let Err(e) = app.emit(event_name, &poll_result) {
+            log::warn!("[poller] emit {event_name} failed: {e}");
+        }
+
+        tokio::time::sleep(next_interval(next_state_type.as_deref(), had_error)).await;
     }
 }
 
