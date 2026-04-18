@@ -17,6 +17,7 @@ import { setupRunAnalyticsListener } from "../features/run/runAnalyticsListener"
 import { setupChoiceTrackingListener } from "../features/choice/choiceTrackingListener";
 import { setupMapEvalListener } from "../features/map/mapListeners";
 import { setupEvaluationListeners } from "../features/evaluation/evaluationListeners";
+import { setupGameStateSubscription } from "../features/connection/gameStateSubscription";
 
 const rootReducer = combineSlices(
   gameStateApi,
@@ -48,6 +49,9 @@ setupRunAnalyticsListener();
 setupChoiceTrackingListener(); // Must be AFTER gameStateUpdate so deck is current
 setupMapEvalListener();
 setupEvaluationListeners();
+setupGameStateSubscription(store.dispatch).catch((err) => {
+  console.error("[gameStateSubscription] setup failed", err);
+});
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

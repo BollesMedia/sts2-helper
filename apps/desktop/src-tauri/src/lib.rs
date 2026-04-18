@@ -1,3 +1,4 @@
+mod game_state_poller;
 mod mods;
 mod steam;
 
@@ -123,7 +124,16 @@ pub fn run() {
             detect_game,
             get_mod_status,
             install_required_mods,
+            game_state_poller::get_latest_game_state,
         ])
+        .setup(|app| {
+            let handle = app.handle().clone();
+            game_state_poller::spawn_poller(
+                handle,
+                "http://127.0.0.1:15526".to_string(),
+            );
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
