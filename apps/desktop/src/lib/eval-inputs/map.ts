@@ -134,13 +134,16 @@ export function buildMapPrompt(params: {
     ascension: context.ascension ?? 0,
     deck: {
       cards: context.deckCards.map((c) => {
-        const upgraded = c.name.includes("+");
+        const upgraded = /\+$/.test(c.name);
         const baseName = c.name.replace(/\+$/, "");
         const id = baseName.toLowerCase();
         return { id, name: baseName, upgraded };
       }),
     },
-    relics: context.relics.map((r) => ({ id: r.name, name: r.name })),
+    relics: context.relics.map((r) => ({
+      id: r.name.toLowerCase().replace(/\s+/g, "_"),
+      name: r.name,
+    })),
     map: {
       boss: { row: state.map.boss.row },
       current_position: state.map.current_position ?? null,

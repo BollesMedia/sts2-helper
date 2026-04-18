@@ -65,4 +65,54 @@ describe("formatFactsBlock", () => {
     expect(out).toContain("Patterns: rest_after_elite");
     expect(out).toContain("Aggregate: 1 elites");
   });
+
+  it("renders run state only when candidate paths array is empty", () => {
+    const out = formatFactsBlock(runState, []);
+    expect(out).toContain("=== RUN STATE ===");
+    expect(out).toContain("=== CANDIDATE PATHS ===");
+    expect(out).not.toContain("Path 1:");
+  });
+
+  it("renders Boss preview line with candidates and dangerous matchups", () => {
+    const withBoss: RunState = {
+      ...runState,
+      bossPreview: {
+        ...runState.bossPreview,
+        candidates: ["Hexaghost", "Slime Boss"],
+        dangerousMatchups: ["Hexaghost"],
+      },
+    };
+    const out = formatFactsBlock(withBoss, paths);
+    expect(out).toContain("Boss preview: candidates Hexaghost, Slime Boss");
+    expect(out).toContain("dangerous matchups: Hexaghost");
+  });
+
+  it("omits parenthetical floor list when eliteFloorsFought is empty", () => {
+    const noElites: RunState = {
+      ...runState,
+      eliteBudget: { ...runState.eliteBudget, eliteFloorsFought: [], remaining: 3 },
+    };
+    const out = formatFactsBlock(noElites, paths);
+    expect(out).toContain("fought 0 |");
+    expect(out).not.toMatch(/fought 0 \(/);
+  });
+
+  it("renders '(no patterns)' when a path has zero patterns", () => {
+    const emptyPatterns: EnrichedPath[] = [
+      {
+        id: "1",
+        nodes: [{ floor: 24, type: "monster" }],
+        patterns: [],
+        aggregates: {
+          elitesTaken: 0,
+          restsTaken: 0,
+          shopsTaken: 0,
+          hardPoolFightsOnPath: 0,
+          projectedHpEnteringPreBossRest: 50,
+        },
+      },
+    ];
+    const out = formatFactsBlock(runState, emptyPatterns);
+    expect(out).toContain("Patterns: (no patterns)");
+  });
 });

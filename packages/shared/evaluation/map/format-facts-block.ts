@@ -38,6 +38,10 @@ function describePatterns(path: EnrichedPath): string {
           return `heal_vs_smith_at_preboss=${p.recommendation}`;
         case "rest_spent_too_early":
           return `rest_spent_too_early(f${p.restFloor},hpRatio=${p.hpRatioAtRest.toFixed(2)})`;
+        default: {
+          const _exhaustive: never = p;
+          return _exhaustive;
+        }
       }
     })
     .join(", ");
