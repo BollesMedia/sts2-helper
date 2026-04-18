@@ -79,3 +79,28 @@ body {
 .animate-fade-in-up {
   animation: fade-in-up 300ms ease-out;
 }
+
+/* Thin dark scrollbars — Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--spire-border-emphasis) transparent;
+}
+
+/* WebKit scrollbars (Tauri uses WebKit) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--spire-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--spire-border-emphasis);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

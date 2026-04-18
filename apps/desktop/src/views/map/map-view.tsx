@@ -305,7 +305,7 @@ export function MapView({ state }: MapViewProps) {
       </div>
 
       {/* Sidebar — Coach output */}
-      <div className="flex-1 min-w-[20rem] flex flex-col gap-2 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-w-[20rem] flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden">
         {evaluation && evalMatchesCurrentOptions && (
           <>
             {/* Headline + confidence */}
