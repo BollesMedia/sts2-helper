@@ -19,5 +19,5 @@
       "@sts2/shared/*": ["../../packages/shared/*"]
     }
   },
-  "include": ["src", "../../packages/shared"]
+  "include": ["src", "../../packages/shared", "vitest.setup.ts"]
 }

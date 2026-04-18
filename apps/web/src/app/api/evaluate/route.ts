@@ -13,10 +13,13 @@ import {
 import {
   bossBriefingSchema,
   buildCardRewardSchema,
-  buildMapEvalSchema,
   genericEvalSchema,
   simpleEvalSchema,
 } from "@sts2/shared/evaluation/eval-schemas";
+import {
+  mapCoachOutputSchema,
+  sanitizeMapCoachOutput,
+} from "@sts2/shared/evaluation/map-coach-schema";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
@@ -199,6 +202,14 @@ interface EvaluateRequest {
   runId: string | null;
   gameVersion: string | null;
   goldBudget?: number | null;
+  /**
+   * Optional run-state snapshot computed desktop-side (map coach phase 1).
+   * The server doesn't currently have the raw game state in the request body,
+   * so `RunState` is computed once on the desktop inside `buildMapPrompt` and
+   * echoed back in the response here. See the task-6 DONE_WITH_CONCERNS note
+   * for the duplication trade-off.
+   */
+  runStateSnapshot?: unknown;
 }
 
 export async function POST(request: Request) {
@@ -470,7 +481,6 @@ export async function POST(request: Request) {
       evalType === "card_removal" ||
       evalType === "card_upgrade" ||
       evalType === "card_select";
-    const optionCount = body.mapPrompt.match(/Option \d+/g)?.length ?? 3;
     const callOptions = {
       model: anthropic(EVAL_MODELS.default),
       maxOutputTokens: 2048,
@@ -479,20 +489,51 @@ export async function POST(request: Request) {
     };
 
     try {
-      const result = isMapEval
+      // Map coach has its own return path — pull it out so the typed output
+      // from Output.object({ schema: mapCoachOutputSchema }) stays narrow
+      // (a union across three different schemas in one ternary loses it).
+      if (isMapEval) {
+        const mapResult = await generateText({
+          ...callOptions,
+          output: Output.object({ schema: mapCoachOutputSchema }),
+        });
+
+        logUsage(supabase, {
+          userId: body.userId ?? null,
+          evalType: evalType,
+          model: EVAL_MODELS.default,
+          inputTokens: mapResult.usage.inputTokens ?? 0,
+          outputTokens: mapResult.usage.outputTokens ?? 0,
+        }).catch(console.error);
+
+        // Clamp confidence and truncate key_branches / teaching_callouts.
+        // The schema can't enforce these via zod min/max because Anthropic's
+        // structured-output endpoint rejects the resulting JSON Schema
+        // constraints (#52, #68). See `map-coach-schema.ts`.
+        const sanitized = sanitizeMapCoachOutput(mapResult.output);
+        // Echo the desktop-provided run-state snapshot back so the caller can
+        // forward it to `/api/choice` for persistence. This route does not
+        // write to the `choices` table itself; see `apps/web/src/app/api/
+        // choice/route.ts`. The server-side RunState computation the plan
+        // contemplated is deferred — the desktop already computes it once
+        // inside buildMapPrompt, and duplicating the builder on the server
+        // (without raw state in the request body) would add surface area
+        // without value. Noted as a known follow-up.
+        return NextResponse.json({
+          ...sanitized,
+          runStateSnapshot: body.runStateSnapshot ?? null,
+        });
+      }
+
+      const result = isSimpleEval
         ? await generateText({
             ...callOptions,
-            output: Output.object({ schema: buildMapEvalSchema(optionCount) }),
+            output: Output.object({ schema: simpleEvalSchema }),
           })
-        : isSimpleEval
-          ? await generateText({
-              ...callOptions,
-              output: Output.object({ schema: simpleEvalSchema }),
-            })
-          : await generateText({
-              ...callOptions,
-              output: Output.object({ schema: genericEvalSchema }),
-            });
+        : await generateText({
+            ...callOptions,
+            output: Output.object({ schema: genericEvalSchema }),
+          });
 
       logUsage(supabase, {
         userId: body.userId ?? null,
@@ -501,32 +542,6 @@ export async function POST(request: Request) {
         inputTokens: result.usage.inputTokens ?? 0,
         outputTokens: result.usage.outputTokens ?? 0,
       }).catch(console.error);
-
-      // Sanitize rankings for the map path only. Simple/generic evals don't
-      // have a fixed count to enforce. See #54 for the drift patterns
-      // (position 0 summaries, out-of-range placeholders) this handles.
-      if (isMapEval) {
-        const mapOutput = result.output as { rankings: { option_index: number }[] };
-        const cleaned = sanitizeRankings({
-          rankings: mapOutput.rankings,
-          indexKey: "option_index",
-          expectedCount: optionCount,
-        });
-        if (cleaned.length !== optionCount) {
-          console.error(
-            `[Evaluate] Map ranking count mismatch: expected ${optionCount}, got ${cleaned.length} valid (from ${mapOutput.rankings.length} returned). Raw:`,
-            JSON.stringify(mapOutput.rankings),
-          );
-          return NextResponse.json(
-            {
-              error: "Ranking count mismatch",
-              detail: `Expected ${optionCount} rankings, got ${cleaned.length} valid after sanitization`,
-            },
-            { status: 502 },
-          );
-        }
-        mapOutput.rankings = cleaned;
-      }
 
       console.log("[Evaluate] Map/freeform output:", JSON.stringify(result.output));
       return NextResponse.json(result.output);
@@ -541,12 +556,29 @@ export async function POST(request: Request) {
           const repaired = repairJson(error.text);
           if (repaired !== error.text) {
             try {
-              const schema = isMapEval
-                ? buildMapEvalSchema(optionCount)
-                : isSimpleEval
-                  ? simpleEvalSchema
-                  : genericEvalSchema;
-              const parsed = schema.parse(JSON.parse(repaired));
+              const repairedJson: unknown = JSON.parse(repaired);
+              // Parse with the schema matching the current eval so the
+              // resulting value is narrowly typed (no cast needed).
+              if (isMapEval) {
+                const parsed = mapCoachOutputSchema.parse(repairedJson);
+                console.log("[Evaluate] Map/freeform JSON repaired (trailing comma)");
+                if (error.usage) {
+                  logUsage(supabase, {
+                    userId: body.userId ?? null,
+                    evalType: evalType,
+                    model: EVAL_MODELS.default,
+                    inputTokens: error.usage.inputTokens ?? 0,
+                    outputTokens: error.usage.outputTokens ?? 0,
+                  }).catch(console.error);
+                }
+                const sanitized = sanitizeMapCoachOutput(parsed);
+                return NextResponse.json({
+                  ...sanitized,
+                  runStateSnapshot: body.runStateSnapshot ?? null,
+                });
+              }
+              const schema = isSimpleEval ? simpleEvalSchema : genericEvalSchema;
+              const parsed = schema.parse(repairedJson);
               console.log("[Evaluate] Map/freeform JSON repaired (trailing comma)");
               if (error.usage) {
                 logUsage(supabase, {

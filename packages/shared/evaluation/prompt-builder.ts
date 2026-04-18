@@ -53,6 +53,69 @@ OUTPUT RULES:
 - Respond in JSON only. Rankings MUST have exactly one entry per item, in listed order.
 - Confidence: 90-100 clear pick, 70-89 solid, 40-69 close call, <40 uncertain.`;
 
+// --- Map Pathing Reasoning Scaffold ---
+
+export const MAP_PATHING_SCAFFOLD = `
+Before ranking the candidate paths, reason step-by-step:
+
+1. RISK CAPACITY: restate the buffer number and verdict from RUN STATE in your
+   own words. Is this a run that can push for elites, or needs to consolidate?
+2. ACT GOAL: one sentence. What should remaining floors accomplish?
+   (e.g., "heal to 70%+ before pre-boss rest; take 1 more elite only if HP
+   recovery aligns")
+3. KEY BRANCHES: identify 1–3 floors where the decision is non-obvious.
+   Return at most 3 entries. Do NOT exceed this. (Any extras are discarded
+   server-side.) A close call is NOT a failure — say so explicitly and set
+   close_call=true.
+
+Then produce the output. Do not restate game rules; the RUN STATE block already
+computed them. Your job is judgment under the specific run state, not general
+theory.
+
+Branch recommendations may be conditional, e.g.:
+  "Elite IF HP ≥ 55 at f28, else Monster"
+
+teaching_callouts should pick 1–4 patterns from the CANDIDATE PATHS facts that
+the player would benefit from understanding — not every pattern, just the
+pedagogically useful ones for this path. Return at most 4 entries. Do NOT
+exceed this. (Any extras are discarded server-side.)
+
+confidence is a float between 0 and 1. Anything outside that range is clamped
+by the server.
+
+macro_path.floors[].node_id MUST be copied EXACTLY from the \`@col,row\`
+tokens that appear in CANDIDATE PATHS (e.g., a token \`M@2,5\` means node_id
+is "2,5"). Do NOT invent or recompute coordinates. Each floor in your
+macro_path should correspond to one node from the facts block.
+
+The FIRST floor in macro_path.floors MUST be the chosen next-option node —
+i.e., the root (first node) of one of the Path sequences in CANDIDATE PATHS.
+Do NOT include the player's current position as the first floor.
+
+macro_path.floors MUST include EVERY node from the chosen next-option through
+the act boss, inclusive. Copy the entire Path sequence you selected from
+CANDIDATE PATHS — do not skip intermediate floors, do not truncate early, do
+not omit the boss. A partial path breaks the client's path highlighting.
+
+PATH SELECTION RULES (HARD CONSTRAINTS — apply before reasoning):
+- Do NOT recommend a path whose fightBudget is EXCEEDS_BUDGET unless ALL
+  candidate paths are also EXCEEDS_BUDGET — in which case pick the one
+  closest to TIGHT (fewest fights over the effective budget).
+- Do NOT recommend a path whose HP_risk is CRITICAL unless no alternative
+  has a better HP_risk verdict (SAFE or RISKY beats CRITICAL).
+- If the best remaining path is still fightBudget=TIGHT or HP_risk=RISKY,
+  state the tradeoff explicitly in \`reasoning.act_goal\` so the player
+  understands why it's still the best choice.
+
+BE CONCISE:
+- \`headline\`: one sentence max.
+- \`reasoning.risk_capacity\` and \`reasoning.act_goal\`: two sentences each max.
+- Each branch \`decision\` is a short question (≤ 10 words).
+- Each branch \`recommended\` is the answer (≤ 15 words).
+- Each branch \`alternatives[].tradeoff\` is one sentence.
+- Each \`teaching_callouts[].explanation\` is one sentence.
+`.trim();
+
 // --- Type-Specific Addenda ---
 
 const TYPE_ADDENDA: Record<string, string> = {
@@ -78,23 +141,12 @@ SHOP:
 - Each item evaluated independently. Include spending_plan for affordable items only.`,
 
   map: `
-MAP PATHING — CORE: Balance relic acquisition against deck development and HP preservation.
+MAP PATHING — GOAL SHAPING: The RUN STATE block quantifies risk, budgets, and thresholds for this specific run. Do NOT restate those rules; apply them.
 - Treasure nodes = free relic = always high priority (zero HP cost).
-- Act 1: PRIORITIZE MONSTER FIGHTS for card rewards. More fights = more card selections = value density. The biggest Act 1 risk is reaching the boss without quality cards.
-- Act 2+: Unknown/Event nodes are safer than Monster and can give relics/transforms/gold. Prefer over Monster.
-- Shops: high value at 150g+ (can buy relic or remove). Route to shop when gold >= removal cost AND deck has removal targets. Back-to-back shops are LOW value — each card removal costs 25g more than the last, so consecutive shops drain gold fast without enough fights to earn it back. Spread shops apart with fights in between.
-- Rest sites: you get ONE action per visit — heal OR upgrade, never both. Card upgrades compound over the entire run (~3-5 HP saved per fight). Prioritize upgrades when healthy.
-- ELITE COST: fighting an elite means the next rest site is spent healing instead of upgrading. One elite = one lost upgrade. An upgrade compounds value every remaining fight — a random relic may not.
-- ELITE PHILOSOPHY by act — these are TARGETS, not ceilings. Relic-poor runs stall out by Act 3:
-  - Act 1: Target 1-2 elites. Take them when HP > 60% and deck can handle the fight. Skipping all elites leaves you relic-poor entering Act 2 and is almost always wrong. Only avoid entirely if HP is already low (<50%) or your deck is uniquely bad at the matchup.
-  - Act 2: Peak window. Target 2-3 elites. Your deck should handle them efficiently by this point, making the relic clearly worth the HP cost.
-  - Act 3: Selective. 0-1 elites. Boss preparation matters more than another relic; only take them when very healthy.
-- Budget ~25 HP per remaining fight for safety (elites cost ~30-50 HP at high ascension).
-- NODE PREFERENCE GUIDANCE for node_preferences.elite:
-  - Healthy (HP > 60%) and below act target: elite >= 0.7
-  - Healthy and already hit act target: elite ~0.5
-  - Hurt (HP < 60%) or at/past act target: elite < 0.5
-  - Never return elite below 0.3 unless the deck is actively incapable of elite fights — "be cautious" means "pick carefully", not "avoid entirely".`,
+- Act 1 philosophy: card acquisition density. Monster fights produce card rewards, and a thin low-quality deck is the biggest Act 1 risk. Prefer fights that yield picks over HP preservation for its own sake.
+- Act 2 philosophy: peak window for elites, shops, and event gambles. Your deck should be able to convert HP into permanent power here (relics, removals, scaling). Push for density.
+- Act 3 philosophy: boss preparation dominates. Seek upgrades, finish the engine, and avoid unnecessary HP spend. Extra elites/relics only if clearly safe.
+- General: seek upgrades before more fights when HP is consolidated; prefer permanent power (relics, removals, upgrades) over transient gold/heal when the run state allows.`,
 
   rest_site: `
 REST SITE:

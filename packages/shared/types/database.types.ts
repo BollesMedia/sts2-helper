@@ -256,6 +256,7 @@ export type Database = {
           recommended_item_id: string | null
           recommended_tier: string | null
           run_id: string | null
+          run_state_snapshot: Json | null
           sequence: number
           user_id: string | null
           was_followed: boolean | null
@@ -275,6 +276,7 @@ export type Database = {
           recommended_item_id?: string | null
           recommended_tier?: string | null
           run_id?: string | null
+          run_state_snapshot?: Json | null
           sequence?: number
           user_id?: string | null
           was_followed?: boolean | null
@@ -294,6 +296,7 @@ export type Database = {
           recommended_item_id?: string | null
           recommended_tier?: string | null
           run_id?: string | null
+          run_state_snapshot?: Json | null
           sequence?: number
           user_id?: string | null
           was_followed?: boolean | null

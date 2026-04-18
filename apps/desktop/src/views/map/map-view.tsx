@@ -1,16 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
-import { cn } from "@sts2/shared/lib/cn";
+import { useMemo, useState } from "react";
 import type { MapState, MultiplayerFields } from "@sts2/shared/types/game-state";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { selectRecommendedPath } from "../../features/run/runSelectors";
 import { selectEvalResult, selectEvalIsLoading, selectEvalError } from "../../features/evaluation/evaluationSelectors";
 import { evalRetryRequested } from "../../features/evaluation/evaluationSlice";
-import { computeMapEvalKey, type MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { computeMapEvalKey, type MapCoachEvaluation } from "../../lib/eval-inputs/map";
 import { NODE_TYPE_ICONS, NODE_SVG_LABELS } from "./map-scoring";
-import { TierBadge } from "../../components/tier-badge";
 import { EvalError } from "../../components/eval-error";
+import { BranchCard } from "../../components/branch-card";
+import { TeachingCallouts } from "../../components/teaching-callouts";
+import { ConfidencePill } from "../../components/confidence-pill";
 
 
 interface MapViewProps {
@@ -53,18 +54,9 @@ const NODE_FILL_DIM: Record<string, string> = {
   Unknown: "#3f3f46",
 };
 
-// --- Sidebar option card border colors by recommendation ---
-
-const REC_BORDER: Record<string, string> = {
-  strong_pick: "border-emerald-500/50",
-  good_pick: "border-blue-500/40",
-  situational: "border-amber-500/40",
-  skip: "border-zinc-800",
-};
-
 // --- Component ---
 
-const selectMapResult = selectEvalResult<MapPathEvaluation>("map");
+const selectMapResult = selectEvalResult<MapCoachEvaluation>("map");
 const selectMapLoading = selectEvalIsLoading("map");
 const selectMapError = selectEvalError("map");
 // Direct selector — avoids RTK slice selector scoping issues in tests
@@ -77,6 +69,7 @@ export function MapView({ state }: MapViewProps) {
   const isLoading = useAppSelector(selectMapLoading);
   const error = useAppSelector(selectMapError);
   const storedEvalKey = useAppSelector(selectMapEvalKey);
+  const [keyDecisionsOpen, setKeyDecisionsOpen] = useState(true);
   const { nodes, current_position, visited, next_options, boss } = state.map;
 
   const maxRow = useMemo(
@@ -101,25 +94,13 @@ export function MapView({ state }: MapViewProps) {
   );
 
   // Check whether the stored evaluation corresponds to the current options.
-  // After the player moves, rankings become stale (they reference the previous
-  // position's options). Using evalKey comparison is robust — it catches same-
-  // count forks with different coordinates.
+  // After the player moves, the coach output becomes stale (it references the
+  // previous position's options). evalKey comparison catches same-count forks
+  // with different coordinates.
   const evalMatchesCurrentOptions = useMemo(() => {
-    if (!storedEvalKey || !evaluation?.rankings.length) return false;
+    if (!storedEvalKey || !evaluation) return false;
     return computeMapEvalKey(next_options) === storedEvalKey;
   }, [storedEvalKey, evaluation, next_options]);
-
-  const bestOptionIndex = useMemo(() => {
-    if (!evaluation?.rankings.length) return null;
-    const tierOrder = ["S", "A", "B", "C", "D", "F"];
-    const best = evaluation.rankings.reduce((a, b) => {
-      const aTier = tierOrder.indexOf(a.tier);
-      const bTier = tierOrder.indexOf(b.tier);
-      if (aTier !== bTier) return aTier < bTier ? a : b;
-      return (a.confidence ?? 0) >= (b.confidence ?? 0) ? a : b;
-    });
-    return best.optionIndex;
-  }, [evaluation]);
 
   // Recommended path from Redux — computed and persisted by mapListeners
   const recommendedPath = useAppSelector(selectRecommendedPath);
@@ -143,12 +124,15 @@ export function MapView({ state }: MapViewProps) {
     [recommendedPath, currentRow]
   );
 
-  // Derive best option: use evaluation rankings when fresh, fall back to
-  // the recommended path when stale (player moved since last eval).
+  // Best next node: the first entry in macro_path whose nodeId matches a
+  // next_option. Falls back to the recommended path when the eval is stale.
   const bestOptionKey = useMemo(() => {
-    if (bestOptionIndex != null && evalMatchesCurrentOptions) {
-      const opt = next_options.find((_, i) => i + 1 === bestOptionIndex);
-      if (opt) return `${opt.col},${opt.row}`;
+    if (evalMatchesCurrentOptions && evaluation?.macroPath.floors.length) {
+      const firstOnPath = evaluation.macroPath.floors[0];
+      const match = next_options.find(
+        (opt) => `${opt.col},${opt.row}` === firstOnPath.nodeId,
+      );
+      if (match) return firstOnPath.nodeId;
     }
     // Fallback: find the next_option that lies on the recommended path
     for (const opt of next_options) {
@@ -157,7 +141,7 @@ export function MapView({ state }: MapViewProps) {
       }
     }
     return null;
-  }, [bestOptionIndex, evalMatchesCurrentOptions, next_options, recommendedPathNodes]);
+  }, [evaluation, evalMatchesCurrentOptions, next_options, recommendedPathNodes]);
 
   // Multiplayer voting
   const isMultiplayer = state.game_mode === "multiplayer";
@@ -166,8 +150,9 @@ export function MapView({ state }: MapViewProps) {
 
   return (
     <div className="flex gap-3 h-full min-h-0">
-      {/* Map area */}
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-1.5">
+      {/* Map area — capped width; SVG already preserveAspectRatio, so a cap
+          just trims dead horizontal padding around the tall map graph. */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-1.5 max-w-[26rem]">
         <div className="flex-1 min-h-0 rounded-lg border border-zinc-800 bg-zinc-950/80 p-1.5 relative">
           {/* Status indicators */}
           {isMultiplayer && votes && !allVoted && (
@@ -305,87 +290,113 @@ export function MapView({ state }: MapViewProps) {
         </div>
 
         {/* Legend — compact inline strip */}
-        <div className="flex items-center gap-3 px-1 text-[9px] text-zinc-600">
-          {Object.entries(NODE_TYPE_ICONS).map(([type, icon]) => (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[9px] text-zinc-600">
+          {Object.keys(NODE_TYPE_ICONS).map((type) => (
             <span key={type} className="flex items-center gap-1">
               <span
                 className="inline-block h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: NODE_FILL[type] }}
               />
-              <span>{icon}</span>
               <span>{type}</span>
             </span>
           ))}
         </div>
       </div>
 
-      {/* Sidebar — Evaluation cards */}
-      <div className="w-52 shrink-0 flex flex-col gap-1.5 min-h-0 overflow-y-auto">
-        {/* Overall advice */}
-        {evaluation?.overallAdvice && (
-          <div className="rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-2">
-            <p className="text-xs text-spire-text-tertiary leading-relaxed line-clamp-3" title={evaluation.overallAdvice}>
-              {evaluation.overallAdvice}
-            </p>
-          </div>
+      {/* Sidebar — Coach output */}
+      <div className="flex-1 min-w-[20rem] flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden">
+        {evaluation && evalMatchesCurrentOptions && (
+          <>
+            {/* Headline + confidence */}
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-sm font-semibold leading-snug text-zinc-100">
+                  {evaluation.headline}
+                </h3>
+                <ConfidencePill confidence={evaluation.confidence} />
+              </div>
+            </div>
+
+            {/* Why this path — reasoning */}
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Why this path
+              </h4>
+              <p className="mt-1.5 text-xs text-zinc-300 leading-relaxed">
+                <span className="font-semibold text-zinc-200">Risk capacity: </span>
+                {evaluation.reasoning.riskCapacity}
+              </p>
+              <p className="mt-1.5 text-xs text-zinc-300 leading-relaxed">
+                <span className="font-semibold text-zinc-200">Act goal: </span>
+                {evaluation.reasoning.actGoal}
+              </p>
+            </div>
+
+            {/* Path summary */}
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Path
+              </h4>
+              <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+                {evaluation.macroPath.summary}
+              </p>
+            </div>
+
+            {/* Key decisions — collapsible */}
+            {evaluation.keyBranches.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setKeyDecisionsOpen((v) => !v)}
+                  aria-expanded={keyDecisionsOpen}
+                  className="flex w-full items-center justify-between gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-300"
+                >
+                  <span>Key decisions ({evaluation.keyBranches.length})</span>
+                  <span
+                    aria-hidden
+                    className={`transition-transform ${keyDecisionsOpen ? "rotate-90" : ""}`}
+                  >
+                    ▸
+                  </span>
+                </button>
+                {keyDecisionsOpen &&
+                  evaluation.keyBranches.map((b, i) => (
+                    <BranchCard key={i} branch={b} />
+                  ))}
+              </div>
+            )}
+
+            {/* Teaching callouts */}
+            <TeachingCallouts callouts={evaluation.teachingCallouts} />
+          </>
         )}
 
-        {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("map"))} />}
-
-        {/* Path option cards */}
-        {next_options.map((opt, i) => {
-          const evalData = evalMatchesCurrentOptions
-            ? evaluation?.rankings.find((r) => r.optionIndex === i + 1)
-            : undefined;
-          const isBest = bestOptionKey === `${opt.col},${opt.row}`;
-
-          return (
-            <div
-              key={opt.index}
-              className={cn(
-                "rounded-lg border p-2.5 transition-all duration-150",
-                evalData
-                  ? (REC_BORDER[evalData.recommendation] ?? "border-zinc-800")
-                  : isBest
-                    ? "border-emerald-500/50"
-                    : "border-zinc-800",
-                isBest
-                  ? "bg-emerald-950/20 shadow-[0_0_12px_rgba(52,211,153,0.12)]"
-                  : "bg-zinc-900/60"
-              )}
-              title={evalData?.reasoning}
-            >
-              {/* Header: tier + type + best badge */}
-              <div className="flex items-center gap-1.5">
-                {evalData && (
-                  <TierBadge tier={evalData.tier} size="sm" glow={isBest} />
-                )}
-                <span className="text-xs">{NODE_TYPE_ICONS[opt.type] ?? "•"}</span>
-                <span className={cn(
-                  "text-xs font-semibold tracking-tight truncate",
-                  isBest ? "text-emerald-300" : "text-zinc-200"
-                )}>
-                  {opt.type}
-                </span>
+        {/* Next-option badges — gives the user a reading of the map at a glance
+            (node types + which one the coach picked). Renders with or without
+            an eval so the sidebar always shows the candidate options. */}
+        <div className="flex flex-wrap gap-1.5 px-0.5">
+          {next_options.map((opt) => {
+            const key = `${opt.col},${opt.row}`;
+            const isBest = bestOptionKey === key;
+            return (
+              <span
+                key={opt.index}
+                className={
+                  isBest
+                    ? "inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300"
+                    : "inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-900/60 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400"
+                }
+              >
+                <span>{opt.type}</span>
                 {isBest && (
-                  <span className="ml-auto text-[8px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/25">
-                    Best
-                  </span>
+                  <span className="ml-1 text-[8px] font-bold uppercase tracking-wider">Best</span>
                 )}
-              </div>
+              </span>
+            );
+          })}
+        </div>
 
-              {/* Reasoning */}
-              {evalData?.reasoning && (
-                <p className={cn(
-                  "mt-1.5 text-xs leading-relaxed line-clamp-2",
-                  isBest ? "text-zinc-300" : "text-zinc-500"
-                )}>
-                  {evalData.reasoning}
-                </p>
-              )}
-            </div>
-          );
-        })}
+        {error && <EvalError error={error} onRetry={() => dispatch(evalRetryRequested("map"))} />}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import {
   buildCardRewardSchema,
 } from "./eval-schemas";
 import { tierExtractionSchema } from "./tier-extraction";
+import { mapCoachOutputSchema } from "./map-coach-schema";
 
 describe("eval-schemas", () => {
   describe("bossBriefingSchema", () => {
@@ -294,6 +295,7 @@ describe("eval-schemas", () => {
         true,
       )],
       ["tierExtractionSchema", tierExtractionSchema],
+      ["mapCoachOutputSchema", mapCoachOutputSchema],
     ];
 
     it.each(cases)("%s is Anthropic-compatible", (name, schema) => {
