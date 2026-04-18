@@ -1,3 +1,4 @@
+mod game_state_poller;
 mod mods;
 mod steam;
 
