@@ -80,6 +80,15 @@ describe("detectEliteCluster", () => {
     ]);
     expect(r).toBeNull();
   });
+
+  it("returns only clustered floors, excluding unrelated elites", () => {
+    const r = detectEliteCluster([
+      { floor: 19, type: "elite" },
+      { floor: 30, type: "elite" },
+      { floor: 32, type: "elite" },
+    ]);
+    expect(r).toEqual({ kind: "elite_cluster", floors: [30, 32] });
+  });
 });
 
 describe("detectBackToBackShops", () => {
@@ -145,8 +154,11 @@ describe("detectNoRestInLateHalf", () => {
         { floor: 27, type: "treasure" },
         { floor: 28, type: "elite" },
         { floor: 29, type: "monster" },
+        { floor: 32, type: "rest" },
+        { floor: 33, type: "boss" },
       ],
       27,
+      32,
     );
     expect(r?.kind).toBe("no_rest_in_late_half");
   });
@@ -158,10 +170,33 @@ describe("detectNoRestInLateHalf", () => {
         { floor: 28, type: "elite" },
         { floor: 29, type: "rest" },
         { floor: 30, type: "monster" },
+        { floor: 32, type: "rest" },
+        { floor: 33, type: "boss" },
       ],
       27,
+      32,
     );
     expect(r).toBeNull();
+  });
+
+  it("flags late elite when boss is terminal and only rest is the pre-boss rest", () => {
+    // Regression: using path[last].floor as the bound let the pre-boss rest
+    // satisfy the mid-half-rest check. With preBossRestFloor passed in, the
+    // late elite is correctly flagged.
+    const r = detectNoRestInLateHalf(
+      [
+        { floor: 27, type: "treasure" },
+        { floor: 28, type: "elite" },
+        { floor: 29, type: "monster" },
+        { floor: 30, type: "monster" },
+        { floor: 31, type: "shop" },
+        { floor: 32, type: "rest" },
+        { floor: 33, type: "boss" },
+      ],
+      27,
+      32,
+    );
+    expect(r?.kind).toBe("no_rest_in_late_half");
   });
 });
 

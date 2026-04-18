@@ -51,12 +51,15 @@ export function detectRestAfterElite(path: PathNode[]): PathPattern | null {
 export function detectEliteCluster(path: PathNode[]): PathPattern | null {
   const eliteFloors = path.filter((n) => n.type === "elite").map((n) => n.floor);
   if (eliteFloors.length < 2) return null;
+  const clustered = new Set<number>();
   for (let i = 0; i < eliteFloors.length - 1; i++) {
     if (eliteFloors[i + 1] - eliteFloors[i] <= 3) {
-      return { kind: "elite_cluster", floors: eliteFloors };
+      clustered.add(eliteFloors[i]);
+      clustered.add(eliteFloors[i + 1]);
     }
   }
-  return null;
+  if (clustered.size === 0) return null;
+  return { kind: "elite_cluster", floors: [...clustered].sort((a, b) => a - b) };
 }
 
 export function detectBackToBackShops(path: PathNode[]): PathPattern | null {
@@ -94,10 +97,11 @@ export function detectMonsterChain(path: PathNode[]): PathPattern | null {
     }
   }
   if (best.length >= 3) {
+    const length: 3 | 4 = best.length >= 4 ? 4 : 3;
     return {
       kind: "monster_chain_for_rewards",
       floors: best,
-      length: (best.length >= 4 ? 4 : 3) as 3 | 4,
+      length,
     };
   }
   return null;
@@ -107,10 +111,15 @@ export function detectMonsterChain(path: PathNode[]): PathPattern | null {
  * Detects elites in the late half (after the act's treasure node) that lack
  * a rest between them and the pre-boss rest. `treasureFloor` must be passed
  * (structural invariant: always present at halfway). If no late elites, null.
+ *
+ * `preBossRestFloor` bounds the mid-half-rest check — the terminal node is
+ * typically `boss`, so using `path[path.length - 1].floor` would let the
+ * pre-boss rest itself satisfy the "mid-half rest" condition.
  */
 export function detectNoRestInLateHalf(
   path: PathNode[],
   treasureFloor: number,
+  preBossRestFloor: number,
 ): PathPattern | null {
   const lateHalf = path.filter((n) => n.floor > treasureFloor);
   const lateElites = lateHalf.filter((n) => n.type === "elite");
@@ -119,7 +128,7 @@ export function detectNoRestInLateHalf(
     (n) =>
       n.type === "rest" &&
       n.floor > lateElites[0].floor &&
-      n.floor < path[path.length - 1].floor,
+      n.floor < preBossRestFloor,
   );
   if (hasMidHalfRest) return null;
   return { kind: "no_rest_in_late_half", elitesLate: lateElites.length };

@@ -45,7 +45,9 @@ export function enrichPaths(
       detectBackToBackShops(p.nodes),
       detectTreasureBeforeRest(p.nodes),
       detectMonsterChain(p.nodes),
-      tf !== undefined ? detectNoRestInLateHalf(p.nodes, tf) : null,
+      tf !== undefined
+        ? detectNoRestInLateHalf(p.nodes, tf, runState.bossPreview.preBossRestFloor)
+        : null,
       detectRestSpentTooEarly(p.nodes, runState.hp.ratio, runState.bossPreview.preBossRestFloor),
     ];
     for (const d of detectors) if (d) patterns.push(d);
@@ -57,6 +59,8 @@ export function enrichPaths(
     const monstersOnPath = p.nodes.filter((n) => n.type === "monster").length;
     // Hard-pool fights = monsters on path beyond the remaining easy-pool slots.
     // Order within the path isn't modeled here; good enough for a prompt signal.
+    // Scope: regular monster encounters only — elite encounters draw from a
+    // separate fixed pool by act variant and are unaffected by easy/hard-pool scaling.
     const hardPoolFightsOnPath = Math.max(
       0,
       monstersOnPath - runState.monsterPool.fightsUntilHardPool,
