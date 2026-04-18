@@ -290,7 +290,7 @@ export function MapView({ state }: MapViewProps) {
         </div>
 
         {/* Legend — compact inline strip */}
-        <div className="flex items-center gap-3 px-1 text-[9px] text-zinc-600">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[9px] text-zinc-600">
           {Object.entries(NODE_TYPE_ICONS).map(([type, icon]) => (
             <span key={type} className="flex items-center gap-1">
               <span
