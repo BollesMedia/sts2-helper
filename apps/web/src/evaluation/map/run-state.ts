@@ -115,7 +115,7 @@ export function computeEliteBudget(
   const target = ELITE_TARGETS[act];
   const eliteFloorsFought = visited.filter((v) => v.type === "Elite").map((v) => v.floor);
   const remaining = Math.max(0, target[1] - eliteFloorsFought.length);
-  const shouldSeek = eliteFloorsFought.length < target[0] || (eliteFloorsFought.length < target[1]);
+  const shouldSeek = eliteFloorsFought.length < target[1];
   return { actTarget: target, eliteFloorsFought, remaining, shouldSeek };
 }
 
@@ -130,9 +130,11 @@ export function computeGoldMath(
 ): RunState["goldMath"] {
   const shopVisitsAhead = shopFloorsAhead.length;
   const expectedDropsPerFight = 40;
-  // Assume ~4 fights between current and last shop as a default.
+  // Assume ~3 fights earn gold between each pair of upcoming shops, capped
+  // at 4 to avoid projecting gold you might never collect.
+  const expectedFightsBeforeLastShop = Math.min(4, shopVisitsAhead * 3);
   const projectedShopBudget =
-    player.gold + expectedDropsPerFight * Math.min(4, shopVisitsAhead * 3);
+    player.gold + expectedDropsPerFight * expectedFightsBeforeLastShop;
   const removalAffordable = removalCost !== null && player.gold >= removalCost;
   return {
     current: player.gold,
@@ -155,7 +157,6 @@ export function computeMonsterPool(
 }
 
 export function computePreBossRest(args: {
-  floorsRemaining: number;
   bossRow: number;
   currentHp: number;
   maxHp: number;
@@ -221,7 +222,6 @@ export function computeRunState(inputs: RunStateInputs): RunState {
   const upgradedCount = inputs.deck.cards.filter((c) => c.upgraded).length;
 
   const preBossRest = computePreBossRest({
-    floorsRemaining: floorsRemainingInAct,
     bossRow: inputs.map.boss.row,
     currentHp: inputs.player.hp,
     maxHp: inputs.player.max_hp,

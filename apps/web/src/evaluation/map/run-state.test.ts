@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { computeHpBudget, computeRunState } from "./run-state";
+import {
+  computeEliteBudget,
+  computeGoldMath,
+  computeHpBudget,
+  computeMonsterPool,
+  computePreBossRest,
+  computeRunState,
+} from "./run-state";
 import type { RunStateInputs } from "./run-state";
 
 const baseInputs: RunStateInputs = {
@@ -56,8 +63,6 @@ describe("computeHpBudget", () => {
   });
 });
 
-import { computeEliteBudget } from "./run-state";
-
 describe("computeEliteBudget", () => {
   it("Act 2 target (2,3) with 1 elite fought should-seek true", () => {
     const b = computeEliteBudget(2, [{ floor: 19, type: "Elite" }]);
@@ -81,8 +86,6 @@ describe("computeEliteBudget", () => {
   });
 });
 
-import { computeGoldMath } from "./run-state";
-
 describe("computeGoldMath", () => {
   it("affordable removal and 2 shops ahead projects budget", () => {
     const g = computeGoldMath({ gold: 215 }, 75, [30, 42]);
@@ -103,8 +106,6 @@ describe("computeGoldMath", () => {
     expect(g.removalAffordable).toBe(false);
   });
 });
-
-import { computeMonsterPool } from "./run-state";
 
 describe("computeMonsterPool", () => {
   it("Act 1 after 2 monster fights is still easy pool, 1 until hard", () => {
@@ -144,12 +145,9 @@ describe("computeMonsterPool", () => {
   });
 });
 
-import { computePreBossRest } from "./run-state";
-
 describe("computePreBossRest", () => {
   it("recommends heal when projected HP is below 65%", () => {
     const r = computePreBossRest({
-      floorsRemaining: 10,
       bossRow: 33,
       currentHp: 62,
       maxHp: 80,
@@ -164,7 +162,6 @@ describe("computePreBossRest", () => {
 
   it("recommends smith when HP is above 70% and candidates exist", () => {
     const r = computePreBossRest({
-      floorsRemaining: 10,
       bossRow: 33,
       currentHp: 78,
       maxHp: 80,
@@ -177,7 +174,6 @@ describe("computePreBossRest", () => {
 
   it("recommends close_call in the 65-70% band", () => {
     const r = computePreBossRest({
-      floorsRemaining: 10,
       bossRow: 33,
       currentHp: 60,
       maxHp: 90, // 66% — in the close_call band
@@ -190,7 +186,6 @@ describe("computePreBossRest", () => {
 
   it("recommends heal when no upgrade candidates exist regardless of HP", () => {
     const r = computePreBossRest({
-      floorsRemaining: 10,
       bossRow: 33,
       currentHp: 80,
       maxHp: 80,
@@ -213,7 +208,8 @@ describe("computeRunState", () => {
     expect(rs.deck.archetype).toBeNull(); // phase 1
     expect(rs.riskCapacity.verdict).toBe("moderate");
     expect(rs.eliteBudget.actTarget).toEqual([2, 3]);
-    expect(rs.monsterPool.currentPool).toMatch(/easy|hard/);
+    expect(rs.monsterPool.currentPool).toBe("easy");
+    expect(rs.monsterPool.fightsUntilHardPool).toBe(2);
     expect(rs.bossPreview.preBossRestFloor).toBe(32);
   });
 });
