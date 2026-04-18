@@ -19,7 +19,6 @@ import {
 import {
   mapCoachOutputSchema,
   sanitizeMapCoachOutput,
-  type MapCoachOutputRaw,
 } from "@sts2/shared/evaluation/map-coach-schema";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
@@ -490,37 +489,28 @@ export async function POST(request: Request) {
     };
 
     try {
-      const result = isMapEval
-        ? await generateText({
-            ...callOptions,
-            output: Output.object({ schema: mapCoachOutputSchema }),
-          })
-        : isSimpleEval
-          ? await generateText({
-              ...callOptions,
-              output: Output.object({ schema: simpleEvalSchema }),
-            })
-          : await generateText({
-              ...callOptions,
-              output: Output.object({ schema: genericEvalSchema }),
-            });
-
-      logUsage(supabase, {
-        userId: body.userId ?? null,
-        evalType: evalType,
-        model: EVAL_MODELS.default,
-        inputTokens: result.usage.inputTokens ?? 0,
-        outputTokens: result.usage.outputTokens ?? 0,
-      }).catch(console.error);
-
-      // Map coach eval: clamp confidence and truncate key_branches /
-      // teaching_callouts. The schema can't enforce these via zod
-      // min/max because Anthropic's structured-output endpoint rejects the
-      // resulting JSON Schema constraints (#52, #68). See
-      // `map-coach-schema.ts`.
+      // Map coach has its own return path — pull it out so the typed output
+      // from Output.object({ schema: mapCoachOutputSchema }) stays narrow
+      // (a union across three different schemas in one ternary loses it).
       if (isMapEval) {
-        const sanitized = sanitizeMapCoachOutput(result.output as MapCoachOutputRaw);
-        console.log("[Evaluate] Map coach output:", JSON.stringify(sanitized));
+        const mapResult = await generateText({
+          ...callOptions,
+          output: Output.object({ schema: mapCoachOutputSchema }),
+        });
+
+        logUsage(supabase, {
+          userId: body.userId ?? null,
+          evalType: evalType,
+          model: EVAL_MODELS.default,
+          inputTokens: mapResult.usage.inputTokens ?? 0,
+          outputTokens: mapResult.usage.outputTokens ?? 0,
+        }).catch(console.error);
+
+        // Clamp confidence and truncate key_branches / teaching_callouts.
+        // The schema can't enforce these via zod min/max because Anthropic's
+        // structured-output endpoint rejects the resulting JSON Schema
+        // constraints (#52, #68). See `map-coach-schema.ts`.
+        const sanitized = sanitizeMapCoachOutput(mapResult.output);
         // Echo the desktop-provided run-state snapshot back so the caller can
         // forward it to `/api/choice` for persistence. This route does not
         // write to the `choices` table itself; see `apps/web/src/app/api/
@@ -535,6 +525,24 @@ export async function POST(request: Request) {
         });
       }
 
+      const result = isSimpleEval
+        ? await generateText({
+            ...callOptions,
+            output: Output.object({ schema: simpleEvalSchema }),
+          })
+        : await generateText({
+            ...callOptions,
+            output: Output.object({ schema: genericEvalSchema }),
+          });
+
+      logUsage(supabase, {
+        userId: body.userId ?? null,
+        evalType: evalType,
+        model: EVAL_MODELS.default,
+        inputTokens: result.usage.inputTokens ?? 0,
+        outputTokens: result.usage.outputTokens ?? 0,
+      }).catch(console.error);
+
       console.log("[Evaluate] Map/freeform output:", JSON.stringify(result.output));
       return NextResponse.json(result.output);
     } catch (error) {
@@ -548,12 +556,29 @@ export async function POST(request: Request) {
           const repaired = repairJson(error.text);
           if (repaired !== error.text) {
             try {
-              const schema = isMapEval
-                ? mapCoachOutputSchema
-                : isSimpleEval
-                  ? simpleEvalSchema
-                  : genericEvalSchema;
-              const parsed = schema.parse(JSON.parse(repaired));
+              const repairedJson: unknown = JSON.parse(repaired);
+              // Parse with the schema matching the current eval so the
+              // resulting value is narrowly typed (no cast needed).
+              if (isMapEval) {
+                const parsed = mapCoachOutputSchema.parse(repairedJson);
+                console.log("[Evaluate] Map/freeform JSON repaired (trailing comma)");
+                if (error.usage) {
+                  logUsage(supabase, {
+                    userId: body.userId ?? null,
+                    evalType: evalType,
+                    model: EVAL_MODELS.default,
+                    inputTokens: error.usage.inputTokens ?? 0,
+                    outputTokens: error.usage.outputTokens ?? 0,
+                  }).catch(console.error);
+                }
+                const sanitized = sanitizeMapCoachOutput(parsed);
+                return NextResponse.json({
+                  ...sanitized,
+                  runStateSnapshot: body.runStateSnapshot ?? null,
+                });
+              }
+              const schema = isSimpleEval ? simpleEvalSchema : genericEvalSchema;
+              const parsed = schema.parse(repairedJson);
               console.log("[Evaluate] Map/freeform JSON repaired (trailing comma)");
               if (error.usage) {
                 logUsage(supabase, {
@@ -563,13 +588,6 @@ export async function POST(request: Request) {
                   inputTokens: error.usage.inputTokens ?? 0,
                   outputTokens: error.usage.outputTokens ?? 0,
                 }).catch(console.error);
-              }
-              if (isMapEval) {
-                const sanitized = sanitizeMapCoachOutput(parsed as MapCoachOutputRaw);
-                return NextResponse.json({
-                  ...sanitized,
-                  runStateSnapshot: body.runStateSnapshot ?? null,
-                });
               }
               return NextResponse.json(parsed);
             } catch {
