@@ -56,10 +56,12 @@ export function setupConnectionListeners() {
     },
   });
 
-  // Disconnected: query rejected
+  // Disconnected: query rejected (but NOT_READY is just "Rust hasn't fetched yet" → ignore)
   startAppListening({
     matcher: gameStateApi.endpoints.getGameState.matchRejected,
-    effect: (_action, listenerApi) => {
+    effect: (action, listenerApi) => {
+      const status = (action.payload as { status?: unknown } | undefined)?.status;
+      if (status === "NOT_READY") return;
       listenerApi.dispatch(statusChanged("disconnected"));
     },
   });
