@@ -1,7 +1,7 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
-import { selectActiveRun, mapEvalUpdated, mapPathRetraced } from "../run/runSlice";
+import { selectActiveRun, mapEvalUpdated, mapPathRetraced, runStarted, runEnded } from "../run/runSlice";
 import { selectMapEvalContext, selectBestPathNodesSet, selectNodePreferences } from "../run/runSelectors";
 import {
   evalStarted,
@@ -35,16 +35,35 @@ import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 const EVAL_TYPE = "map" as const;
 
 /**
- * Last computed run-state for the active map eval. Keyed by runId so that a
- * run change clears it implicitly (we simply miss until the next eval). The
- * map_node choice write path reads this to populate `runStateSnapshot` on
- * `/api/choice` — it fires the moment the player moves, which may be before
- * the eval response for THAT position arrives, so we use the last known
- * snapshot (the one the player was looking at when they decided). Good
- * enough for phase 1 persistence; a tighter guarantee would require pairing
- * the snapshot with the evalKey.
+ * Last computed run-state for the active map eval. Keyed by runId. Cleared on
+ * `runStarted` / `runEnded` so long-lived desktop sessions don't accumulate
+ * one `RunState` per historical run. The map_node choice write path reads
+ * this to populate `runStateSnapshot` on `/api/choice` — it fires the moment
+ * the player moves, which may be before the eval response for THAT position
+ * arrives, so we use the last known snapshot (the one the player was looking
+ * at when they decided). Good enough for phase 1 persistence; a tighter
+ * guarantee would require pairing the snapshot with the evalKey.
  */
 const lastMapRunState = new Map<string, unknown>();
+
+/**
+ * Parse a coach macro-path entry (`"col,row"`) into coordinates. Returns null
+ * if either token is missing / non-numeric / negative / non-integer. The
+ * schema layer enforces the same regex, but we keep this defensive so a
+ * mis-formatted LLM response degrades gracefully (drop the bad entry) instead
+ * of producing `NaN`/`0` rows that silently corrupt the highlighted path.
+ */
+export function parseNodeId(nodeId: string): { col: number; row: number } | null {
+  const parts = nodeId.split(",");
+  if (parts.length !== 2) return null;
+  const [colStr, rowStr] = parts;
+  if (!/^\d+$/.test(colStr) || !/^\d+$/.test(rowStr)) return null;
+  const col = Number(colStr);
+  const row = Number(rowStr);
+  if (!Number.isInteger(col) || !Number.isInteger(row)) return null;
+  if (col < 0 || row < 0) return null;
+  return { col, row };
+}
 
 /**
  * Map evaluation listener.
@@ -59,6 +78,16 @@ const lastMapRunState = new Map<string, unknown>();
  */
 export function setupMapEvalListener() {
   let prevMapPosition: { col: number; row: number } | null = null;
+
+  // Clear the run-state cache when a run starts or ends so the module-level
+  // map doesn't accumulate one entry per historical run in long-lived
+  // desktop sessions.
+  startAppListening({
+    predicate: (action) => runStarted.match(action) || runEnded.match(action),
+    effect: () => {
+      lastMapRunState.clear();
+    },
+  });
 
   startAppListening({
     predicate: (action, currentState) => {
@@ -416,13 +445,11 @@ export function setupMapEvalListener() {
         // --- Post-API path derivation ---
         // The map coach returns a pre-computed macro path (one node per
         // future floor). Convert `node_id` ("col,row") back to coordinates
-        // for UI highlighting and deviation detection.
+        // for UI highlighting and deviation detection. Malformed entries are
+        // dropped so a mis-formatted LLM response degrades gracefully.
         const coachPath: { col: number; row: number }[] = parsed.macroPath.floors
-          .map((f) => {
-            const [colStr, rowStr] = f.nodeId.split(",");
-            return { col: Number(colStr), row: Number(rowStr) };
-          })
-          .filter((p) => Number.isFinite(p.col) && Number.isFinite(p.row));
+          .map((f) => parseNodeId(f.nodeId))
+          .filter((p): p is { col: number; row: number } => p !== null);
 
         // Prepend current position so the highlighted range covers from where
         // the player is standing.

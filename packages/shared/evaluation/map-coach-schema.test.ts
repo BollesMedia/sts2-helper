@@ -84,6 +84,25 @@ describe("mapCoachOutputSchema", () => {
     };
     expect(mapCoachOutputSchema.safeParse(bad).success).toBe(false);
   });
+
+  it.each([
+    ["1,", "trailing comma, missing row"],
+    [",2", "missing col"],
+    ["abc", "non-numeric"],
+    ["1,2,3", "too many parts"],
+    ["1.5,2", "non-integer"],
+    ["-1,2", "negative"],
+    ["", "empty string"],
+  ])('rejects malformed node_id %p (%s)', (nodeId) => {
+    const bad = {
+      ...valid,
+      macro_path: {
+        ...valid.macro_path,
+        floors: [{ floor: 24, node_type: "monster" as const, node_id: nodeId }],
+      },
+    };
+    expect(mapCoachOutputSchema.safeParse(bad).success).toBe(false);
+  });
 });
 
 describe("sanitizeMapCoachOutput", () => {

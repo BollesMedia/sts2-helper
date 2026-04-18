@@ -52,7 +52,9 @@ export const mapCoachOutputSchema = z.object({
         z.object({
           floor: z.number(),
           node_type: nodeTypeEnum,
-          node_id: z.string(),
+          node_id: z
+            .string()
+            .regex(/^\d+,\d+$/, 'node_id must be "col,row" format'),
         }),
       )
       .min(1),
