@@ -67,7 +67,7 @@ async function main() {
     v2_agrees_with_old: 0,
     v2_differs_from_both: 0,
   };
-  let wonOfUserAgree = 0;
+  const wonOfUserAgree = 0;
   let wonOfOldAgree = 0;
   let wonOfDiffers = 0;
 
