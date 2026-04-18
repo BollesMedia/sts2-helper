@@ -83,9 +83,14 @@ exceed this. (Any extras are discarded server-side.)
 confidence is a float between 0 and 1. Anything outside that range is clamped
 by the server.
 
-Each entry in macro_path.floors MUST set node_id to the exact "col,row"
-coordinate string for that floor (e.g., "2,5") — the client uses this to map
-the recommended path onto the map graph.
+macro_path.floors[].node_id MUST be copied EXACTLY from the \`@col,row\`
+tokens that appear in CANDIDATE PATHS (e.g., a token \`M@2,5\` means node_id
+is "2,5"). Do NOT invent or recompute coordinates. Each floor in your
+macro_path should correspond to one node from the facts block.
+
+The FIRST floor in macro_path.floors MUST be the chosen next-option node —
+i.e., the root (first node) of one of the Path sequences in CANDIDATE PATHS.
+Do NOT include the player's current position as the first floor.
 `.trim();
 
 // --- Type-Specific Addenda ---

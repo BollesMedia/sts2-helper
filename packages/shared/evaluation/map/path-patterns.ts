@@ -11,6 +11,13 @@ export type NodeType = "monster" | "elite" | "rest" | "shop" | "treasure" | "eve
 export interface PathNode {
   floor: number;
   type: NodeType;
+  /**
+   * Canonical `"col,row"` identifier for the node, when available. Emitted
+   * into the facts block so the LLM can copy it verbatim into
+   * `macro_path.floors[].node_id`. Optional because detectors only need
+   * `floor` + `type`, and some call sites (tests, older fixtures) predate it.
+   */
+  nodeId?: string;
 }
 
 export type PathPattern =

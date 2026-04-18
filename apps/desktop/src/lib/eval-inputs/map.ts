@@ -83,7 +83,11 @@ function walkPathNodes(
   const out: CandidatePath["nodes"] = [];
   let cur: MapNode | undefined = start;
   for (let d = 0; d < maxDepth && cur; d++) {
-    out.push({ floor: cur.row, type: mapNodeTypeToToken(cur.type) });
+    out.push({
+      floor: cur.row,
+      type: mapNodeTypeToToken(cur.type),
+      nodeId: `${cur.col},${cur.row}`,
+    });
     if (cur.children.length === 0) break;
     cur = byKey.get(`${cur.children[0][0]},${cur.children[0][1]}`);
   }

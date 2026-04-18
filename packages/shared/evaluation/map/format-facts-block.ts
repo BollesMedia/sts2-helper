@@ -1,7 +1,7 @@
 import type { RunState } from "./run-state";
 import type { EnrichedPath } from "./enrich-paths";
 
-function pathNodeToken(type: string, floor: number): string {
+function pathNodeToken(type: string, floor: number, nodeId?: string): string {
   const short: Record<string, string> = {
     monster: "M",
     elite: "E",
@@ -12,7 +12,12 @@ function pathNodeToken(type: string, floor: number): string {
     boss: "BOSS",
     unknown: "U",
   };
-  return type === "boss" ? "BOSS" : `${short[type] ?? "?"}(f${floor})`;
+  const letter = type === "boss" ? "BOSS" : (short[type] ?? "?");
+  // Prefer the `@col,row` form so the LLM can copy node_id verbatim into
+  // macro_path.floors[].node_id. Fall back to `(f23)` when nodeId is missing
+  // (older fixtures / non-map call sites).
+  if (nodeId) return type === "boss" ? `BOSS@${nodeId}` : `${letter}@${nodeId}`;
+  return type === "boss" ? "BOSS" : `${letter}(f${floor})`;
 }
 
 function describePatterns(path: EnrichedPath): string {
@@ -78,7 +83,7 @@ export function formatFactsBlock(runState: RunState, paths: EnrichedPath[]): str
 
   lines.push("", "=== CANDIDATE PATHS ===");
   paths.forEach((p, i) => {
-    const sequence = p.nodes.map((n) => pathNodeToken(n.type, n.floor)).join(" \u2192 ");
+    const sequence = p.nodes.map((n) => pathNodeToken(n.type, n.floor, n.nodeId)).join(" \u2192 ");
     lines.push(`Path ${i + 1}: ${sequence}`);
     lines.push(`  Patterns: ${describePatterns(p)}`);
     lines.push(

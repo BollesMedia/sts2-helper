@@ -34,9 +34,9 @@ const paths: EnrichedPath[] = [
   {
     id: "1",
     nodes: [
-      { floor: 24, type: "monster" },
-      { floor: 25, type: "elite" },
-      { floor: 26, type: "rest" },
+      { floor: 24, type: "monster", nodeId: "2,24" },
+      { floor: 25, type: "elite", nodeId: "2,25" },
+      { floor: 26, type: "rest", nodeId: "3,26" },
     ],
     patterns: [
       { kind: "rest_after_elite", eliteFloor: 25, restFloor: 26 },
@@ -64,6 +64,39 @@ describe("formatFactsBlock", () => {
     expect(out).toContain("Path 1:");
     expect(out).toContain("Patterns: rest_after_elite");
     expect(out).toContain("Aggregate: 1 elites");
+  });
+
+  it("emits @col,row tokens so the LLM can copy node_id verbatim", () => {
+    const out = formatFactsBlock(runState, paths);
+    // Each node carries a nodeId, so we expect the `@col,row` form — not `(f24)`.
+    expect(out).toContain("M@2,24");
+    expect(out).toContain("E@2,25");
+    expect(out).toContain("R@3,26");
+    expect(out).not.toMatch(/M\(f24\)/);
+  });
+
+  it("falls back to (fN) when a node is missing nodeId", () => {
+    const legacy: EnrichedPath[] = [
+      {
+        id: "1",
+        nodes: [
+          { floor: 24, type: "monster" },
+          { floor: 25, type: "elite" },
+        ],
+        patterns: [],
+        aggregates: {
+          elitesTaken: 1,
+          restsTaken: 0,
+          shopsTaken: 0,
+          hardPoolFightsOnPath: 0,
+          projectedHpEnteringPreBossRest: 50,
+        },
+      },
+    ];
+    const out = formatFactsBlock(runState, legacy);
+    expect(out).toContain("M(f24)");
+    expect(out).toContain("E(f25)");
+    expect(out).not.toContain("M@");
   });
 
   it("renders run state only when candidate paths array is empty", () => {
