@@ -22,6 +22,8 @@ const nodeTypeEnum = z.enum([
   "unknown",
 ]);
 
+export type MapNodeType = z.infer<typeof nodeTypeEnum>;
+
 export const mapCoachOutputSchema = z.object({
   reasoning: z.object({
     risk_capacity: z.string().min(1),
@@ -30,13 +32,15 @@ export const mapCoachOutputSchema = z.object({
   headline: z.string().min(1),
   confidence: z.number().min(0).max(1),
   macro_path: z.object({
-    floors: z.array(
-      z.object({
-        floor: z.number(),
-        node_type: nodeTypeEnum,
-        node_id: z.string(),
-      }),
-    ),
+    floors: z
+      .array(
+        z.object({
+          floor: z.number(),
+          node_type: nodeTypeEnum,
+          node_id: z.string(),
+        }),
+      )
+      .min(1),
     summary: z.string().min(1),
   }),
   key_branches: z

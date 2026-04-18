@@ -1,6 +1,7 @@
 import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
+import type { MapNodeType } from "@sts2/shared/evaluation/map-coach-schema";
 import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import { NODE_TYPE_ICONS } from "../../views/map/map-scoring";
 
@@ -32,7 +33,7 @@ export interface MapCoachEvaluation {
   headline: string;
   confidence: number;
   macroPath: {
-    floors: { floor: number; nodeType: string; nodeId: string }[];
+    floors: { floor: number; nodeType: MapNodeType; nodeId: string }[];
     summary: string;
   };
   keyBranches: {
