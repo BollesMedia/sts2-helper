@@ -130,8 +130,30 @@ pub fn spawn_poller(app: AppHandle, base_url: String) {
     let state: PollerHandle = Arc::new(PollerState::default());
     app.manage(state.clone());
 
+    // Supervisor: if run_poll_loop panics (or returns, which it shouldn't),
+    // log and respawn after a 1s backoff so a transient bug doesn't leave the
+    // app stuck on NOT_READY with no visible clue.
     tauri::async_runtime::spawn(async move {
-        run_poll_loop(app, base_url, state).await;
+        loop {
+            let app_c = app.clone();
+            let url_c = base_url.clone();
+            let state_c = state.clone();
+            let handle = tokio::spawn(async move {
+                run_poll_loop(app_c, url_c, state_c).await;
+            });
+            match handle.await {
+                Ok(()) => {
+                    log::error!("[poller] run_poll_loop exited; restarting in 1s")
+                }
+                Err(e) if e.is_panic() => {
+                    log::error!("[poller] run_poll_loop panicked: {e}; restarting in 1s")
+                }
+                Err(e) => {
+                    log::error!("[poller] run_poll_loop cancelled: {e}; restarting in 1s")
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
     });
 }
 
