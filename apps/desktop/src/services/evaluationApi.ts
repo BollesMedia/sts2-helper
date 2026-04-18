@@ -2,11 +2,14 @@ import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import { apiFetch } from "@sts2/shared/lib/api-client";
 import type { CardRewardEvaluation, EvaluationContext } from "@sts2/shared/evaluation/types";
 import {
-  mapEvalResponseSchema,
   genericEvalSchema,
   type GenericEvalRaw,
 } from "@sts2/shared/evaluation/eval-schemas";
-import type { MapPathEvaluation } from "../lib/eval-inputs/map";
+import {
+  mapCoachOutputSchema,
+  type MapCoachOutputRaw,
+} from "@sts2/shared/evaluation/map-coach-schema";
+import type { MapCoachEvaluation } from "../lib/eval-inputs/map";
 
 // --- Request types ---
 
@@ -47,17 +50,39 @@ interface ShopRequest extends EvalRequestBase {
 interface MapPromptRequest extends EvalRequestBase {
   evalType?: string;
   mapPrompt: string;
+  /**
+   * Optional run-state snapshot computed desktop-side for map coach evals.
+   * Echoed by the server and forwarded to `/api/choice` for persistence.
+   */
+  runStateSnapshot?: unknown;
 }
 
-// Fallback recommendation when the model omits it — mirrors the derivation
-// in `@sts2/shared/evaluation/parse-tool-response.ts:toCardRewardEvaluation`.
-function deriveRecommendationFromTier(
-  tier: "S" | "A" | "B" | "C" | "D" | "F",
-): "strong_pick" | "good_pick" | "situational" | "skip" {
-  if (tier === "S" || tier === "A") return "strong_pick";
-  if (tier === "B") return "good_pick";
-  if (tier === "C") return "situational";
-  return "skip";
+/** Convert snake_case server output to camelCase client shape. */
+function adaptMapCoach(raw: MapCoachOutputRaw): MapCoachEvaluation {
+  return {
+    reasoning: {
+      riskCapacity: raw.reasoning.risk_capacity,
+      actGoal: raw.reasoning.act_goal,
+    },
+    headline: raw.headline,
+    confidence: raw.confidence,
+    macroPath: {
+      floors: raw.macro_path.floors.map((f) => ({
+        floor: f.floor,
+        nodeType: f.node_type,
+        nodeId: f.node_id,
+      })),
+      summary: raw.macro_path.summary,
+    },
+    keyBranches: raw.key_branches.map((b) => ({
+      floor: b.floor,
+      decision: b.decision,
+      recommended: b.recommended,
+      alternatives: b.alternatives,
+      closeCall: b.close_call,
+    })),
+    teachingCallouts: raw.teaching_callouts,
+  };
 }
 
 // --- Shared fetch helper ---
@@ -165,8 +190,10 @@ export const evaluationApi = createApi({
       },
     }),
 
-    // Map path evaluation — parses with zod then transforms to camelCase.
-    evaluateMap: build.mutation<MapPathEvaluation, MapPromptRequest>({
+    // Map coach evaluation — parses with zod then transforms snake→camel.
+    // Server also echoes the desktop-computed `runStateSnapshot` back so the
+    // caller can forward it to `/api/choice` for persistence.
+    evaluateMap: build.mutation<MapCoachEvaluation, MapPromptRequest>({
       async queryFn(args) {
         try {
           const raw = await evalFetch<unknown>({
@@ -177,26 +204,14 @@ export const evaluationApi = createApi({
             mapPrompt: args.mapPrompt,
             runId: args.runId,
             gameVersion: args.gameVersion,
+            runStateSnapshot: args.runStateSnapshot,
           });
-          const parsed = mapEvalResponseSchema.parse(raw);
-          const data: MapPathEvaluation = {
-            rankings: parsed.rankings.map((r) => ({
-              optionIndex: r.option_index,
-              nodeType: r.node_type ?? "",
-              tier: r.tier,
-              confidence: r.confidence,
-              recommendation: r.recommendation ?? deriveRecommendationFromTier(r.tier),
-              reasoning: r.reasoning,
-            })),
-            overallAdvice: parsed.overall_advice,
-            // recommendedPath is populated client-side by the map retrace
-            // listener (mapPathRetraced). Haiku's tool schema has never
-            // included it — the old `raw.recommended_path` reader was
-            // dead code that always returned []. Initialize empty.
-            recommendedPath: [],
-            nodePreferences: parsed.node_preferences,
-          };
-          return { data };
+          // Server response is map-coach output + optional `runStateSnapshot`
+          // echo. Strip the echo before zod-parsing since the schema is strict.
+          const { runStateSnapshot: _echo, ...rest } = (raw as Record<string, unknown>) ?? {};
+          void _echo;
+          const parsed = mapCoachOutputSchema.parse(rest);
+          return { data: adaptMapCoach(parsed) };
         } catch (err) {
           return { error: { status: "CUSTOM_ERROR", data: err instanceof Error ? err.message : "Eval failed" } };
         }
@@ -299,6 +314,8 @@ export const evaluationApi = createApi({
       userId?: string | null;
       gameContext?: unknown;
       evalPending?: boolean;
+      /** Optional run-state snapshot — set on map_node choices */
+      runStateSnapshot?: unknown;
     }>({
       async queryFn(args) {
         try {

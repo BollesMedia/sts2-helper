@@ -1,6 +1,5 @@
 import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
-import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import type { MapNodeType } from "@sts2/shared/evaluation/map-coach-schema";
 import {
   buildCompactContext,
@@ -8,6 +7,7 @@ import {
 } from "@sts2/shared/evaluation/prompt-builder";
 import {
   computeRunState,
+  type RunState,
   type RunStateInputs,
 } from "@sts2/shared/evaluation/map/run-state";
 import {
@@ -23,20 +23,6 @@ export interface NodePreferences {
   rest: number;
   treasure: number;
   event: number;
-}
-
-export interface MapPathEvaluation {
-  rankings: {
-    optionIndex: number;
-    nodeType: string;
-    tier: TierLetter;
-    confidence: number;
-    recommendation: string;
-    reasoning: string;
-  }[];
-  overallAdvice: string | null;
-  recommendedPath: { col: number; row: number }[];
-  nodePreferences: NodePreferences | null;
 }
 
 export interface MapCoachEvaluation {
@@ -106,12 +92,16 @@ function walkPathNodes(
 
 /**
  * Build the map evaluation prompt — run-state facts block + reasoning scaffold.
+ *
+ * Returns both the prompt string and the computed `RunState` so the caller can
+ * forward the snapshot to `/api/evaluate` (for echo into the response) and
+ * ultimately to `/api/choice` for persistence in `choices.run_state_snapshot`.
  */
 export function buildMapPrompt(params: {
   context: EvaluationContext;
   state: MapState;
   cardRemovalCost: number | null;
-}): string {
+}): { prompt: string; runState: RunState } {
   const { context, state, cardRemovalCost } = params;
   const contextStr = buildCompactContext(context);
   const options = state.map.next_options;
@@ -179,9 +169,11 @@ export function buildMapPrompt(params: {
   const enriched = enrichPaths(candidates, runState, treasureFloorByPath);
   const factsBlock = formatFactsBlock(runState, enriched);
 
-  return `${contextStr}
+  const prompt = `${contextStr}
 
 ${factsBlock}
 
 ${MAP_PATHING_SCAFFOLD}`;
+
+  return { prompt, runState };
 }

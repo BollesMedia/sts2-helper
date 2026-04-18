@@ -82,6 +82,10 @@ exceed this. (Any extras are discarded server-side.)
 
 confidence is a float between 0 and 1. Anything outside that range is clamped
 by the server.
+
+Each entry in macro_path.floors MUST set node_id to the exact "col,row"
+coordinate string for that floor (e.g., "2,5") — the client uses this to map
+the recommended path onto the map graph.
 `.trim();
 
 // --- Type-Specific Addenda ---

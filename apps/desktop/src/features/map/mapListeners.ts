@@ -16,7 +16,8 @@ import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder"
 import { getPromptContext, updateFromContext, appendDecision } from "@sts2/shared/evaluation/run-narrative";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
-import { computeMapEvalKey, buildMapPrompt, type MapPathEvaluation } from "../../lib/eval-inputs/map";
+import { computeMapEvalKey, buildMapPrompt } from "../../lib/eval-inputs/map";
+import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { traceConstraintAwarePath } from "../../views/map/constraint-aware-tracer";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
@@ -32,6 +33,18 @@ import { getLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-regis
 import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "map" as const;
+
+/**
+ * Last computed run-state for the active map eval. Keyed by runId so that a
+ * run change clears it implicitly (we simply miss until the next eval). The
+ * map_node choice write path reads this to populate `runStateSnapshot` on
+ * `/api/choice` — it fires the moment the player moves, which may be before
+ * the eval response for THAT position arrives, so we use the last known
+ * snapshot (the one the player was looking at when they decided). Good
+ * enough for phase 1 persistence; a tighter guarantee would require pairing
+ * the snapshot with the evalKey.
+ */
+const lastMapRunState = new Map<string, unknown>();
 
 /**
  * Map evaluation listener.
@@ -126,11 +139,14 @@ export function setupMapEvalListener() {
             const lastEval = getLastEvaluation("map");
             const isEvalPending = !lastEval;
 
+            const runId = state.run.activeRunId;
+            const runStateSnapshot = runId ? lastMapRunState.get(runId) ?? null : null;
+
             waitForRunCreated()
               .then(() => {
                 listenerApi.dispatch(
                   evaluationApi.endpoints.logChoice.initiate({
-                    runId: state.run.activeRunId,
+                    runId,
                     choiceType: "map_node",
                     floor: run.floor,
                     act: run.act,
@@ -153,6 +169,7 @@ export function setupMapEvalListener() {
                     },
                     evalPending: isEvalPending,
                     userId: getUserId(),
+                    runStateSnapshot,
                   })
                 );
               })
@@ -361,11 +378,17 @@ export function setupMapEvalListener() {
       listenerApi.dispatch(mapEvalUpdated({ ...preEval, bestPathNodes: preEval.recommendedNodes }));
 
       try {
-        const mapPrompt = buildMapPrompt({
+        const { prompt: mapPrompt, runState } = buildMapPrompt({
           context: ctx,
           state: mapState,
           cardRemovalCost: player?.cardRemovalCost ?? null,
         });
+
+        // Cache the computed run-state for the map_node choice write path.
+        const activeRunIdForCache = state.run.activeRunId;
+        if (activeRunIdForCache) {
+          lastMapRunState.set(activeRunIdForCache, runState);
+        }
 
         logDevEvent("eval", "map_api_request", {
           context: ctx,
@@ -384,92 +407,59 @@ export function setupMapEvalListener() {
               mapPrompt,
               runId: null,
               gameVersion: null,
+              runStateSnapshot: runState,
             })
           )
           .unwrap();
         logDevEvent("eval", "map_api_response", parsed);
 
-        // --- Post-API path tracing ---
-        // Find best option for primary path trace
-        const tierOrder = ["S", "A", "B", "C", "D", "F"];
-        const bestRanking = parsed.rankings.length > 0
-          ? parsed.rankings.reduce((a, b) => {
-              const aTier = tierOrder.indexOf(a.tier);
-              const bTier = tierOrder.indexOf(b.tier);
-              if (aTier !== bTier) return aTier < bTier ? a : b;
-              return (a.confidence ?? 0) >= (b.confidence ?? 0) ? a : b;
-            })
-          : null;
-        const bestOpt = bestRanking
-          ? options.find((_, i) => i + 1 === bestRanking.optionIndex)
-          : null;
+        // --- Post-API path derivation ---
+        // The map coach returns a pre-computed macro path (one node per
+        // future floor). Convert `node_id` ("col,row") back to coordinates
+        // for UI highlighting and deviation detection.
+        const coachPath: { col: number; row: number }[] = parsed.macroPath.floors
+          .map((f) => {
+            const [colStr, rowStr] = f.nodeId.split(",");
+            return { col: Number(colStr), row: Number(rowStr) };
+          })
+          .filter((p) => Number.isFinite(p.col) && Number.isFinite(p.row));
 
-        const tracerInput = {
-          nodes: allNodes,
-          bossPos,
-          nodePreferences: parsed.nodePreferences,
-          hpPercent: hpPct,
-          gold: mapPlayer?.gold ?? 0,
-          act,
-          ascension: run.ascension,
-          maxHp: mapPlayer?.max_hp ?? 80,
-          currentRemovalCost: player?.cardRemovalCost ?? 75,
-        };
-
-        // Trace from the best option; fall back to first option if
-        // bestOpt is null (e.g., option_index mismatch from LLM).
-        const traceStart = bestOpt ?? options[0] ?? null;
-        const tracedPath = traceStart
-          ? traceConstraintAwarePath({
-              startCol: traceStart.col,
-              startRow: traceStart.row,
-              ...tracerInput,
-            })
-          : parsed.recommendedPath;
-        logDevEvent("eval", "map_tracer_result", {
-          tracerInput,
-          tracedPath,
-        });
-
-        // Prepend the current position so the recommended path covers
-        // the full visual range from where the player is standing.
+        // Prepend current position so the highlighted range covers from where
+        // the player is standing.
         const currentPos = mapState.map?.current_position ?? null;
         const fullPath = currentPos &&
-          (tracedPath.length === 0 || tracedPath[0].col !== currentPos.col || tracedPath[0].row !== currentPos.row)
-          ? [{ col: currentPos.col, row: currentPos.row }, ...tracedPath]
-          : tracedPath;
+          (coachPath.length === 0 ||
+            coachPath[0].col !== currentPos.col ||
+            coachPath[0].row !== currentPos.row)
+          ? [{ col: currentPos.col, row: currentPos.row }, ...coachPath]
+          : coachPath;
 
-        // Build recommendedNodes from ALL options (for UI highlighting)
+        logDevEvent("eval", "map_coach_path", { coachPath, fullPath });
+
+        // recommendedNodes = all candidate next options + their downstream
+        // projections (we no longer have per-option projections from the
+        // model; use the coach path for all highlighting).
         const recommendedNodes = new Set<string>();
         for (const opt of options) {
           recommendedNodes.add(`${opt.col},${opt.row}`);
-          const optPath = traceConstraintAwarePath({
-            startCol: opt.col,
-            startRow: opt.row,
-            ...tracerInput,
-          });
-          for (const p of optPath) {
-            recommendedNodes.add(`${p.col},${p.row}`);
-          }
-        }
-        for (const p of parsed.recommendedPath) {
-          recommendedNodes.add(`${p.col},${p.row}`);
         }
         for (const p of fullPath) {
           recommendedNodes.add(`${p.col},${p.row}`);
         }
 
-        // Build bestPathNodes from the full path (includes current position
-        // so the next poll sees isOnPath=true and doesn't spuriously re-trace)
         const bestPathNodes = new Set<string>();
         for (const p of fullPath) {
           bestPathNodes.add(`${p.col},${p.row}`);
         }
-        for (const p of parsed.recommendedPath) {
-          bestPathNodes.add(`${p.col},${p.row}`);
-        }
 
-        // Persist path + context + nodePreferences to Redux
+        // First entry on the coach path — used for backfill + best-option lookup.
+        const bestOpt = coachPath.length > 0
+          ? options.find((o) => o.col === coachPath[0].col && o.row === coachPath[0].row) ?? null
+          : null;
+
+        // Persist path + context to Redux. `nodePreferences` is left intact
+        // from prior evals (the coach doesn't produce them; Tier 1 retrace
+        // still uses the last known set if any).
         listenerApi.dispatch(mapEvalUpdated({
           recommendedPath: fullPath,
           recommendedNodes: [...recommendedNodes],
@@ -481,20 +471,14 @@ export function setupMapEvalListener() {
             gold: mapPlayer?.gold ?? 0,
             ascension: run.ascension,
           },
-          nodePreferences: parsed.nodePreferences,
         }));
         logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_map_eval");
 
         registerLastEvaluation("map", {
-          recommendedId: parsed.rankings?.[0]?.nodeType ?? null,
-          recommendedTier: parsed.rankings?.[0]?.tier ?? null,
-          reasoning: parsed.rankings?.[0]?.reasoning ?? parsed.overallAdvice ?? "",
-          allRankings: (parsed.rankings ?? []).map((r) => ({
-            itemId: r.nodeType,
-            itemName: r.nodeType,
-            tier: r.tier,
-            recommendation: r.recommendation,
-          })),
+          recommendedId: bestOpt ? `${bestOpt.col},${bestOpt.row}` : null,
+          recommendedTier: null,
+          reasoning: parsed.headline,
+          allRankings: [],
           evalType: "map",
         });
 
@@ -502,19 +486,13 @@ export function setupMapEvalListener() {
         const activeRunId = state.run.activeRunId;
         const pendingMapNode = getPendingChoice(floor, "map_node");
         if (pendingMapNode && activeRunId) {
-          // Use col,row format to match the original choice log's recommendedItemId
           const recommendedNodeId = bestOpt ? `${bestOpt.col},${bestOpt.row}` : null;
           const backfill = buildBackfillPayload(
             activeRunId,
             {
               recommendedId: recommendedNodeId,
-              recommendedTier: parsed.rankings?.[0]?.tier ?? null,
-              allRankings: (parsed.rankings ?? []).map((r) => ({
-                itemId: r.nodeType,
-                itemName: r.nodeType,
-                tier: r.tier,
-                recommendation: r.recommendation,
-              })),
+              recommendedTier: null,
+              allRankings: [],
             },
             pendingMapNode
           );
@@ -525,6 +503,7 @@ export function setupMapEvalListener() {
               chosenItemId: pendingMapNode.chosenItemId,
               offeredItemIds: [],
               userId: getUserId(),
+              runStateSnapshot: runState,
             })
           );
 

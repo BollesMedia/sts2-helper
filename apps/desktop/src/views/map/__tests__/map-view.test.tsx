@@ -6,6 +6,7 @@ import {
   createMapState,
   createMapEvaluation,
   createPreloadedState,
+  DEFAULT_RECOMMENDED_PATH,
   TEST_NODES,
 } from "../../../__tests__/fixtures/map-state";
 import { MapView } from "../map-view";
@@ -94,16 +95,16 @@ describe("MapView", () => {
     });
   });
 
-  describe("fresh evaluation (rankings match current options)", () => {
+  describe("fresh evaluation (coach output matches current options)", () => {
     function setupFreshEval() {
       const state = createMapState();
       const evaluation = createMapEvaluation();
       const evalKey = computeMapEvalKey(state.map.next_options);
       const preloaded = createPreloadedState({
         mapEval: {
-          recommendedPath: evaluation.recommendedPath,
-          recommendedNodes: evaluation.recommendedPath.map((p) => `${p.col},${p.row}`),
-          bestPathNodes: evaluation.recommendedPath.map((p) => `${p.col},${p.row}`),
+          recommendedPath: DEFAULT_RECOMMENDED_PATH,
+          recommendedNodes: DEFAULT_RECOMMENDED_PATH.map((p) => `${p.col},${p.row}`),
+          bestPathNodes: DEFAULT_RECOMMENDED_PATH.map((p) => `${p.col},${p.row}`),
         },
         mapEvalEntry: {
           evalKey,
@@ -123,7 +124,7 @@ describe("MapView", () => {
       expect(bestEdges.length).toBe(1);
     });
 
-    it("renders Best badge on exactly one sidebar card", () => {
+    it("renders Best badge on exactly one option chip", () => {
       const { state, preloaded } = setupFreshEval();
       const { container } = renderWithStore(<MapView state={state} />, {
         preloadedState: preloaded,
@@ -133,6 +134,13 @@ describe("MapView", () => {
         (s) => s.textContent === "Best",
       );
       expect(bestBadges.length).toBe(1);
+    });
+
+    it("renders the coach headline in the sidebar", () => {
+      const { state, preloaded, evaluation } = setupFreshEval();
+      renderWithStore(<MapView state={state} />, { preloadedState: preloaded });
+
+      expect(screen.getByText(evaluation.headline)).toBeTruthy();
     });
 
     it("renders green path edges beyond the best option", () => {
@@ -229,16 +237,14 @@ describe("MapView", () => {
       // by checking that NO stale eval data leaks into the sidebar
     });
 
-    it("does NOT show stale tier badges or reasoning in sidebar", () => {
+    it("does NOT show stale coach output in sidebar", () => {
       const { state, preloaded } = setupStaleEval();
-      const { container } = renderWithStore(<MapView state={state} />, {
-        preloadedState: preloaded,
-      });
+      renderWithStore(<MapView state={state} />, { preloadedState: preloaded });
 
-      // After fix: evalMatchesCurrentOptions=false → evalData=undefined → no stale reasoning.
-      const paragraphs = Array.from(container.querySelectorAll("p")).map((p) => p.textContent);
-      expect(paragraphs).not.toContain("Elite gives relic");
-      expect(paragraphs).not.toContain("Shop is decent");
+      // With evalMatchesCurrentOptions=false the sidebar hides the entire
+      // coach block (headline, reasoning, branches). The stale fixture
+      // headline should not appear anywhere on screen.
+      expect(screen.queryByText("Take the elite path for the relic.")).not.toBeTruthy();
     });
 
     it("shows Best badge on the path-derived option, not the stale-index option", () => {
@@ -322,16 +328,15 @@ describe("MapView", () => {
     });
   });
 
-  describe("sidebar option cards", () => {
-    it("renders one card per next option", () => {
+  describe("sidebar option chips", () => {
+    it("renders one chip per next option with its node type", () => {
       const state = createMapState();
       const preloaded = createPreloadedState();
       renderWithStore(<MapView state={state} />, { preloadedState: preloaded });
 
-      // 2 next options — sidebar cards show type names
+      // 2 next options — chips show type names alongside the SVG labels
       const elites = screen.getAllByText("Elite");
       const shops = screen.getAllByText("Shop");
-      // At least 1 card each (may also appear in SVG labels)
       expect(elites.length).toBeGreaterThanOrEqual(1);
       expect(shops.length).toBeGreaterThanOrEqual(1);
     });

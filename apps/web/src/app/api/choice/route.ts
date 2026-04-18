@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/api-auth";
 
-const choiceSchema = z.object({
+export const choiceSchema = z.object({
   runId: z.string().nullable().optional(),
   choiceType: z.string().min(1),
   floor: z.number().int().min(0).optional(),
@@ -17,6 +17,8 @@ const choiceSchema = z.object({
   rankingsSnapshot: z.unknown().nullable().optional(),
   gameContext: z.unknown().nullable().optional(),
   evalPending: z.boolean().optional(),
+  /** Run-state snapshot for map_node choices — persisted as jsonb. */
+  runStateSnapshot: z.unknown().nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
     rankings_snapshot: (d.rankingsSnapshot ?? null) as import("@sts2/shared/types/database.types").Json,
     game_context: (d.gameContext ?? null) as import("@sts2/shared/types/database.types").Json,
     eval_pending: d.evalPending ?? false,
+    run_state_snapshot: (d.runStateSnapshot ?? null) as import("@sts2/shared/types/database.types").Json,
   };
 
   const { error } = await supabase

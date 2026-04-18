@@ -1,5 +1,5 @@
 import type { MapState, MapNode, MapNextOption, MultiplayerFields } from "@sts2/shared/types/game-state";
-import type { MapPathEvaluation } from "../../lib/eval-inputs/map";
+import type { MapCoachEvaluation } from "../../lib/eval-inputs/map";
 import type { MapEvalState, RunData } from "../../features/run/runSlice";
 import type { EvalEntry } from "../../features/evaluation/evaluationSlice";
 import { createEmptyEvals } from "../test-utils";
@@ -57,40 +57,50 @@ export function createMapState(
 
 // --- Evaluation Factory ---
 
-/** Create a MapPathEvaluation matching the default map state (2 options at row 0) */
+/** Create a MapCoachEvaluation matching the default map state (2 options at row 0) */
 export function createMapEvaluation(
-  overrides: Partial<MapPathEvaluation> = {},
-): MapPathEvaluation {
+  overrides: Partial<MapCoachEvaluation> = {},
+): MapCoachEvaluation {
   return {
-    rankings: [
+    reasoning: {
+      riskCapacity: "Healthy buffer, can push for elites.",
+      actGoal: "Reach boss with 70%+ HP and one more relic.",
+    },
+    headline: "Take the elite path for the relic.",
+    confidence: 0.85,
+    macroPath: {
+      floors: [
+        { floor: 1, nodeType: "elite", nodeId: "0,1" },
+        { floor: 2, nodeType: "rest", nodeId: "0,2" },
+        { floor: 3, nodeType: "unknown", nodeId: "1,3" },
+      ],
+      summary: "Elite → Rest → Boss.",
+    },
+    keyBranches: [
       {
-        optionIndex: 1,
-        nodeType: "Elite",
-        tier: "A",
-        confidence: 0.85,
-        recommendation: "strong_pick",
-        reasoning: "Elite gives relic",
-      },
-      {
-        optionIndex: 2,
-        nodeType: "Shop",
-        tier: "B",
-        confidence: 0.6,
-        recommendation: "good_pick",
-        reasoning: "Shop is decent",
+        floor: 1,
+        decision: "Elite vs Shop",
+        recommended: "Elite",
+        alternatives: [{ option: "Shop", tradeoff: "No relic, costs gold" }],
+        closeCall: false,
       },
     ],
-    overallAdvice: "Take the elite path.",
-    recommendedPath: [
-      { col: 1, row: 0 },
-      { col: 0, row: 1 },
-      { col: 0, row: 2 },
-      { col: 1, row: 3 },
-    ],
-    nodePreferences: null,
+    teachingCallouts: [],
     ...overrides,
   };
 }
+
+/**
+ * Expose the recommendedPath fixture separately — it used to live on the
+ * evaluation, but the new shape doesn't carry it. Tests that need the default
+ * 4-node recommended path can spread this into `createPreloadedState`.
+ */
+export const DEFAULT_RECOMMENDED_PATH: { col: number; row: number }[] = [
+  { col: 1, row: 0 },
+  { col: 0, row: 1 },
+  { col: 0, row: 2 },
+  { col: 1, row: 3 },
+];
 
 // --- Redux Preloaded State Factory ---
 
