@@ -188,6 +188,19 @@ async fn run_poll_loop(app: AppHandle, base_url: String, state: PollerHandle) {
     }
 }
 
+#[tauri::command]
+pub async fn get_latest_game_state(
+    state: tauri::State<'_, PollerHandle>,
+) -> Result<PollResult, String> {
+    match state.latest.read().await.clone() {
+        Some(result) => Ok(result),
+        None => Ok(PollResult::Error {
+            status: "NOT_READY".to_string(),
+            message: "Poller has not completed a fetch yet".to_string(),
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
