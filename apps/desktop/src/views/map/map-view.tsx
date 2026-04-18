@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { MapState, MultiplayerFields } from "@sts2/shared/types/game-state";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { selectRecommendedPath } from "../../features/run/runSelectors";
@@ -69,6 +69,7 @@ export function MapView({ state }: MapViewProps) {
   const isLoading = useAppSelector(selectMapLoading);
   const error = useAppSelector(selectMapError);
   const storedEvalKey = useAppSelector(selectMapEvalKey);
+  const [keyDecisionsOpen, setKeyDecisionsOpen] = useState(true);
   const { nodes, current_position, visited, next_options, boss } = state.map;
 
   const maxRow = useMemo(
@@ -342,15 +343,27 @@ export function MapView({ state }: MapViewProps) {
               </p>
             </div>
 
-            {/* Key decisions */}
+            {/* Key decisions — collapsible */}
             {evaluation.keyBranches.length > 0 && (
               <div className="flex flex-col gap-1.5">
-                <h4 className="px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                  Key decisions
-                </h4>
-                {evaluation.keyBranches.map((b, i) => (
-                  <BranchCard key={i} branch={b} />
-                ))}
+                <button
+                  type="button"
+                  onClick={() => setKeyDecisionsOpen((v) => !v)}
+                  aria-expanded={keyDecisionsOpen}
+                  className="flex w-full items-center justify-between gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-300"
+                >
+                  <span>Key decisions ({evaluation.keyBranches.length})</span>
+                  <span
+                    aria-hidden
+                    className={`transition-transform ${keyDecisionsOpen ? "rotate-90" : ""}`}
+                  >
+                    ▸
+                  </span>
+                </button>
+                {keyDecisionsOpen &&
+                  evaluation.keyBranches.map((b, i) => (
+                    <BranchCard key={i} branch={b} />
+                  ))}
               </div>
             )}
 

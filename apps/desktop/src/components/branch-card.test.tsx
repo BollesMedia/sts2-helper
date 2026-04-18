@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { BranchCard } from "./branch-card";
 
 describe("BranchCard", () => {
@@ -21,8 +21,16 @@ describe("BranchCard", () => {
     expect(screen.getByText(/Recommend: Elite/)).toBeInTheDocument();
   });
 
-  it("renders all alternatives with tradeoffs", () => {
+  it("hides alternatives by default", () => {
     render(<BranchCard branch={branch} />);
+    expect(screen.queryByText(/Safer, lose relic/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/next rest absorbs cost/)).not.toBeInTheDocument();
+  });
+
+  it("shows alternatives after the toggle is clicked", () => {
+    render(<BranchCard branch={branch} />);
+    const toggle = screen.getByRole("button", { expanded: false });
+    fireEvent.click(toggle);
     expect(screen.getByText(/Safer, lose relic/)).toBeInTheDocument();
     expect(screen.getByText(/next rest absorbs cost/)).toBeInTheDocument();
   });

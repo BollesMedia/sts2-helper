@@ -44,10 +44,14 @@ const paths: EnrichedPath[] = [
     ],
     aggregates: {
       elitesTaken: 1,
+      monstersTaken: 1,
       restsTaken: 1,
       shopsTaken: 0,
       hardPoolFightsOnPath: 1,
+      totalFights: 2,
       projectedHpEnteringPreBossRest: 38,
+      fightBudgetStatus: "within_budget",
+      hpProjectionVerdict: "safe",
     },
   },
 ];
@@ -63,7 +67,9 @@ describe("formatFactsBlock", () => {
     expect(out).toContain("=== CANDIDATE PATHS ===");
     expect(out).toContain("Path 1:");
     expect(out).toContain("Patterns: rest_after_elite");
-    expect(out).toContain("Aggregate: 1 elites");
+    expect(out).toContain("Aggregate: 2 fights (1M+1E)");
+    expect(out).toContain("fightBudget: WITHIN_BUDGET");
+    expect(out).toContain("HP_risk: SAFE");
   });
 
   it("emits @col,row tokens so the LLM can copy node_id verbatim", () => {
@@ -86,10 +92,14 @@ describe("formatFactsBlock", () => {
         patterns: [],
         aggregates: {
           elitesTaken: 1,
+          monstersTaken: 1,
           restsTaken: 0,
           shopsTaken: 0,
           hardPoolFightsOnPath: 0,
+          totalFights: 2,
           projectedHpEnteringPreBossRest: 50,
+          fightBudgetStatus: "within_budget",
+          hpProjectionVerdict: "safe",
         },
       },
     ];
@@ -138,10 +148,14 @@ describe("formatFactsBlock", () => {
         patterns: [],
         aggregates: {
           elitesTaken: 0,
+          monstersTaken: 1,
           restsTaken: 0,
           shopsTaken: 0,
           hardPoolFightsOnPath: 0,
+          totalFights: 1,
           projectedHpEnteringPreBossRest: 50,
+          fightBudgetStatus: "within_budget",
+          hpProjectionVerdict: "safe",
         },
       },
     ];

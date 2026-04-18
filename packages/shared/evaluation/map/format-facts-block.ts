@@ -86,8 +86,10 @@ export function formatFactsBlock(runState: RunState, paths: EnrichedPath[]): str
     const sequence = p.nodes.map((n) => pathNodeToken(n.type, n.floor, n.nodeId)).join(" \u2192 ");
     lines.push(`Path ${i + 1}: ${sequence}`);
     lines.push(`  Patterns: ${describePatterns(p)}`);
+    const fightBudgetLabel = p.aggregates.fightBudgetStatus.toUpperCase();
+    const hpRiskLabel = p.aggregates.hpProjectionVerdict.toUpperCase();
     lines.push(
-      `  Aggregate: ${p.aggregates.elitesTaken} elites | ${p.aggregates.restsTaken} rests | ${p.aggregates.shopsTaken} shops | HP_proj_pre_boss_rest \u2248 ${p.aggregates.projectedHpEnteringPreBossRest}`,
+      `  Aggregate: ${p.aggregates.totalFights} fights (${p.aggregates.monstersTaken}M+${p.aggregates.elitesTaken}E) | ${p.aggregates.restsTaken} rests | ${p.aggregates.shopsTaken} shops | fightBudget: ${fightBudgetLabel} | HP_risk: ${hpRiskLabel} | HP_proj_pre_boss_rest \u2248 ${p.aggregates.projectedHpEnteringPreBossRest}`,
     );
   });
 

@@ -91,6 +91,29 @@ macro_path should correspond to one node from the facts block.
 The FIRST floor in macro_path.floors MUST be the chosen next-option node —
 i.e., the root (first node) of one of the Path sequences in CANDIDATE PATHS.
 Do NOT include the player's current position as the first floor.
+
+macro_path.floors MUST include EVERY node from the chosen next-option through
+the act boss, inclusive. Copy the entire Path sequence you selected from
+CANDIDATE PATHS — do not skip intermediate floors, do not truncate early, do
+not omit the boss. A partial path breaks the client's path highlighting.
+
+PATH SELECTION RULES (HARD CONSTRAINTS — apply before reasoning):
+- Do NOT recommend a path whose fightBudget is EXCEEDS_BUDGET unless ALL
+  candidate paths are also EXCEEDS_BUDGET — in which case pick the one
+  closest to TIGHT (fewest fights over the effective budget).
+- Do NOT recommend a path whose HP_risk is CRITICAL unless no alternative
+  has a better HP_risk verdict (SAFE or RISKY beats CRITICAL).
+- If the best remaining path is still fightBudget=TIGHT or HP_risk=RISKY,
+  state the tradeoff explicitly in \`reasoning.act_goal\` so the player
+  understands why it's still the best choice.
+
+BE CONCISE:
+- \`headline\`: one sentence max.
+- \`reasoning.risk_capacity\` and \`reasoning.act_goal\`: two sentences each max.
+- Each branch \`decision\` is a short question (≤ 10 words).
+- Each branch \`recommended\` is the answer (≤ 15 words).
+- Each branch \`alternatives[].tradeoff\` is one sentence.
+- Each \`teaching_callouts[].explanation\` is one sentence.
 `.trim();
 
 // --- Type-Specific Addenda ---

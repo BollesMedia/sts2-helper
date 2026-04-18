@@ -18,14 +18,21 @@ export interface CandidatePath {
   nodes: PathNode[];
 }
 
+export type FightBudgetStatus = "within_budget" | "tight" | "exceeds_budget";
+export type HpProjectionVerdict = "safe" | "risky" | "critical";
+
 export interface EnrichedPath extends CandidatePath {
   patterns: PathPattern[];
   aggregates: {
     elitesTaken: number;
+    monstersTaken: number;
     restsTaken: number;
     shopsTaken: number;
     hardPoolFightsOnPath: number;
+    totalFights: number;
     projectedHpEnteringPreBossRest: number;
+    fightBudgetStatus: FightBudgetStatus;
+    hpProjectionVerdict: HpProjectionVerdict;
   };
 }
 
@@ -65,21 +72,42 @@ export function enrichPaths(
       0,
       monstersOnPath - runState.monsterPool.fightsUntilHardPool,
     );
-    const fightsOnPath = elitesTaken + monstersOnPath;
+    const totalFights = elitesTaken + monstersOnPath;
     const projectedHpEnteringPreBossRest = Math.max(
       0,
-      runState.hp.current - runState.riskCapacity.expectedDamagePerFight * fightsOnPath,
+      runState.hp.current - runState.riskCapacity.expectedDamagePerFight * totalFights,
     );
+
+    // Rests roughly restore ~30% max HP — translate to "fight equivalents".
+    const restEquivalents = restsTaken * 2;
+    const effectiveBudget =
+      runState.riskCapacity.fightsBeforeDanger + restEquivalents;
+
+    let fightBudgetStatus: FightBudgetStatus;
+    if (totalFights <= effectiveBudget) fightBudgetStatus = "within_budget";
+    else if (totalFights <= effectiveBudget * 1.3) fightBudgetStatus = "tight";
+    else fightBudgetStatus = "exceeds_budget";
+
+    const projectedRatio =
+      projectedHpEnteringPreBossRest / Math.max(1, runState.hp.max);
+    let hpProjectionVerdict: HpProjectionVerdict;
+    if (projectedRatio >= 0.5) hpProjectionVerdict = "safe";
+    else if (projectedRatio >= 0.3) hpProjectionVerdict = "risky";
+    else hpProjectionVerdict = "critical";
 
     return {
       ...p,
       patterns,
       aggregates: {
         elitesTaken,
+        monstersTaken: monstersOnPath,
         restsTaken,
         shopsTaken,
         hardPoolFightsOnPath,
+        totalFights,
         projectedHpEnteringPreBossRest,
+        fightBudgetStatus,
+        hpProjectionVerdict,
       },
     };
   });
