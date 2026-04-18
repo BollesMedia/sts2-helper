@@ -2,8 +2,19 @@ import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-s
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import type { MapNodeType } from "@sts2/shared/evaluation/map-coach-schema";
-import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
-import { NODE_TYPE_ICONS } from "../../views/map/map-scoring";
+import {
+  buildCompactContext,
+  MAP_PATHING_SCAFFOLD,
+} from "@sts2/shared/evaluation/prompt-builder";
+import {
+  computeRunState,
+  type RunStateInputs,
+} from "@sts2/shared/evaluation/map/run-state";
+import {
+  enrichPaths,
+  type CandidatePath,
+} from "@sts2/shared/evaluation/map/enrich-paths";
+import { formatFactsBlock } from "@sts2/shared/evaluation/map/format-facts-block";
 
 export interface NodePreferences {
   monster: number;
@@ -55,8 +66,46 @@ export function computeMapEvalKey(options: MapNextOption[]): string {
 
 export { computeMapContentKey } from "@sts2/shared/evaluation/map-content-key";
 
+function mapNodeTypeToToken(type: string): CandidatePath["nodes"][number]["type"] {
+  switch (type) {
+    case "Monster":
+      return "monster";
+    case "Elite":
+      return "elite";
+    case "Rest":
+    case "RestSite":
+      return "rest";
+    case "Shop":
+      return "shop";
+    case "Treasure":
+      return "treasure";
+    case "Event":
+      return "event";
+    case "Boss":
+      return "boss";
+    default:
+      return "unknown";
+  }
+}
+
+function walkPathNodes(
+  start: MapNode,
+  all: MapNode[],
+  maxDepth = 20,
+): CandidatePath["nodes"] {
+  const byKey = new Map(all.map((n) => [`${n.col},${n.row}`, n]));
+  const out: CandidatePath["nodes"] = [];
+  let cur: MapNode | undefined = start;
+  for (let d = 0; d < maxDepth && cur; d++) {
+    out.push({ floor: cur.row, type: mapNodeTypeToToken(cur.type) });
+    if (cur.children.length === 0) break;
+    cur = byKey.get(`${cur.children[0][0]},${cur.children[0][1]}`);
+  }
+  return out;
+}
+
 /**
- * Build the map evaluation prompt with tree visualization.
+ * Build the map evaluation prompt — run-state facts block + reasoning scaffold.
  */
 export function buildMapPrompt(params: {
   context: EvaluationContext;
@@ -70,81 +119,66 @@ export function buildMapPrompt(params: {
   const currentRow = state.map.current_position?.row ?? 0;
   const mapPlayer = state.player ?? state.map?.player;
 
-  // Build node lookup
-  const nodeMap = new Map<string, MapNode>();
-  for (const n of allNodes) {
-    nodeMap.set(`${n.col},${n.row}`, n);
-  }
-
-  function buildTree(col: number, row: number, depth: number, maxDepth: number, indent: string): string[] {
-    const node = nodeMap.get(`${col},${row}`);
-    if (!node) return [];
-    const icon = NODE_TYPE_ICONS[node.type] ?? "•";
-    const lines: string[] = [`${indent}${icon} ${node.type}`];
-    if (depth >= maxDepth || node.children.length === 0) return lines;
-    const childNodes = node.children.map(([cc, cr]) => nodeMap.get(`${cc},${cr}`)).filter(Boolean);
-    if (childNodes.length === 1) {
-      lines.push(...buildTree(childNodes[0]!.col, childNodes[0]!.row, depth + 1, maxDepth, indent));
-    } else {
-      for (const child of childNodes) {
-        if (!child) continue;
-        lines.push(`${indent}  ├─`);
-        lines.push(...buildTree(child.col, child.row, depth + 1, maxDepth, indent + "  │ "));
-      }
-    }
-    return lines;
-  }
-
-  // Walk the primary path (first child at branches) to build a flat summary
-  function walkPath(col: number, row: number, maxDepth: number): string[] {
-    const types: string[] = [];
-    let c = col, r = row;
-    for (let d = 0; d < maxDepth; d++) {
-      const node = nodeMap.get(`${c},${r}`);
-      if (!node) break;
-      types.push(node.type);
-      if (node.children.length === 0) break;
-      [c, r] = node.children[0];
-    }
-    return types;
-  }
-
-  const COMBAT_TYPES = new Set(["Monster", "Elite", "Boss"]);
-
-  const optionsStr = options.map((opt, i) => {
-    const pathTypes = walkPath(opt.col, opt.row, 7);
-    const fights = pathTypes.filter((t) => COMBAT_TYPES.has(t)).length;
-    const elites = pathTypes.filter((t) => t === "Elite").length;
-    const rests = pathTypes.filter((t) => t === "Rest").length;
-    const shops = pathTypes.filter((t) => t === "Shop").length;
-    const summary = pathTypes.join(" → ");
-    const gold = mapPlayer?.gold ?? 0;
-    const stats = [`${fights} fights`, `${elites} elites`, `${rests} rests`, `${shops} shops`].join(", ");
-    const warnings: string[] = [];
-    if (fights >= 4 && rests === 0) warnings.push("⚠ NO REST SITE");
-    if (shops > 0 && cardRemovalCost !== null && gold < cardRemovalCost) {
-      warnings.push(`⚠ SHOP UNAFFORDABLE (${gold}g < ${cardRemovalCost}g removal cost)`);
-    }
-    const warning = warnings.length > 0 ? " " + warnings.join(" ") : "";
-
-    const tree = buildTree(opt.col, opt.row, 0, 6, "   ");
-    return `Option ${i + 1} (${opt.type}): ${summary} (${stats}${warning})\n${tree.join("\n")}`;
-  }).join("\n\n");
-
   const futureNodes = allNodes.filter((n) => n.row > currentRow);
-  const typeCounts: Record<string, number> = {};
-  for (const n of futureNodes) {
-    typeCounts[n.type] = (typeCounts[n.type] ?? 0) + 1;
+
+  const act = (Math.min(3, Math.max(1, context.act || 1)) as 1 | 2 | 3);
+
+  const runStateInputs: RunStateInputs = {
+    player: {
+      hp: mapPlayer?.hp ?? 0,
+      max_hp: mapPlayer?.max_hp ?? 0,
+      gold: mapPlayer?.gold ?? 0,
+    },
+    act,
+    floor: currentRow,
+    ascension: context.ascension ?? 0,
+    deck: {
+      cards: context.deckCards.map((c) => {
+        const upgraded = c.name.includes("+");
+        const baseName = c.name.replace(/\+$/, "");
+        const id = baseName.toLowerCase();
+        return { id, name: baseName, upgraded };
+      }),
+    },
+    relics: context.relics.map((r) => ({ id: r.name, name: r.name })),
+    map: {
+      boss: { row: state.map.boss.row },
+      current_position: state.map.current_position ?? null,
+      visited: state.map.visited.map((v) => ({
+        col: v.col,
+        row: v.row,
+        type: allNodes.find((n) => n.col === v.col && n.row === v.row)?.type ?? "Unknown",
+      })),
+      future: futureNodes.map((n) => ({ col: n.col, row: n.row, type: n.type })),
+    },
+    shopFloorsAhead: futureNodes.filter((n) => n.type === "Shop").map((n) => n.row),
+    cardRemovalCost,
+  };
+
+  const runState = computeRunState(runStateInputs);
+
+  // One candidate path per next_option, walking the primary-child branch.
+  const byKey = new Map(allNodes.map((n) => [`${n.col},${n.row}`, n]));
+  const candidates: CandidatePath[] = options.map((opt, i) => {
+    const start = byKey.get(`${opt.col},${opt.row}`);
+    return {
+      id: String(i + 1),
+      nodes: start ? walkPathNodes(start, allNodes) : [],
+    };
+  });
+
+  const treasureFloorByPath: Record<string, number> = {};
+  for (const p of candidates) {
+    const t = p.nodes.find((n) => n.type === "treasure");
+    if (t) treasureFloorByPath[p.id] = t.floor;
   }
-  const mapOverview = Object.entries(typeCounts).map(([t, c]) => `${t}: ${c}`).join(", ");
+
+  const enriched = enrichPaths(candidates, runState, treasureFloorByPath);
+  const factsBlock = formatFactsBlock(runState, enriched);
 
   return `${contextStr}
 
-HP: ${mapPlayer?.hp ?? 0}/${mapPlayer?.max_hp ?? 0} (${Math.round(((mapPlayer?.hp ?? 0) / Math.max(1, mapPlayer?.max_hp ?? 1)) * 100)}%) | Gold: ${mapPlayer?.gold ?? 0}g | Removal cost: ${cardRemovalCost ?? "?"}g
-Map: ${mapOverview} | Boss in ${state.map.boss.row - currentRow} floors
+${factsBlock}
 
-Paths (each line = node in order, ├─ = branch point):
-${optionsStr}
-
-Return EXACTLY ${options.length} rankings — ONE per path option (${options.map((o, i) => `${i + 1}=${o.type}`).join(", ")}). Evaluate the WHOLE path, not individual nodes.`;
+${MAP_PATHING_SCAFFOLD}`;
 }
