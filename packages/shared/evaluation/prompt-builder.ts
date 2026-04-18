@@ -63,8 +63,10 @@ Before ranking the candidate paths, reason step-by-step:
 2. ACT GOAL: one sentence. What should remaining floors accomplish?
    (e.g., "heal to 70%+ before pre-boss rest; take 1 more elite only if HP
    recovery aligns")
-3. KEY BRANCHES: identify 1–3 floors where the decision is non-obvious.
-   A close call is NOT a failure — say so explicitly and set close_call=true.
+3. KEY BRANCHES: identify 1–3 floors where the decision is non-obvious. At
+   MOST 3 entries — the first three get kept, later entries are dropped by
+   the server. A close call is NOT a failure — say so explicitly and set
+   close_call=true.
 
 Then produce the output. Do not restate game rules; the RUN STATE block already
 computed them. Your job is judgment under the specific run state, not general
@@ -75,7 +77,11 @@ Branch recommendations may be conditional, e.g.:
 
 teaching_callouts should pick 1–4 patterns from the CANDIDATE PATHS facts that
 the player would benefit from understanding — not every pattern, just the
-pedagogically useful ones for this path.
+pedagogically useful ones for this path. At MOST 4 entries — the first four
+get kept, later entries are dropped by the server.
+
+confidence is a float between 0 and 1. Anything outside that range is clamped
+by the server.
 `.trim();
 
 // --- Type-Specific Addenda ---

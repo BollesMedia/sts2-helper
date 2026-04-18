@@ -13,10 +13,14 @@ import {
 import {
   bossBriefingSchema,
   buildCardRewardSchema,
-  buildMapEvalSchema,
   genericEvalSchema,
   simpleEvalSchema,
 } from "@sts2/shared/evaluation/eval-schemas";
+import {
+  mapCoachOutputSchema,
+  sanitizeMapCoachOutput,
+  type MapCoachOutputRaw,
+} from "@sts2/shared/evaluation/map-coach-schema";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
@@ -199,6 +203,14 @@ interface EvaluateRequest {
   runId: string | null;
   gameVersion: string | null;
   goldBudget?: number | null;
+  /**
+   * Optional run-state snapshot computed desktop-side (map coach phase 1).
+   * The server doesn't currently have the raw game state in the request body,
+   * so `RunState` is computed once on the desktop inside `buildMapPrompt` and
+   * echoed back in the response here. See the task-6 DONE_WITH_CONCERNS note
+   * for the duplication trade-off.
+   */
+  runStateSnapshot?: unknown;
 }
 
 export async function POST(request: Request) {
@@ -470,7 +482,6 @@ export async function POST(request: Request) {
       evalType === "card_removal" ||
       evalType === "card_upgrade" ||
       evalType === "card_select";
-    const optionCount = body.mapPrompt.match(/Option \d+/g)?.length ?? 3;
     const callOptions = {
       model: anthropic(EVAL_MODELS.default),
       maxOutputTokens: 2048,
@@ -482,7 +493,7 @@ export async function POST(request: Request) {
       const result = isMapEval
         ? await generateText({
             ...callOptions,
-            output: Output.object({ schema: buildMapEvalSchema(optionCount) }),
+            output: Output.object({ schema: mapCoachOutputSchema }),
           })
         : isSimpleEval
           ? await generateText({
@@ -502,30 +513,26 @@ export async function POST(request: Request) {
         outputTokens: result.usage.outputTokens ?? 0,
       }).catch(console.error);
 
-      // Sanitize rankings for the map path only. Simple/generic evals don't
-      // have a fixed count to enforce. See #54 for the drift patterns
-      // (position 0 summaries, out-of-range placeholders) this handles.
+      // Map coach eval: clamp confidence and truncate key_branches /
+      // teaching_callouts. The schema can't enforce these via zod
+      // min/max because Anthropic's structured-output endpoint rejects the
+      // resulting JSON Schema constraints (#52, #68). See
+      // `map-coach-schema.ts`.
       if (isMapEval) {
-        const mapOutput = result.output as { rankings: { option_index: number }[] };
-        const cleaned = sanitizeRankings({
-          rankings: mapOutput.rankings,
-          indexKey: "option_index",
-          expectedCount: optionCount,
+        const sanitized = sanitizeMapCoachOutput(result.output as MapCoachOutputRaw);
+        console.log("[Evaluate] Map coach output:", JSON.stringify(sanitized));
+        // Echo the desktop-provided run-state snapshot back so the caller can
+        // forward it to `/api/choice` for persistence. This route does not
+        // write to the `choices` table itself; see `apps/web/src/app/api/
+        // choice/route.ts`. The server-side RunState computation the plan
+        // contemplated is deferred — the desktop already computes it once
+        // inside buildMapPrompt, and duplicating the builder on the server
+        // (without raw state in the request body) would add surface area
+        // without value. Noted as a known follow-up.
+        return NextResponse.json({
+          ...sanitized,
+          runStateSnapshot: body.runStateSnapshot ?? null,
         });
-        if (cleaned.length !== optionCount) {
-          console.error(
-            `[Evaluate] Map ranking count mismatch: expected ${optionCount}, got ${cleaned.length} valid (from ${mapOutput.rankings.length} returned). Raw:`,
-            JSON.stringify(mapOutput.rankings),
-          );
-          return NextResponse.json(
-            {
-              error: "Ranking count mismatch",
-              detail: `Expected ${optionCount} rankings, got ${cleaned.length} valid after sanitization`,
-            },
-            { status: 502 },
-          );
-        }
-        mapOutput.rankings = cleaned;
       }
 
       console.log("[Evaluate] Map/freeform output:", JSON.stringify(result.output));
@@ -542,7 +549,7 @@ export async function POST(request: Request) {
           if (repaired !== error.text) {
             try {
               const schema = isMapEval
-                ? buildMapEvalSchema(optionCount)
+                ? mapCoachOutputSchema
                 : isSimpleEval
                   ? simpleEvalSchema
                   : genericEvalSchema;
@@ -556,6 +563,13 @@ export async function POST(request: Request) {
                   inputTokens: error.usage.inputTokens ?? 0,
                   outputTokens: error.usage.outputTokens ?? 0,
                 }).catch(console.error);
+              }
+              if (isMapEval) {
+                const sanitized = sanitizeMapCoachOutput(parsed as MapCoachOutputRaw);
+                return NextResponse.json({
+                  ...sanitized,
+                  runStateSnapshot: body.runStateSnapshot ?? null,
+                });
               }
               return NextResponse.json(parsed);
             } catch {

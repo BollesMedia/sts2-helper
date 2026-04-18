@@ -24,14 +24,21 @@
  * Count enforcement now lives in the route handler via `sanitizeRankings`,
  * which has its own unit test at
  * `packages/shared/evaluation/sanitize-rankings.test.ts`.
+ *
+ * Map coach (#70) uses `mapCoachOutputSchema` + `sanitizeMapCoachOutput`
+ * in the same boundary; cap + clamp enforcement lives on the sanitizer, the
+ * schema side stays constraint-free so Anthropic's structured-output endpoint
+ * doesn't reject the emitted JSON Schema.
  */
 import { describe, it, expect } from "vitest";
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
+import { buildCardRewardSchema } from "@sts2/shared/evaluation/eval-schemas";
 import {
-  buildCardRewardSchema,
-  buildMapEvalSchema,
-} from "@sts2/shared/evaluation/eval-schemas";
+  mapCoachOutputSchema,
+  sanitizeMapCoachOutput,
+  MAP_COACH_LIMITS,
+} from "@sts2/shared/evaluation/map-coach-schema";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 
 // Minimal usage object matching LanguageModelV3Usage shape. The AI SDK
@@ -144,130 +151,166 @@ describe("AI SDK + zod integration (Phase 4.5 smoke)", () => {
     });
   });
 
-  describe("map path (b11bef8 regression guard)", () => {
-    it("validates a map response with node_preferences present", async () => {
-      const mockOutput = {
-        rankings: [
-          {
-            option_index: 1,
-            tier: "S",
-            confidence: 90,
-            reasoning: "Elite gives relic",
-          },
-          {
-            option_index: 2,
-            tier: "B",
-            confidence: 70,
-            reasoning: "Safer route",
-          },
-          {
-            option_index: 3,
-            tier: "C",
-            confidence: 50,
-            reasoning: "Mediocre",
-          },
+  describe("map coach path (#70 — mapCoachOutputSchema + sanitizer)", () => {
+    const validMapCoach = {
+      reasoning: {
+        risk_capacity: "Moderate HP buffer; 2 fights of headroom.",
+        act_goal: "Heal to 70%+ before pre-boss rest.",
+      },
+      headline: "Take f25 elite, rest, treasure.",
+      confidence: 0.82,
+      macro_path: {
+        floors: [
+          { floor: 24, node_type: "monster", node_id: "24,2" },
+          { floor: 25, node_type: "elite", node_id: "25,3" },
+          { floor: 26, node_type: "rest", node_id: "26,3" },
         ],
-        overall_advice: "Go right for the elite",
-        node_preferences: {
-          monster: 0.4,
-          elite: 0.5,
-          shop: 0.5,
-          rest: 0.6,
-          treasure: 0.9,
-          event: 0.5,
+        summary: "Elite then rest then treasure.",
+      },
+      key_branches: [
+        {
+          floor: 25,
+          decision: "Elite or Monster?",
+          recommended: "Elite",
+          alternatives: [{ option: "Monster", tradeoff: "Safer, lose relic." }],
+          close_call: false,
         },
-      };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildMapEvalSchema(3);
+      ],
+      teaching_callouts: [
+        {
+          pattern: "rest_after_elite",
+          floors: [26],
+          explanation: "Heals elite HP cost before the fight cluster.",
+        },
+      ],
+    };
+
+    it("validates a happy-path map coach response against mapCoachOutputSchema", async () => {
+      const model = mockModelWithText(JSON.stringify(validMapCoach));
 
       const result = await generateText({
         model,
         prompt: "evaluate these paths",
-        output: Output.object({ schema }),
+        output: Output.object({ schema: mapCoachOutputSchema }),
       });
 
-      expect(result.output.rankings).toHaveLength(3);
-      expect(result.output.node_preferences).toEqual({
-        monster: 0.4,
-        elite: 0.5,
-        shop: 0.5,
-        rest: 0.6,
-        treasure: 0.9,
-        event: 0.5,
-      });
-      expect(result.output.overall_advice).toBe("Go right for the elite");
+      expect(result.output.headline).toBe("Take f25 elite, rest, treasure.");
+      expect(result.output.confidence).toBeCloseTo(0.82);
+      expect(result.output.macro_path.floors).toHaveLength(3);
+      expect(result.output.key_branches).toHaveLength(1);
+      expect(result.output.teaching_callouts).toHaveLength(1);
     });
 
-    it("throws NoObjectGeneratedError when node_preferences is missing (the b11bef8 silent-drop case)", async () => {
-      const mockOutput = {
-        rankings: [
-          {
-            option_index: 1,
-            tier: "S",
-            confidence: 90,
-            reasoning: "Elite gives relic",
-          },
-          {
-            option_index: 2,
-            tier: "B",
-            confidence: 70,
-            reasoning: "Safer route",
-          },
-          {
-            option_index: 3,
-            tier: "C",
-            confidence: 50,
-            reasoning: "Mediocre",
-          },
-        ],
-        overall_advice: "Go right for the elite",
-        // node_preferences silently omitted — this is the exact shape the
-        // old regex workaround at route.ts:326-366 would have accepted
-        // with nodePreferences: null. The migration must reject it.
+    it("rejects missing reasoning.risk_capacity (the scaffold-bypass case)", async () => {
+      const bad = {
+        ...validMapCoach,
+        reasoning: { act_goal: "heal" },
       };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildMapEvalSchema(3);
+      const model = mockModelWithText(JSON.stringify(bad));
 
       await expect(
         generateText({
           model,
           prompt: "evaluate these paths",
-          output: Output.object({ schema }),
+          output: Output.object({ schema: mapCoachOutputSchema }),
         }),
       ).rejects.toSatisfy(NoObjectGeneratedError.isInstance);
     });
 
-    it("accepts 2 rankings for a 3-option map at the schema layer (count enforcement lives in the route handler post-#54)", async () => {
-      // Same migration as the card_reward case above: count enforcement
-      // moved out of the schema into `sanitizeRankings`. The schema only
-      // validates shape (tier enum, required fields, node_preferences
-      // presence — which is the b11bef8 regression that MUST stay at the
-      // schema layer because it's about a missing required OBJECT, not a
-      // wrong array length).
-      const mockOutput = {
-        rankings: [
-          { option_index: 1, tier: "A", confidence: 80, reasoning: "ok" },
-          { option_index: 2, tier: "B", confidence: 70, reasoning: "ok" },
-        ],
-        overall_advice: "x",
-        node_preferences: {
-          monster: 0.4,
-          elite: 0.5,
-          shop: 0.5,
-          rest: 0.6,
-          treasure: 0.9,
-          event: 0.5,
-        },
+    it("rejects empty macro_path.floors", async () => {
+      const bad = {
+        ...validMapCoach,
+        macro_path: { ...validMapCoach.macro_path, floors: [] },
       };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildMapEvalSchema(3);
+      const model = mockModelWithText(JSON.stringify(bad));
+
+      await expect(
+        generateText({
+          model,
+          prompt: "evaluate these paths",
+          output: Output.object({ schema: mapCoachOutputSchema }),
+        }),
+      ).rejects.toSatisfy(NoObjectGeneratedError.isInstance);
+    });
+
+    it(
+      `accepts >${MAP_COACH_LIMITS.maxKeyBranches} key_branches and >${MAP_COACH_LIMITS.maxTeachingCallouts} teaching_callouts at the schema layer — caps enforced post-parse by sanitizeMapCoachOutput`,
+      async () => {
+        // Same migration as buildMapEvalSchema/card_reward: array-length caps
+        // cannot live in the emitted JSON Schema (Anthropic rejects maxItems
+        // > 1 per #52), so the schema stays constraint-free and the route
+        // handler runs `sanitizeMapCoachOutput` to truncate.
+        const over = {
+          ...validMapCoach,
+          key_branches: Array(5).fill(validMapCoach.key_branches[0]),
+          teaching_callouts: Array(6).fill(validMapCoach.teaching_callouts[0]),
+        };
+        const model = mockModelWithText(JSON.stringify(over));
+
+        const result = await generateText({
+          model,
+          prompt: "evaluate these paths",
+          output: Output.object({ schema: mapCoachOutputSchema }),
+        });
+
+        // Schema accepts over-cap arrays...
+        expect(result.output.key_branches).toHaveLength(5);
+        expect(result.output.teaching_callouts).toHaveLength(6);
+
+        // ...sanitizer enforces caps.
+        const sanitized = sanitizeMapCoachOutput(result.output);
+        expect(sanitized.key_branches).toHaveLength(MAP_COACH_LIMITS.maxKeyBranches);
+        expect(sanitized.teaching_callouts).toHaveLength(
+          MAP_COACH_LIMITS.maxTeachingCallouts,
+        );
+      },
+    );
+
+    it("clamps out-of-range confidence via sanitizeMapCoachOutput", async () => {
+      // Same story as the array caps: `z.number().min/.max` can't live in
+      // the schema (Anthropic rejects number minimum/maximum per #68), so
+      // the sanitizer clamps.
+      const overConfident = { ...validMapCoach, confidence: 1.7 };
+      const model = mockModelWithText(JSON.stringify(overConfident));
 
       const result = await generateText({
         model,
         prompt: "evaluate these paths",
-        output: Output.object({ schema }),
+        output: Output.object({ schema: mapCoachOutputSchema }),
       });
-      expect(result.output.rankings).toHaveLength(2);
+
+      expect(result.output.confidence).toBeCloseTo(1.7);
+      expect(sanitizeMapCoachOutput(result.output).confidence).toBe(1);
+    });
+  });
+
+  // Regression smoke: the route handler attaches the desktop-computed
+  // `runStateSnapshot` onto the map-coach response without touching its shape.
+  // The actual attachment code lives in `route.ts`; this tests the contract
+  // we depend on (a spread of `{...sanitized, runStateSnapshot}` preserves
+  // both sides and doesn't collide with any schema key).
+  describe("runStateSnapshot passthrough contract", () => {
+    it("composes cleanly with a sanitized map coach payload without key collision", () => {
+      const sanitized = sanitizeMapCoachOutput({
+        reasoning: { risk_capacity: "Tight.", act_goal: "Consolidate." },
+        headline: "Skip elite.",
+        confidence: 0.4,
+        macro_path: {
+          floors: [{ floor: 22, node_type: "monster", node_id: "22,1" }],
+          summary: "Monster then rest.",
+        },
+        key_branches: [],
+        teaching_callouts: [],
+      });
+
+      const runStateSnapshot = { riskCapacity: { verdict: "tight" } };
+
+      const body = { ...sanitized, runStateSnapshot };
+      expect(body.runStateSnapshot).toBe(runStateSnapshot);
+      expect(body.headline).toBe("Skip elite.");
+      // Schema keys and `runStateSnapshot` must not alias.
+      expect(Object.keys(body)).toContain("reasoning");
+      expect(Object.keys(body)).toContain("runStateSnapshot");
     });
   });
 });
