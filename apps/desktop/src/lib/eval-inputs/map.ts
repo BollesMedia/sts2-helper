@@ -27,6 +27,24 @@ export interface MapPathEvaluation {
   nodePreferences: NodePreferences | null;
 }
 
+export interface MapCoachEvaluation {
+  reasoning: { riskCapacity: string; actGoal: string };
+  headline: string;
+  confidence: number;
+  macroPath: {
+    floors: { floor: number; nodeType: string; nodeId: string }[];
+    summary: string;
+  };
+  keyBranches: {
+    floor: number;
+    decision: string;
+    recommended: string;
+    alternatives: { option: string; tradeoff: string }[];
+    closeCall: boolean;
+  }[];
+  teachingCallouts: { pattern: string; floors: number[]; explanation: string }[];
+}
+
 /**
  * Compute dedup key from map next options.
  */
