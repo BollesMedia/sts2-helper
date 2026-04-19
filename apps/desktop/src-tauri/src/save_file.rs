@@ -116,6 +116,34 @@ pub fn parse_run_file(path: &Path) -> Result<RunSummary, SaveError> {
     })
 }
 
+pub fn parse_active_save(path: &Path) -> Result<ActiveRun, SaveError> {
+    let bytes = std::fs::read(path)?;
+    let path_str = path.to_string_lossy().to_string();
+    let peeked_version: Option<u32> = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|v| v.get("schema_version").and_then(|x| x.as_u64()).map(|n| n as u32));
+
+    let raw: RawRunFile = serde_json::from_slice(&bytes).map_err(|e| SaveError::Parse {
+        path: path_str.clone(),
+        schema_version: peeked_version,
+        source: e,
+    })?;
+
+    let character = raw
+        .players
+        .first()
+        .map(|p| p.character.clone())
+        .unwrap_or_default();
+
+    Ok(ActiveRun {
+        start_time: raw.start_time,
+        seed: raw.seed,
+        ascension: raw.ascension,
+        character,
+        is_mp: raw.players.len() > 1,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,5 +188,25 @@ mod tests {
     fn parse_run_file_err_on_corrupt_json() {
         let err = parse_run_file(&fixture("corrupt.run")).unwrap_err();
         assert!(matches!(err, SaveError::Parse { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn parse_active_save_detects_singleplayer() {
+        let active = parse_active_save(&fixture("sp_win.run")).expect("parse");
+        // Reusing sp_win.run as a stand-in for current_run.save shape.
+        assert_eq!(active.is_mp, false);
+        assert!(active.start_time > 0);
+    }
+
+    #[test]
+    fn parse_active_save_detects_multiplayer() {
+        let active = parse_active_save(&fixture("current_run_mp.save")).expect("parse");
+        assert_eq!(active.is_mp, true, "len(players) > 1 should imply MP");
+    }
+
+    #[test]
+    fn parse_active_save_err_on_corrupt() {
+        let err = parse_active_save(&fixture("corrupt.run")).unwrap_err();
+        assert!(matches!(err, SaveError::Parse { .. }));
     }
 }
