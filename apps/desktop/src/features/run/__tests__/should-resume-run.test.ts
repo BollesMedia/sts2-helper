@@ -29,6 +29,8 @@ function makeRun(overrides: Partial<RunData> = {}): RunData {
 
 const baseArgs = {
   isFirstRunTransition: true,
+  existingRunId: null,
+  canonicalRunId: null,
   character: "The Ironclad",
   ascension: 8,
   currentFloor: 21,
@@ -118,11 +120,79 @@ describe("shouldResumeRun", () => {
       shouldResumeRun({
         isFirstRunTransition: true,
         existingRun,
+        existingRunId: null,
+        canonicalRunId: null,
         character: "The Ironclad",
         ascension: 8,
         currentFloor: 21,
         currentAct: 2,
       })
     ).toBe(true);
+  });
+});
+
+describe("shouldResumeRun with canonicalRunId", () => {
+  it("returns true when canonicalRunId matches existingRunId", () => {
+    const existing = { runIdSource: "save_file", character: "Ironclad", ascension: 10, floor: 17, act: 3, deck: [{ name: "Strike" }] } as never;
+    expect(
+      shouldResumeRun({
+        isFirstRunTransition: false,
+        existingRun: existing,
+        existingRunId: "1776540732",
+        canonicalRunId: "1776540732",
+        character: "Ironclad",
+        ascension: 10,
+        currentFloor: 17,
+        currentAct: 3,
+      })
+    ).toBe(true);
+  });
+
+  it("returns false when canonicalRunId mismatches and heuristic cannot save it (non-first transition)", () => {
+    const existing = { runIdSource: "save_file", character: "Ironclad", ascension: 10, floor: 17, act: 3, deck: [{ name: "Strike" }] } as never;
+    expect(
+      shouldResumeRun({
+        isFirstRunTransition: true,
+        existingRun: existing,
+        existingRunId: "1776540732",
+        canonicalRunId: "9999999999",
+        character: "Ironclad",
+        ascension: 10,
+        currentFloor: 17,
+        currentAct: 3,
+      })
+    ).toBe(false);
+  });
+
+  it("falls back to heuristic when canonicalRunId is null AND existing is legacy", () => {
+    const existing = { runIdSource: null, character: "Ironclad", ascension: 10, floor: 17, act: 3, deck: [{ name: "Strike" }] } as never;
+    expect(
+      shouldResumeRun({
+        isFirstRunTransition: true,
+        existingRun: existing,
+        existingRunId: "run_legacy_abc",
+        canonicalRunId: null,
+        character: "Ironclad",
+        ascension: 10,
+        currentFloor: 17,
+        currentAct: 3,
+      })
+    ).toBe(true);
+  });
+
+  it("refuses heuristic fallback when both sides have canonical ids that disagree", () => {
+    const existing = { runIdSource: "save_file", character: "Ironclad", ascension: 10, floor: 17, act: 3, deck: [{ name: "Strike" }] } as never;
+    expect(
+      shouldResumeRun({
+        isFirstRunTransition: true,
+        existingRun: existing,
+        existingRunId: "1776000000",
+        canonicalRunId: "1776540732",
+        character: "Ironclad",
+        ascension: 10,
+        currentFloor: 17,
+        currentAct: 3,
+      })
+    ).toBe(false);
   });
 });

@@ -335,11 +335,12 @@ export function setupRunAnalyticsListener() {
         // Canonical runId from the STS2 save file, if available.
         const active = await invokeGetActiveRunWithRetry();
         const canonicalRunId = active ? String(active.start_time) : null;
-        void canonicalRunId; // Task 15 will plumb this into shouldResumeRun
 
         const canResume = shouldResumeRun({
           isFirstRunTransition,
           existingRun,
+          existingRunId,
+          canonicalRunId,
           character,
           ascension,
           currentFloor,
