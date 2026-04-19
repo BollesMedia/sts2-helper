@@ -12,6 +12,7 @@ import { EvalError } from "../../components/eval-error";
 import { BranchCard } from "../../components/branch-card";
 import { TeachingCallouts } from "../../components/teaching-callouts";
 import { ConfidencePill } from "../../components/confidence-pill";
+import { SwapBadge } from "../../components/swap-badge";
 
 
 interface MapViewProps {
@@ -313,7 +314,12 @@ export function MapView({ state }: MapViewProps) {
                 <h3 className="text-sm font-semibold leading-snug text-zinc-100">
                   {evaluation.headline}
                 </h3>
-                <ConfidencePill confidence={evaluation.confidence} />
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {evaluation.compliance?.reranked && (
+                    <SwapBadge reason={evaluation.compliance.rerankReason} />
+                  )}
+                  <ConfidencePill confidence={evaluation.confidence} />
+                </div>
               </div>
             </div>
 
