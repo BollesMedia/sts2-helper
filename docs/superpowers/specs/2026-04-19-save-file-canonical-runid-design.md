@@ -98,7 +98,7 @@ Each file has one responsibility. Kept focused so each can be unit-tested in iso
 - **`features/run/runAnalyticsListener.ts`** — Modified. Start-of-run path swaps `generateRunId()` for `get_active_run_identifier()` with retry-then-fallback. MP path untouched.
 - **`features/run/should-resume-run.ts`** — Simplified. New logic: if the active save's `start_time` equals a persisted `runId`, resume. The character/ascension/floor/act/deck heuristic is retired once the canonical path proves reliable.
 - **`features/run/runSlice.ts`** — Add `runIdSource: 'save_file' | 'client_fallback' | null` to `RunData`. Plumb through reducers and selectors.
-- **`lib/run-api.ts`** (new) — Thin helpers `postRunStart(...)` and `postRunEnd(...)` so backfill and live paths share code. Handles the localStorage pendingRunSyncs retry queue.
+- **`lib/run-sync-queue.ts`** (new) — `queueRunSync()` / `drainPendingRunSyncs()` — a tiny localStorage-backed retry queue. Callers send via the existing `evaluationApi.endpoints.startRun` / `endRun` mutations (no new API client abstraction); the queue absorbs offline-then-online cycles for both backfill and live paths.
 - **`store/store.ts`** — Register `setupSaveFileSubscription` alongside existing listener setups.
 
 ### Backend (`apps/web/`)
