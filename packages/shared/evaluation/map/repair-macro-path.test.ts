@@ -33,16 +33,13 @@ function makeInputs(
 }
 
 function baseOutput(
-  floors: { floor: number; node_type: string; node_id: string }[],
+  floors: MapCoachOutputRaw["macro_path"]["floors"],
 ): MapCoachOutputRaw {
   return {
     reasoning: { risk_capacity: "m", act_goal: "g" },
     headline: "h",
     confidence: 0.8,
-    macro_path: {
-      floors: floors as MapCoachOutputRaw["macro_path"]["floors"],
-      summary: "s",
-    },
+    macro_path: { floors, summary: "s" },
     key_branches: [],
     teaching_callouts: [],
   };

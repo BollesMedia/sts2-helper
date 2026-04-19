@@ -20,6 +20,7 @@ const nodeTypeEnum = z.enum([
   "shop",
   "treasure",
   "event",
+  "boss",
   "unknown",
 ]);
 
