@@ -1,5 +1,6 @@
 mod game_state_poller;
 mod mods;
+mod save_dir;
 mod save_file;
 mod steam;
 
