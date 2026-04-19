@@ -19,7 +19,16 @@ import {
 import {
   mapCoachOutputSchema,
   sanitizeMapCoachOutput,
+  type MapCoachOutputRaw,
 } from "@sts2/shared/evaluation/map-coach-schema";
+import { repairMacroPath } from "@sts2/shared/evaluation/map/repair-macro-path";
+import type {
+  RepairMapNode,
+  RepairNextOption,
+} from "@sts2/shared/evaluation/map/repair-macro-path";
+import { rerankIfDominated } from "@sts2/shared/evaluation/map/rerank-if-dominated";
+import type { EnrichedPath } from "@sts2/shared/evaluation/map/enrich-paths";
+import { buildComplianceReport } from "@sts2/shared/evaluation/map/compliance-report";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
@@ -36,6 +45,45 @@ import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies
 // ─── Trailing-comma repair for LLM-generated JSON ───
 function repairJson(text: string): string {
   return text.replace(/,(\s*[}\]])/g, "$1");
+}
+
+/**
+ * Run the phase-2 compliance pipeline on a sanitized map-coach output and
+ * attach the resulting `compliance` field. When inputs are absent (older
+ * clients that haven't migrated), the output is returned unchanged.
+ *
+ * Runs repair → rerank → re-sanitize so the synthetic `key_branch` the rerank
+ * prepends (and any preserved teaching callouts) respect the same soft caps
+ * `sanitizeMapCoachOutput` enforces on the LLM's raw output.
+ */
+function applyMapCompliance(
+  sanitized: MapCoachOutputRaw,
+  inputs: EvaluateRequest["mapCompliance"],
+): MapCoachOutputRaw {
+  if (!inputs) return sanitized;
+
+  const repair = repairMacroPath({
+    output: sanitized,
+    nodes: inputs.nodes,
+    nextOptions: inputs.nextOptions,
+    boss: inputs.boss,
+    currentPosition: inputs.currentPosition,
+  });
+  const rerank = rerankIfDominated({
+    output: repair.output,
+    candidates: inputs.enrichedPaths,
+  });
+  const compliance = buildComplianceReport(repair, rerank);
+
+  // Re-apply soft caps — rerank prepends a synthetic branch and may preserve
+  // callouts that together exceed the post-parse cap.
+  const recapped = sanitizeMapCoachOutput(rerank.output);
+
+  if (process.env.EVAL_DEBUG === "1") {
+    console.log("[Evaluate map compliance]", compliance);
+  }
+
+  return { ...recapped, compliance };
 }
 
 // ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
@@ -210,6 +258,21 @@ interface EvaluateRequest {
    * for the duplication trade-off.
    */
   runStateSnapshot?: unknown;
+  /**
+   * Optional inputs for the phase-2 compliance pipeline (repair + rerank).
+   * Populated by the desktop map-coach call path — absent for callers that
+   * haven't migrated yet, in which case the route ships the LLM output
+   * without a `compliance` field. See
+   * `packages/shared/evaluation/map/repair-macro-path.ts` and
+   * `packages/shared/evaluation/map/rerank-if-dominated.ts`.
+   */
+  mapCompliance?: {
+    nodes: RepairMapNode[];
+    nextOptions: RepairNextOption[];
+    boss: { col: number; row: number };
+    currentPosition: { col: number; row: number } | null;
+    enrichedPaths: EnrichedPath[];
+  };
 }
 
 export async function POST(request: Request) {
@@ -511,6 +574,7 @@ export async function POST(request: Request) {
         // structured-output endpoint rejects the resulting JSON Schema
         // constraints (#52, #68). See `map-coach-schema.ts`.
         const sanitized = sanitizeMapCoachOutput(mapResult.output);
+        const finalOutput = applyMapCompliance(sanitized, body.mapCompliance);
         // Echo the desktop-provided run-state snapshot back so the caller can
         // forward it to `/api/choice` for persistence. This route does not
         // write to the `choices` table itself; see `apps/web/src/app/api/
@@ -520,7 +584,7 @@ export async function POST(request: Request) {
         // (without raw state in the request body) would add surface area
         // without value. Noted as a known follow-up.
         return NextResponse.json({
-          ...sanitized,
+          ...finalOutput,
           runStateSnapshot: body.runStateSnapshot ?? null,
         });
       }
@@ -572,8 +636,9 @@ export async function POST(request: Request) {
                   }).catch(console.error);
                 }
                 const sanitized = sanitizeMapCoachOutput(parsed);
+                const finalOutput = applyMapCompliance(sanitized, body.mapCompliance);
                 return NextResponse.json({
-                  ...sanitized,
+                  ...finalOutput,
                   runStateSnapshot: body.runStateSnapshot ?? null,
                 });
               }

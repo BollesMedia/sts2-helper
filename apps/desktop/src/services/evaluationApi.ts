@@ -9,7 +9,10 @@ import {
   mapCoachOutputSchema,
   type MapCoachOutputRaw,
 } from "@sts2/shared/evaluation/map-coach-schema";
-import type { MapCoachEvaluation } from "../lib/eval-inputs/map";
+import type {
+  MapCoachEvaluation,
+  MapComplianceInputs,
+} from "../lib/eval-inputs/map";
 
 // --- Request types ---
 
@@ -55,6 +58,12 @@ interface MapPromptRequest extends EvalRequestBase {
    * Echoed by the server and forwarded to `/api/choice` for persistence.
    */
   runStateSnapshot?: unknown;
+  /**
+   * Optional inputs for the server-side phase-2 compliance pipeline (repair +
+   * rerank). When omitted, the server ships the LLM output without a
+   * `compliance` field. Only populated for the map coach eval.
+   */
+  mapCompliance?: MapComplianceInputs;
 }
 
 /** Convert snake_case server output to camelCase client shape. */
@@ -82,6 +91,17 @@ function adaptMapCoach(raw: MapCoachOutputRaw): MapCoachEvaluation {
       closeCall: b.close_call,
     })),
     teachingCallouts: raw.teaching_callouts,
+    compliance: raw.compliance
+      ? {
+          repaired: raw.compliance.repaired,
+          reranked: raw.compliance.reranked,
+          rerankReason: raw.compliance.rerank_reason,
+          repairReasons: raw.compliance.repair_reasons.map((r) => ({
+            kind: r.kind,
+            detail: r.detail,
+          })),
+        }
+      : undefined,
   };
 }
 
@@ -205,6 +225,7 @@ export const evaluationApi = createApi({
             runId: args.runId,
             gameVersion: args.gameVersion,
             runStateSnapshot: args.runStateSnapshot,
+            mapCompliance: args.mapCompliance,
           });
           // Server response is map-coach output + optional `runStateSnapshot`
           // echo. Strip the echo before zod-parsing since the schema is strict.

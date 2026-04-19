@@ -13,8 +13,25 @@ import {
 import {
   enrichPaths,
   type CandidatePath,
+  type EnrichedPath,
 } from "@sts2/shared/evaluation/map/enrich-paths";
 import { formatFactsBlock } from "@sts2/shared/evaluation/map/format-facts-block";
+import type {
+  RepairMapNode,
+  RepairNextOption,
+} from "@sts2/shared/evaluation/map/repair-macro-path";
+
+/**
+ * Inputs for the phase-2 compliance pipeline, projected from desktop map state
+ * so the server can run repair + rerank without recomputing.
+ */
+export interface MapComplianceInputs {
+  nodes: RepairMapNode[];
+  nextOptions: RepairNextOption[];
+  boss: { col: number; row: number };
+  currentPosition: { col: number; row: number } | null;
+  enrichedPaths: EnrichedPath[];
+}
 
 export interface NodePreferences {
   monster: number;
@@ -41,6 +58,12 @@ export interface MapCoachEvaluation {
     closeCall: boolean;
   }[];
   teachingCallouts: { pattern: string; floors: number[]; explanation: string }[];
+  compliance?: {
+    repaired: boolean;
+    reranked: boolean;
+    rerankReason: string | null;
+    repairReasons: { kind: string; detail?: string }[];
+  };
 }
 
 /**
@@ -105,7 +128,11 @@ export function buildMapPrompt(params: {
   context: EvaluationContext;
   state: MapState;
   cardRemovalCost: number | null;
-}): { prompt: string; runState: RunState } {
+}): {
+  prompt: string;
+  runState: RunState;
+  compliance: MapComplianceInputs;
+} {
   const { context, state, cardRemovalCost } = params;
   const contextStr = buildCompactContext(context);
   const options = state.map.next_options;
@@ -179,5 +206,27 @@ ${factsBlock}
 
 ${MAP_PATHING_SCAFFOLD}`;
 
-  return { prompt, runState };
+  const compliance: MapComplianceInputs = {
+    nodes: allNodes.map((n) => ({
+      col: n.col,
+      row: n.row,
+      type: n.type,
+      children: n.children,
+    })),
+    nextOptions: options.map((o) => ({
+      col: o.col,
+      row: o.row,
+      type: o.type,
+    })),
+    boss: { col: state.map.boss.col, row: state.map.boss.row },
+    currentPosition: state.map.current_position
+      ? {
+          col: state.map.current_position.col,
+          row: state.map.current_position.row,
+        }
+      : null,
+    enrichedPaths: enriched,
+  };
+
+  return { prompt, runState, compliance };
 }

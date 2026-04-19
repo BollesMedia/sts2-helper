@@ -105,6 +105,53 @@ describe("mapCoachOutputSchema", () => {
   });
 });
 
+describe("mapCoachOutputSchema.compliance", () => {
+  const valid = {
+    reasoning: { risk_capacity: "m", act_goal: "g" },
+    headline: "h",
+    confidence: 0.5,
+    macro_path: {
+      floors: [{ floor: 1, node_type: "monster", node_id: "1,1" }],
+      summary: "s",
+    },
+    key_branches: [],
+    teaching_callouts: [],
+  };
+
+  it("accepts payload without compliance (backwards compatible)", () => {
+    expect(mapCoachOutputSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("accepts a full compliance object", () => {
+    const full = {
+      ...valid,
+      compliance: {
+        repaired: true,
+        reranked: true,
+        rerank_reason: "dominated_by_path_B",
+        repair_reasons: [
+          { kind: "empty_macro_path" as const },
+          { kind: "contiguity_gap" as const, detail: "f8" },
+        ],
+      },
+    };
+    expect(mapCoachOutputSchema.safeParse(full).success).toBe(true);
+  });
+
+  it("rejects invalid repair_reason kind", () => {
+    const bad = {
+      ...valid,
+      compliance: {
+        repaired: true,
+        reranked: false,
+        rerank_reason: null,
+        repair_reasons: [{ kind: "bogus" }],
+      },
+    };
+    expect(mapCoachOutputSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
 describe("sanitizeMapCoachOutput", () => {
   it("passes through a valid within-caps payload unchanged in shape", () => {
     const sanitized = sanitizeMapCoachOutput(valid);
