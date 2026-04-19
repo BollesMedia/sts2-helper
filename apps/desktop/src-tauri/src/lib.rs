@@ -1,5 +1,6 @@
 mod game_state_poller;
 mod mods;
+mod save_file;
 mod steam;
 
 use mods::{GameInfo, InstallOutcome, InstallResult, ModError, ModStatus};
