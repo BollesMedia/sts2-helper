@@ -78,9 +78,29 @@ Pure function; runs after `sanitizeMapCoachOutput`, before rerank. Takes the par
 4. **Contiguity.** `floors[i+1]` must appear in `floors[i].children`. Break found → truncate at the last valid node, then walk primary-child from there.
 5. **Final floor is the act boss.** Append a primary-child walk from the last valid floor if missing.
 
-### Repair strategy — primary-child walk
+### Repair strategy — smart child walk
 
-When filling missing steps, walk the `children[0]` branch from a given start-node to the act boss. Matches the existing `walkPath` helper and is deterministic.
+When filling missing steps between a known start-node and a known later stated floor, prefer the child whose subtree contains the next stated floor. Fall back to `children[0]` only when no such child exists, or when there's no stated next floor to steer by (pure end-walk to boss).
+
+Algorithm:
+```
+walkBetween(startNode, endFloor | "boss"):
+  cursor = startNode
+  out = []
+  while cursor != target:
+    if cursor has ≥1 child:
+      if endFloor is known:
+        pick the child c whose reachable set contains endFloor, else children[0]
+      else:
+        pick children[0]
+      cursor = pickedChild
+      out.push(cursor)
+    else:
+      break  // dead-end before target
+  return out
+```
+
+Reachable set per node can be precomputed once per eval (one BFS per candidate root). This keeps repair deterministic and much less likely to fabricate a path the LLM didn't mean — on a branching fork, the walker biases toward the LLM's stated intent.
 
 ### Edge cases
 
@@ -91,16 +111,32 @@ When filling missing steps, walk the `children[0]` branch from a given start-nod
 ### Output
 
 ```ts
+type RepairReasonKind =
+  | "empty_macro_path"
+  | "unknown_node_id"
+  | "first_floor_mismatch"
+  | "contiguity_gap"
+  | "missing_boss"
+  | "walk_dead_end"
+  | "starts_at_current_position";
+
+type RepairReason = {
+  kind: RepairReasonKind;
+  detail?: string;  // e.g. the offending node_id, or the floor number where truncation happened
+};
+
 type RepairResult = {
   output: MapCoachOutputRaw;
   repaired: boolean;
-  repair_reasons: string[];  // "empty_macro_path", "unknown_node_id@3,5", "truncated_at_f8", "repair_walk_dead_end"
+  repair_reasons: RepairReason[];
 };
 ```
 
+The union-typed `kind` lets downstream analytics bucket by category without string-matching free-form strings. Optional `detail` carries position context.
+
 ### Tests
 
-Six colocated cases: valid pass-through, sparse fill, bad-node-id truncation, first-floor mismatch swap, missing-boss append, dead-end partial.
+Seven colocated cases: valid pass-through, sparse fill, bad-node-id truncation, first-floor mismatch swap, missing-boss append, dead-end partial, **`macro_path[0]` starts at `current_position`** (phase-1 prompt prohibits it, but the validator catches the case anyway).
 
 ## `rerankIfDominated` — judgment-level rerank
 
@@ -115,7 +151,7 @@ Path X **dominates** path Y iff X is strictly better on BOTH axes:
 
 If LLM picked `(exceeds_budget, safe)` and path B is `(within_budget, risky)`, NEITHER dominates. We defer to the LLM — it may have deck-archetype or relic reasons we don't capture.
 
-### Swap procedure
+### Swap procedure (partial rerank — preserve what's still valid)
 
 When LLM's pick IS dominated:
 
@@ -125,9 +161,11 @@ When LLM's pick IS dominated:
    - `macro_path` → replaced with the dominator's floors.
    - `headline` → template: `"Safer alternative: ${shortSummary(dominator)}"`.
    - `confidence` → dampened: `max(0, confidence - 0.15)`.
-   - `reasoning.risk_capacity` and `reasoning.act_goal` → **unchanged** (analysis still valid; only action changes).
-   - `key_branches` → replaced with a single synthetic entry explaining the swap.
-   - `teaching_callouts` → cleared (they were keyed to the discarded path).
+   - `reasoning.risk_capacity` and `reasoning.act_goal` → **unchanged** (analysis still valid).
+   - `key_branches` → **filter + prepend**. Keep entries whose `floor` is on the new `macro_path`; drop entries tied to the discarded path. Prepend a synthetic entry at `macro_path.floors[0].floor` explaining the swap. Result is capped to `key_branches.max()` in `sanitizeMapCoachOutput`'s existing logic.
+   - `teaching_callouts` → **filter**. Keep entries whose `floors` intersect the new `macro_path`. Drop entries with no floor overlap. Many patterns (`rest_after_elite`, `elite_cluster`) reference specific floors; if those floors are still on the new path, the lesson still applies.
+
+Filtering rather than wiping preserves the coach's pedagogical work wherever it's still accurate. The swap is transparent (explicit synthetic branch) without discarding everything.
 
 ### Tiebreak details
 
@@ -135,9 +173,11 @@ When LLM's pick IS dominated:
 - If HP risk is tied, the one with the **better fight budget** wins.
 - If both are tied, use the LLM's original rank order (if the LLM ranked paths 1/2/3 in `macro_path` context, prefer the one LLM had higher — defers to LLM analysis when structural axes tie).
 
-### Integration with repair
+### Invariant: rerank operates on the post-repair path
 
-Repair runs first. If repair swapped `macro_path[0]` (because LLM's chosen node didn't match a next_option), we re-classify the path — look up the enriched candidate whose `id` corresponds to the repaired `macro_path[0].node_id`. That becomes "LLM's pick" for dominance comparison. This keeps rerank honest about what was actually picked.
+Rerank runs strictly after repair, and always evaluates the repaired `macro_path`. If repair swapped `macro_path[0]` (because LLM's chosen node didn't match a next_option), we re-classify the path — look up the enriched candidate whose `id` corresponds to the repaired `macro_path[0].node_id`. That becomes "LLM's pick" for dominance comparison.
+
+This is a first-class invariant, not an implementation detail. The alternative — comparing against whatever the LLM *originally* said before repair — would let a broken but theoretically-safe path dodge the rerank. Asserted via test.
 
 ### Output
 
@@ -161,10 +201,12 @@ Small helper that combines `RepairResult` + `RerankResult` into a single `compli
 type ComplianceReport = {
   repaired: boolean;
   reranked: boolean;
-  reason: string | null;      // null when neither fired or both fired but no specific reason
-  repair_reasons: string[];    // empty when no repair
+  rerank_reason: string | null;        // "dominated_by_path_B" | null
+  repair_reasons: RepairReason[];      // typed union (see repair section)
 };
 ```
+
+The typed `repair_reasons` lets analytics bucket by `kind` directly; `rerank_reason` is a terse free-form string because its cardinality is low (typically `dominated_by_path_X` where X is the winning candidate id).
 
 Attached to the response body. Persisted to `choices.rankings_snapshot` via the existing write path. Also logged to server console when `EVAL_DEBUG=1`.
 
@@ -176,8 +218,19 @@ Attached to the response body. Persisted to `choices.rankings_snapshot` via the 
 compliance: z.object({
   repaired: z.boolean(),
   reranked: z.boolean(),
-  reason: z.string().nullable(),
-  repair_reasons: z.array(z.string()),
+  rerank_reason: z.string().nullable(),
+  repair_reasons: z.array(z.object({
+    kind: z.enum([
+      "empty_macro_path",
+      "unknown_node_id",
+      "first_floor_mismatch",
+      "contiguity_gap",
+      "missing_boss",
+      "walk_dead_end",
+      "starts_at_current_position",
+    ]),
+    detail: z.string().optional(),
+  })),
 }).optional(),
 ```
 
@@ -247,6 +300,16 @@ Order of operations:
 6. Manual smoke on a real run.
 
 Each step commits independently; the route wiring is the big integration moment.
+
+## Alternatives considered
+
+**Retry-with-feedback.** Detect non-compliance, re-prompt the LLM with feedback ("your chosen path exceeds budget; reconsider"). Dismissed because (a) latency doubles on the worst-case floor, (b) retry loops compound cost, (c) no guarantee the retry respects the feedback any more than the first pass did — we'd still need a fallback, at which point the first pass becomes academic.
+
+**LLM-as-judge.** Second LLM call reviews the first output and critiques / rewrites. Dismissed because (a) adds cost + latency, (b) adds a new source of bugs (judge's bad call is as likely as generator's bad call), (c) the problem is arithmetic/structural, not subjective — deterministic validators are the right tool.
+
+**Strict JSON-schema enforcement via provider features.** Use Anthropic structured-output with hard caps/types on every field. Dismissed because Anthropic's structured-output endpoint rejects common constraints (`maxItems`, number bounds) — phase 1 already ran into this and moved caps to post-parse `sanitizeMapCoachOutput`. Same issue applies here.
+
+**Confidence-proportional rerank trigger.** Only swap when LLM confidence < threshold AND dominated. Rationale: a high-confidence LLM pick on a dominated path might indicate the LLM saw something the axes don't model (relic synergy, deck archetype, matchup). Noted as a phase-2.5 tuning lever rather than a phase-2 default — the current strict-dominance rule already defers to LLM on close calls; adding confidence gating here is an optimization we can't validate without telemetry, which phase 2 is shipping.
 
 ## Risks and mitigations
 
