@@ -133,6 +133,7 @@ export function createPreloadedState(overrides: {
           player: null,
           mapEval,
           mapContext: null,
+          runIdSource: null,
           ...overrides.runOverrides,
         },
       },

@@ -22,6 +22,7 @@ function makeRun(overrides: Partial<RunData> = {}): RunData {
       nodePreferences: null,
     },
     mapContext: null,
+    runIdSource: null,
     ...overrides,
   };
 }

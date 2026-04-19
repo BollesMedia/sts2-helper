@@ -345,7 +345,7 @@ export function setupRunAnalyticsListener() {
           const gameMode = gameState.game_mode ?? "singleplayer";
 
           listenerApi.dispatch(
-            runStarted({ runId: newRunId, character, ascension, gameMode })
+            runStarted({ runId: newRunId, character, ascension, gameMode, runIdSource: null })
           );
 
           logDevEvent("run", "started", {
