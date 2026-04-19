@@ -127,6 +127,8 @@ pub fn run() {
             get_mod_status,
             install_required_mods,
             game_state_poller::get_latest_game_state,
+            save_file::get_active_run_identifier,
+            save_file::list_run_history,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

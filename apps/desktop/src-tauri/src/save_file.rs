@@ -144,6 +144,101 @@ pub fn parse_active_save(path: &Path) -> Result<ActiveRun, SaveError> {
     })
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct RunHistoryListing {
+    pub entries: Vec<RunSummary>,
+    pub skipped: u32,
+}
+
+#[tauri::command]
+pub async fn get_active_run_identifier() -> Result<Option<ActiveRun>, String> {
+    let saves_dir = match crate::save_dir::resolve_saves_dir(None) {
+        Ok(d) => d,
+        Err(e) => {
+            log::info!("[save_file] saves dir unavailable: {e}");
+            return Ok(None);
+        }
+    };
+
+    // Prefer current_run.save (SP); fall back to current_run_mp.save (MP).
+    for name in ["current_run.save", "current_run_mp.save"] {
+        let path = saves_dir.join(name);
+        if path.exists() {
+            match parse_active_save(&path) {
+                Ok(active) => return Ok(Some(active)),
+                Err(e) => {
+                    log::warn!("[save_file] parse {} failed: {e}", name);
+                    continue;
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn list_run_history(
+    after_start_time: Option<i64>,
+) -> Result<RunHistoryListing, String> {
+    let saves_dir = match crate::save_dir::resolve_saves_dir(None) {
+        Ok(d) => d,
+        Err(e) => {
+            log::info!("[save_file] saves dir unavailable: {e}");
+            return Ok(RunHistoryListing {
+                entries: vec![],
+                skipped: 0,
+            });
+        }
+    };
+    let history_dir = saves_dir.join("history");
+    if !history_dir.exists() {
+        return Ok(RunHistoryListing {
+            entries: vec![],
+            skipped: 0,
+        });
+    }
+
+    let threshold = after_start_time.unwrap_or(0);
+    let mut entries: Vec<RunSummary> = vec![];
+    let mut skipped: u32 = 0;
+
+    let dir_entries = match std::fs::read_dir(&history_dir) {
+        Ok(it) => it,
+        Err(e) => return Err(format!("read_dir {}: {e}", history_dir.display())),
+    };
+
+    for entry in dir_entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("run") {
+            continue;
+        }
+        // Filename is the start_time; use as a cheap pre-filter before parsing.
+        let stem: Option<i64> = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.parse().ok());
+        if let Some(ts) = stem {
+            if ts <= threshold {
+                continue;
+            }
+        }
+        match parse_run_file(&path) {
+            Ok(summary) => {
+                if summary.start_time > threshold {
+                    entries.push(summary);
+                }
+            }
+            Err(e) => {
+                log::warn!("[save_file] skip {}: {e}", path.display());
+                skipped += 1;
+            }
+        }
+    }
+
+    entries.sort_by_key(|s| s.start_time);
+    Ok(RunHistoryListing { entries, skipped })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
