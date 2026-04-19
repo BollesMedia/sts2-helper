@@ -41,6 +41,12 @@ export interface MapCoachEvaluation {
     closeCall: boolean;
   }[];
   teachingCallouts: { pattern: string; floors: number[]; explanation: string }[];
+  compliance?: {
+    repaired: boolean;
+    reranked: boolean;
+    rerankReason: string | null;
+    repairReasons: { kind: string; detail?: string }[];
+  };
 }
 
 /**

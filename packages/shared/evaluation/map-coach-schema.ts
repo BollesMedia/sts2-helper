@@ -25,6 +25,16 @@ const nodeTypeEnum = z.enum([
 
 export type MapNodeType = z.infer<typeof nodeTypeEnum>;
 
+const repairReasonKindEnum = z.enum([
+  "empty_macro_path",
+  "unknown_node_id",
+  "first_floor_mismatch",
+  "contiguity_gap",
+  "missing_boss",
+  "walk_dead_end",
+  "starts_at_current_position",
+]);
+
 /**
  * Soft caps applied post-parse. Hard limits (number range, array length) are
  * NOT in the zod schema because `z.toJSONSchema` emits them as JSON Schema
@@ -89,6 +99,19 @@ export const mapCoachOutputSchema = z.object({
     .describe(
       `At most ${MAP_COACH_LIMITS.maxTeachingCallouts} entries — only pedagogically useful patterns. Truncated post-parse if exceeded.`,
     ),
+  compliance: z
+    .object({
+      repaired: z.boolean(),
+      reranked: z.boolean(),
+      rerank_reason: z.string().nullable(),
+      repair_reasons: z.array(
+        z.object({
+          kind: repairReasonKindEnum,
+          detail: z.string().optional(),
+        }),
+      ),
+    })
+    .optional(),
 });
 
 export type MapCoachOutputRaw = z.infer<typeof mapCoachOutputSchema>;
