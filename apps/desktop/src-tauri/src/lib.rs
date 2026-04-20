@@ -1,5 +1,8 @@
 mod game_state_poller;
 mod mods;
+mod save_dir;
+mod save_file;
+mod save_watcher;
 mod steam;
 
 use mods::{GameInfo, InstallOutcome, InstallResult, ModError, ModStatus};
@@ -125,6 +128,9 @@ pub fn run() {
             get_mod_status,
             install_required_mods,
             game_state_poller::get_latest_game_state,
+            save_file::get_active_run_identifier,
+            save_file::list_run_history,
+            save_watcher::start_run_history_watch,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -132,6 +138,12 @@ pub fn run() {
                 handle,
                 "http://127.0.0.1:15526".to_string(),
             );
+            let app_for_watcher = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = save_watcher::start_run_history_watch(app_for_watcher).await {
+                    log::info!("[save_watcher] skipped: {e}");
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

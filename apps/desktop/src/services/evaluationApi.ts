@@ -279,7 +279,7 @@ export const evaluationApi = createApi({
     }),
 
     // Run API calls
-    startRun: build.mutation<void, { runId: string; character: string; ascension: number; gameMode: string; userId: string | null }>({
+    startRun: build.mutation<void, { runId: string; character: string; ascension: number; gameMode: string; userId: string | null; runIdSource?: "save_file" | "client_fallback" | null }>({
       async queryFn(args) {
         try {
           await apiFetch("/api/run", {
@@ -305,6 +305,7 @@ export const evaluationApi = createApi({
       finalDeckSize?: number | null;
       narrative?: unknown;
       notes?: string;
+      runIdSource?: "save_file" | "client_fallback" | null;
     }>({
       async queryFn(args) {
         try {

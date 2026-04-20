@@ -10,6 +10,7 @@ const startSchema = z.object({
   ascension: z.number().int().min(0).optional(),
   gameVersion: z.string().nullable().optional(),
   gameMode: z.enum(["singleplayer", "multiplayer"]).optional(),
+  runIdSource: z.enum(["save_file", "client_fallback"]).nullable().optional(),
 });
 
 const endSchema = z.object({
@@ -25,6 +26,7 @@ const endSchema = z.object({
   actReached: z.number().int().nullable().optional(),
   causeOfDeath: z.string().nullable().optional(),
   narrative: z.unknown().nullable().optional(),
+  runIdSource: z.enum(["save_file", "client_fallback"]).nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -51,6 +53,7 @@ export async function POST(request: Request) {
       game_version: d.gameVersion ?? null,
       game_mode: d.gameMode ?? "singleplayer",
       user_id: auth.userId,
+      run_id_source: d.runIdSource ?? null,
     });
 
     if (error) {
@@ -84,6 +87,7 @@ export async function POST(request: Request) {
     if (d.actReached !== undefined) update.act_reached = d.actReached;
     if (d.causeOfDeath !== undefined) update.cause_of_death = d.causeOfDeath;
     if (d.narrative !== undefined) update.narrative = d.narrative;
+    if (d.runIdSource !== undefined) update.run_id_source = d.runIdSource;
 
     const { error } = await supabase
       .from("runs")

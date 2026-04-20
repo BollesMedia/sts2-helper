@@ -18,6 +18,7 @@ import { setupChoiceTrackingListener } from "../features/choice/choiceTrackingLi
 import { setupMapEvalListener } from "../features/map/mapListeners";
 import { setupEvaluationListeners } from "../features/evaluation/evaluationListeners";
 import { setupGameStateSubscription } from "../features/connection/gameStateSubscription";
+import { setupSaveFileSubscription } from "../features/run/saveFileSubscription";
 
 const rootReducer = combineSlices(
   gameStateApi,
@@ -51,6 +52,9 @@ setupMapEvalListener();
 setupEvaluationListeners();
 setupGameStateSubscription(store.dispatch).catch((err) => {
   console.error("[gameStateSubscription] setup failed", err);
+});
+setupSaveFileSubscription(store.dispatch).catch((err) => {
+  console.error("[saveFileSubscription] setup failed", err);
 });
 
 export type RootState = ReturnType<typeof store.getState>;

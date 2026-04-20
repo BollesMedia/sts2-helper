@@ -23,10 +23,36 @@ import { buildActPathRecord } from "@sts2/shared/choice-detection/build-act-path
 import { clearAllPendingChoices } from "@sts2/shared/choice-detection/pending-choice-registry";
 import { shouldResumeRun } from "./should-resume-run";
 import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
+import { invoke } from "@tauri-apps/api/core";
 import type { MapEvalState, RunData } from "./runSlice";
 
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export interface ActiveRun {
+  start_time: number;
+  seed: string;
+  ascension: number;
+  character: string;
+  is_mp: boolean;
+}
+
+export async function invokeGetActiveRunWithRetry(
+  maxAttempts = 3,
+  delayMs = 3000,
+  sleepFn: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<ActiveRun | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const result = await invoke<ActiveRun | null>("get_active_run_identifier");
+      if (result) return result;
+    } catch (err) {
+      console.warn(`[runAnalytics] get_active_run_identifier attempt ${attempt + 1} failed`, err);
+    }
+    if (attempt < maxAttempts - 1) await sleepFn(delayMs);
+  }
+  return null;
 }
 
 /**
@@ -110,7 +136,7 @@ export function setupRunAnalyticsListener() {
 
   startAppListening({
     matcher: gameStateApi.endpoints.getGameState.matchFulfilled,
-    effect: (action, listenerApi) => {
+    effect: async (action, listenerApi) => {
       const gameState: GameState = action.payload;
       const currentType = gameState.state_type;
       const state = listenerApi.getState();
@@ -306,9 +332,15 @@ export function setupRunAnalyticsListener() {
         const currentFloor = hasRun(gameState) ? gameState.run.floor : 0;
         const currentAct = hasRun(gameState) ? gameState.run.act : 0;
 
+        // Canonical runId from the STS2 save file, if available.
+        const active = await invokeGetActiveRunWithRetry();
+        const canonicalRunId = active ? String(active.start_time) : null;
+
         const canResume = shouldResumeRun({
           isFirstRunTransition,
           existingRun,
+          existingRunId,
+          canonicalRunId,
           character,
           ascension,
           currentFloor,
@@ -341,11 +373,19 @@ export function setupRunAnalyticsListener() {
           initializeNarrative(existingRunId, character, ascension);
           console.log("[RunAnalytics] Resumed persisted run:", existingRunId);
         } else {
-          const newRunId = generateRunId();
+          let newRunId: string;
+          let runIdSource: "save_file" | "client_fallback";
+          if (active) {
+            newRunId = String(active.start_time);
+            runIdSource = "save_file";
+          } else {
+            newRunId = generateRunId();
+            runIdSource = "client_fallback";
+          }
           const gameMode = gameState.game_mode ?? "singleplayer";
 
           listenerApi.dispatch(
-            runStarted({ runId: newRunId, character, ascension, gameMode })
+            runStarted({ runId: newRunId, character, ascension, gameMode, runIdSource })
           );
 
           logDevEvent("run", "started", {
@@ -365,6 +405,7 @@ export function setupRunAnalyticsListener() {
                 ascension,
                 gameMode,
                 userId: getUserId(),
+                runIdSource,
               })
             )
             .unwrap()

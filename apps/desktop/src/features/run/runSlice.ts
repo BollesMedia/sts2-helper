@@ -1,6 +1,8 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { CombatCard } from "@sts2/shared/types/game-state";
 
+export type RunIdSource = "save_file" | "client_fallback" | null;
+
 // --- Run-scoped types ---
 
 export interface TrackedPlayer {
@@ -54,6 +56,7 @@ export interface RunData {
   player: TrackedPlayer | null;
   mapEval: MapEvalState;
   mapContext: MapContext | null;
+  runIdSource: RunIdSource;
 }
 
 interface CompletedRun {
@@ -93,9 +96,10 @@ export const runSlice = createSlice({
         character: string;
         ascension: number;
         gameMode: "singleplayer" | "multiplayer";
+        runIdSource: RunIdSource;
       }>
     ) {
-      const { runId, character, ascension, gameMode } = action.payload;
+      const { runId, character, ascension, gameMode, runIdSource } = action.payload;
       state.activeRunId = runId;
       state.pendingOutcome = null;
       state.lastCompletedRun = null;
@@ -115,6 +119,7 @@ export const runSlice = createSlice({
           nodePreferences: null,
         },
         mapContext: null,
+        runIdSource,
       };
     },
 
