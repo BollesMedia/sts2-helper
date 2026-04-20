@@ -116,14 +116,44 @@ BE CONCISE:
 - Each \`teaching_callouts[].explanation\` is one sentence.
 `.trim();
 
+// --- Card Reward Reasoning Scaffold ---
+
+export const CARD_REWARD_SCAFFOLD = `
+Before ranking, reason step-by-step:
+
+1. DECK STATE: restate the deck's size verdict, committed archetype (or lack
+   thereof), and what the deck needs most (damage, block, scaling, removal).
+2. SKIP BAR: state the minimum tier / archetype fit a pick must clear to earn
+   a deck slot right now. "Take a B-tier only if it's on-archetype or solves a
+   block/damage gap." "Skip unless A-tier." This bar drives step 5.
+3. PICK RATIONALE: for each offered card, state its best-case role in THIS
+   deck (not in a vacuum). Flag if a card is dead_with_current_deck per the
+   facts.
+4. COMMITMENT: if a keystone is offered and the deck already supports the
+   archetype, picking it may be correct even if the card's raw tier is lower —
+   keystones unlock scaling. Say so explicitly.
+5. DECIDE: apply the skip bar from step 2. If no offered card clears it, set
+   skip_recommended=true. Otherwise pick the card that best meets the bar and
+   the deck's primary need.
+
+Then produce the output. Do not restate game rules; the DECK STATE block
+has them. Your job is judgment under this specific deck, not general theory.
+
+If you produce a coaching block, follow these caps:
+  - key_tradeoffs: return at most 3 entries (one per offered card is typical)
+  - teaching_callouts: return at most 3 entries
+Entries past the cap are discarded server-side.
+`.trim();
+
 // --- Type-Specific Addenda ---
 
 const TYPE_ADDENDA: Record<string, string> = {
   card_reward: `
 CARD REWARD:
 - Exclusive choice: pick ONE or skip ALL.
-- ACT 1 PHILOSOPHY: Prioritize STANDALONE VALUE over archetype speculation. The biggest Act 1 risk is not having quality cards. Take cards that are strong on their own — good damage, good block, good draw. Do NOT take speculative archetype pieces that need other cards to function (e.g., a scaling power with no way to survive long enough to use it). Only commit to an archetype when a keystone card appears — UNTIL THEN do not select supporting pieces that don't provide immediate value.
-- Act 2+: Evaluate against current deck and archetype. Skip if none advance the win condition.
+- ACT TIMING: Act 1 prioritizes individual card quality + acquiring a keystone before
+  committing to support. Act 2+ evaluates against the committed archetype. Act 3 is
+  about closing the run — don't pick cards that won't matter for the act 3 boss.
 - Include a pick_summary: "Pick [name] — [reason]" or "Skip — [reason]". Max 15 words.`,
 
   shop: `
