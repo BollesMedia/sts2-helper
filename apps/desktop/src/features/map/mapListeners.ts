@@ -128,6 +128,33 @@ export function setupMapEvalListener() {
       const evalKey = computeMapEvalKey(options);
       const isRetry = evalRetryRequested.match(_action) && _action.payload === EVAL_TYPE;
 
+      // #77: populate the run-state cache eagerly so the map_node choice
+      // write path always has a non-null snapshot to persist — even on the
+      // first move of a run, or when the eval is gated off
+      // (allOptionsAreAncient, grace-skip, single-option-on-path). Cost is a
+      // synchronous buildMapPrompt call (no network); the resulting prompt
+      // is only used by the downstream eval path, which still runs when
+      // un-gated. Downstream path re-reads the cache.
+      const activeRunIdForEagerCache = state.run.activeRunId;
+      if (activeRunIdForEagerCache && options.length > 0) {
+        try {
+          const eagerDeckCards = selectActiveDeck(state);
+          const eagerPlayer = selectActivePlayer(state);
+          const eagerCtx = buildEvaluationContext(gameState, eagerDeckCards, eagerPlayer);
+          if (eagerCtx) {
+            const { runState: eagerRunState } = buildMapPrompt({
+              context: eagerCtx,
+              state: mapState,
+              cardRemovalCost: eagerPlayer?.cardRemovalCost ?? null,
+            });
+            lastMapRunState.set(activeRunIdForEagerCache, eagerRunState);
+          }
+        } catch {
+          // buildMapPrompt can throw on unusual state shapes; swallow so
+          // the cache-miss is the worst case rather than a listener crash.
+        }
+      }
+
       // --- Should we evaluate? ---
       // Check BEFORE cancelling — don't cancel an in-flight eval
       // just to decide we don't need a new one.
@@ -479,7 +506,6 @@ export function setupMapEvalListener() {
               mapPrompt,
               runId: null,
               gameVersion: null,
-              runStateSnapshot: runState,
               mapCompliance,
             })
           )
@@ -545,12 +571,18 @@ export function setupMapEvalListener() {
         }));
         logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_map_eval");
 
+        // #78: stash the full parsed coach output in `raw` so phase-2
+        // calibration can recover reasoning/branches/callouts later.
+        // `allRankings` intrinsically doesn't apply to map (no per-item
+        // rankings); leaving it as [] is correct for the choice-tracker
+        // read path, which doesn't consult it for map evals.
         registerLastEvaluation("map", {
           recommendedId: bestOpt ? `${bestOpt.col},${bestOpt.row}` : null,
           recommendedTier: null,
           reasoning: parsed.headline,
           allRankings: [],
           evalType: "map",
+          raw: parsed,
         });
 
         // Backfill: if user picked a map node before eval completed

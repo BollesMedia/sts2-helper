@@ -257,10 +257,12 @@ interface EvaluateRequest {
   goldBudget?: number | null;
   /**
    * Optional run-state snapshot computed desktop-side (map coach phase 1).
-   * The server doesn't currently have the raw game state in the request body,
-   * so `RunState` is computed once on the desktop inside `buildMapPrompt` and
-   * echoed back in the response here. See the task-6 DONE_WITH_CONCERNS note
-   * for the duplication trade-off.
+   * Historically this field was accepted and echoed back so the desktop
+   * could forward it to `/api/choice`. Echo removed in #76 — desktop now
+   * caches its locally-computed `RunState` directly (see `lastMapRunState`
+   * in `mapListeners.ts`) so the round-trip through the server is unused.
+   * Kept as an optional field so older clients still parse, but it's no
+   * longer read on the response path.
    */
   runStateSnapshot?: unknown;
   /**
@@ -592,10 +594,7 @@ export async function POST(request: Request) {
         // inside buildMapPrompt, and duplicating the builder on the server
         // (without raw state in the request body) would add surface area
         // without value. Noted as a known follow-up.
-        return NextResponse.json({
-          ...finalOutput,
-          runStateSnapshot: body.runStateSnapshot ?? null,
-        });
+        return NextResponse.json(finalOutput);
       }
 
       const result = isSimpleEval
@@ -646,10 +645,7 @@ export async function POST(request: Request) {
                 }
                 const sanitized = sanitizeMapCoachOutput(parsed);
                 const finalOutput = applyMapCompliance(sanitized, body.mapCompliance);
-                return NextResponse.json({
-                  ...finalOutput,
-                  runStateSnapshot: body.runStateSnapshot ?? null,
-                });
+                return NextResponse.json(finalOutput);
               }
               const schema = isSimpleEval ? simpleEvalSchema : genericEvalSchema;
               const parsed = schema.parse(repairedJson);

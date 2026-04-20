@@ -6,14 +6,22 @@ import type { MapCoachOutputRaw } from "../map-coach-schema";
  * rerank-if-dominated, and the evaluate route handler.
  */
 
-export type RepairReasonKind =
-  | "empty_macro_path"
-  | "unknown_node_id"
-  | "first_floor_mismatch"
-  | "contiguity_gap"
-  | "missing_boss"
-  | "walk_dead_end"
-  | "starts_at_current_position";
+/**
+ * Source of truth for repair-reason kinds. Exported as a `const` tuple so
+ * the zod enum in `map-coach-schema.ts` can derive from it (see issue #85).
+ * Adding a new kind HERE automatically flows to the wire schema.
+ */
+export const REPAIR_REASON_KINDS = [
+  "empty_macro_path",
+  "unknown_node_id",
+  "first_floor_mismatch",
+  "contiguity_gap",
+  "missing_boss",
+  "walk_dead_end",
+  "starts_at_current_position",
+] as const;
+
+export type RepairReasonKind = (typeof REPAIR_REASON_KINDS)[number];
 
 export interface RepairReason {
   kind: RepairReasonKind;
