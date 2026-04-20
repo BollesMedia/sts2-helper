@@ -401,3 +401,66 @@ describe("scorePaths — ranking", () => {
     expect(result[1].id).toBe("b");
   });
 });
+
+describe("scorePaths — regression (user-reported failures)", () => {
+  it("abundant run picks 2-elite over 0-elite monster path", () => {
+    const zeroElite = makeEnriched(
+      "zero",
+      [node("monster", 1), node("monster", 2), node("rest", 3)],
+    );
+    const twoElite = makeEnriched(
+      "two",
+      [node("rest", 1), node("elite", 2), node("rest", 3), node("elite", 4)],
+    );
+    const result = scorePaths(
+      [zeroElite, twoElite],
+      emptyRunState({
+        hp: { current: 68, max: 80, ratio: 0.85 },
+        riskCapacity: { hpBufferAbsolute: 44, expectedDamagePerFight: 16, fightsBeforeDanger: 2, verdict: "abundant" },
+        act: 1,
+      }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].id).toBe("two");
+  });
+
+  it("low-HP run with rest→elite×2 beats monster-heavy alternative", () => {
+    const monsterHeavy = makeEnriched(
+      "m",
+      [node("monster", 1), node("monster", 2), node("elite", 3), node("elite", 4)],
+    );
+    const restElite = makeEnriched(
+      "re",
+      [node("rest", 1), node("elite", 2), node("rest", 3), node("elite", 4)],
+    );
+    const result = scorePaths(
+      [monsterHeavy, restElite],
+      emptyRunState({
+        hp: { current: 28, max: 80, ratio: 0.35 },
+        riskCapacity: { hpBufferAbsolute: 4, expectedDamagePerFight: 16, fightsBeforeDanger: 0, verdict: "tight" },
+      }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].id).toBe("re");
+  });
+
+  it("mid-path dip loses to a safer path with fewer elites", () => {
+    const dipPath = makeEnriched(
+      "dip",
+      [node("monster", 1), node("monster", 2), node("monster", 3), node("elite", 4), node("elite", 5)],
+    );
+    const safePath = makeEnriched(
+      "safe",
+      [node("rest", 1), node("elite", 2), node("rest", 3), node("treasure", 4)],
+    );
+    const result = scorePaths(
+      [dipPath, safePath],
+      emptyRunState({
+        hp: { current: 56, max: 80, ratio: 0.7 },
+        riskCapacity: { hpBufferAbsolute: 32, expectedDamagePerFight: 16, fightsBeforeDanger: 2, verdict: "moderate" },
+      }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].id).toBe("safe");
+  });
+});
