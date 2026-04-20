@@ -348,3 +348,56 @@ describe("scorePaths — phase 2 weighted sum", () => {
     expect(result[0].scoreBreakdown.hardPoolChainLength ?? 0).toBe(0);
   });
 });
+
+describe("scorePaths — ranking", () => {
+  it("sorts survivors ahead of disqualified paths even when disqualified scores higher raw", () => {
+    const dq = makeEnriched("dq", [node("elite", 1), node("elite", 2)], { elitesTaken: 2 });
+    const ok = makeEnriched("ok", [node("elite", 1)], { elitesTaken: 1 });
+    // Low HP so the 2-elite path dips below 0 (fatal), disqualifying it;
+    // the 1-elite path takes 24 dmg (1.5× expected) and lands at 6 HP — a survivor.
+    const result = scorePaths(
+      [dq, ok],
+      emptyRunState({
+        hp: { current: 30, max: 80, ratio: 0.375 },
+        riskCapacity: { hpBufferAbsolute: 14, expectedDamagePerFight: 16, fightsBeforeDanger: 0, verdict: "critical" },
+      }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].id).toBe("ok");
+    expect(result[0].disqualified).toBe(false);
+    expect(result[1].id).toBe("dq");
+    expect(result[1].disqualified).toBe(true);
+  });
+
+  it("sorts survivors by descending score", () => {
+    const twoE = makeEnriched("two", [node("elite", 1), node("elite", 2)], { elitesTaken: 2 });
+    const oneE = makeEnriched("one", [node("elite", 1)], { elitesTaken: 1 });
+    const result = scorePaths(
+      [oneE, twoE],
+      emptyRunState({ act: 2 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].id).toBe("two");
+    expect(result[1].id).toBe("one");
+  });
+
+  it("restBeforeElite feature lifts path b above a", () => {
+    // Path b has a rest-before-elite pair; path a does not. b scores ~+8 higher.
+    // Exercises the weighted-sum ordering (score difference of ~8, above the 0.5 band).
+    const a = makeEnriched("a", [node("elite", 1), node("treasure", 2)]);
+    const b = makeEnriched(
+      "b",
+      [node("rest", 1), node("elite", 2), node("treasure", 3)],
+    );
+    const result = scorePaths([a, b], emptyRunState(), { cardRemovalCost: 75 });
+    expect(result[0].id).toBe("b");
+  });
+
+  it("falls back to stable input order on a total tie", () => {
+    const a = makeEnriched("a", [node("monster", 1)]);
+    const b = makeEnriched("b", [node("monster", 1)]);
+    const result = scorePaths([a, b], emptyRunState(), { cardRemovalCost: 75 });
+    expect(result[0].id).toBe("a");
+    expect(result[1].id).toBe("b");
+  });
+});

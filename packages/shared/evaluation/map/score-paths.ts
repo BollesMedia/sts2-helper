@@ -283,5 +283,34 @@ export function scorePaths(
     };
   });
 
+  const indexById = new Map(paths.map((p, i) => [p.id, i]));
+
+  scored.sort((a, b) => {
+    if (a.disqualified !== b.disqualified) return a.disqualified ? 1 : -1;
+
+    const gap = b.score - a.score;
+    if (Math.abs(gap) > 0.5) return gap;
+
+    const aRBE = countRestBeforeElite(a.nodes);
+    const bRBE = countRestBeforeElite(b.nodes);
+    if (aRBE !== bRBE) return bRBE - aRBE;
+
+    const aWalk = walks.get(a.id)!;
+    const bWalk = walks.get(b.id)!;
+    const aPost = Math.min(
+      runState.hp.max,
+      aWalk.projectedHpEnteringPreBossRest + restHeal,
+    );
+    const bPost = Math.min(
+      runState.hp.max,
+      bWalk.projectedHpEnteringPreBossRest + restHeal,
+    );
+    if (aPost !== bPost) return bPost - aPost;
+
+    if (aWalk.minHp !== bWalk.minHp) return bWalk.minHp - aWalk.minHp;
+
+    return (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0);
+  });
+
   return scored;
 }
