@@ -93,6 +93,15 @@ export function computeHpBudget(
   const hpBufferAbsolute = Math.max(0, player.hp - dangerFloor);
   const fightsBeforeDanger = Math.floor(hpBufferAbsolute / Math.max(1, expectedDamagePerFight));
 
+  // Verdict thresholds diverge from the original phase-1 spec on purpose.
+  // Spec said abundant ≥ 4 and moderate 2–4; shipped thresholds are one step
+  // lower because the formula's `expectedDamagePerFight` + deckBloatPenalty
+  // made realistic inputs (healthy HP, mid-ascension, mid-sized deck) never
+  // reach the spec's "abundant" tier — the phase-1 plan's own test case
+  // hp=75/80, asc 10, deck 15 expected "abundant" but the spec thresholds
+  // produced "moderate." See issue #81 for the full reconciliation history.
+  // If the damage formula is retuned, revisit these thresholds so tier
+  // names match the expectedDamagePerFight reality.
   let verdict: RiskVerdict;
   if (fightsBeforeDanger >= 3) verdict = "abundant";
   else if (fightsBeforeDanger >= 2) verdict = "moderate";

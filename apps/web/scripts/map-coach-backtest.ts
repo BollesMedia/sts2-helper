@@ -16,6 +16,14 @@
  *
  * Output:
  *   Table written to apps/web/scripts/backtest-report-<iso>.md
+ *
+ * TELEMETRY NOTE (legacy data shape) — issue #87:
+ * `choices` rows written BEFORE 2026-04-18 (phase-2 compliance ship) have
+ * `rankings_snapshot->'compliance'` === NULL. Any filter or aggregation
+ * that treats the absence of that field as a negative signal will silently
+ * exclude those rows. When adding new analytics queries against
+ * `rankings_snapshot->'compliance'`, COALESCE or explicitly scope by
+ * `created_at >= '2026-04-18'`.
  */
 
 import { createClient } from "@supabase/supabase-js";
