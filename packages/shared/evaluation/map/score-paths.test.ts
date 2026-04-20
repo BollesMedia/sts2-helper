@@ -209,3 +209,142 @@ describe("scorePaths — phase 1 hard filter", () => {
     expect(result.every((p) => p.disqualified)).toBe(true);
   });
 });
+
+describe("scorePaths — phase 2 weighted sum", () => {
+  it("scores elite count with the act-1 bonus in Act 1", () => {
+    const p = makeEnriched(
+      "twoElite",
+      [node("elite", 1), node("elite", 2)],
+      { elitesTaken: 2 },
+    );
+    const result = scorePaths([p], emptyRunState({ act: 1 }), { cardRemovalCost: 75 });
+    const breakdown = result[0].scoreBreakdown;
+    expect(breakdown.elitesTaken).toBe(20);
+    expect(breakdown.elitesInAct1Bonus).toBe(4);
+  });
+
+  it("applies no Act 1 bonus outside Act 1", () => {
+    const p = makeEnriched(
+      "twoElite",
+      [node("elite", 1), node("elite", 2)],
+      { elitesTaken: 2 },
+    );
+    const result = scorePaths([p], emptyRunState({ act: 2 }), { cardRemovalCost: 75 });
+    expect(result[0].scoreBreakdown.elitesInAct1Bonus ?? 0).toBe(0);
+  });
+
+  it("counts rest-before-elite and rest-after-elite pairs", () => {
+    const path = makeEnriched(
+      "pair",
+      [
+        node("monster", 1),
+        node("rest", 2),
+        node("elite", 3),   // rest-before-elite pair at 2→3
+        node("rest", 4),     // rest-after-elite pair at 3→4
+        node("monster", 5),
+      ],
+      { elitesTaken: 1, restsTaken: 2, monstersTaken: 2 },
+    );
+    const result = scorePaths([path], emptyRunState(), { cardRemovalCost: 75 });
+    expect(result[0].scoreBreakdown.restBeforeElite).toBe(8);
+    expect(result[0].scoreBreakdown.restAfterElite).toBe(5);
+  });
+
+  it("scores unknowns at 2 in Act 1, 2 in Act 2, 1 in Act 3", () => {
+    const mk = (act: 1 | 2 | 3) => {
+      const p = makeEnriched("u", [node("event", 1), node("event", 2)]);
+      return scorePaths([p], emptyRunState({ act }), { cardRemovalCost: 75 });
+    };
+    expect(mk(1)[0].scoreBreakdown.unknownsActs1And2).toBe(4);
+    expect(mk(2)[0].scoreBreakdown.unknownsActs1And2).toBe(4);
+    expect(mk(3)[0].scoreBreakdown.unknownsAct3).toBe(2);
+  });
+
+  it("treasures contribute +6 each", () => {
+    const p = makeEnriched("t", [node("treasure", 1)]);
+    const result = scorePaths([p], emptyRunState(), { cardRemovalCost: 75 });
+    expect(result[0].scoreBreakdown.treasuresTaken).toBe(6);
+  });
+
+  it("projectedHpAtBossFight uses the post-rest HP (clamped to max)", () => {
+    // Starting HP 60, max 80, expected dmg 16, restHeal = 24.
+    // Path has 1 monster: HP 60 - 16 = 44 entering pre-boss rest.
+    // post-rest = 44 + 24 = 68 / 80 = 0.85 × 4 = 3.4.
+    const p = makeEnriched("idle", [node("monster", 1)]);
+    const result = scorePaths(
+      [p],
+      emptyRunState({ hp: { current: 60, max: 80, ratio: 0.75 } }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].scoreBreakdown.projectedHpAtBossFight).toBeCloseTo(3.4, 2);
+  });
+
+  it("penalizes hp dips below 30% and below 15%", () => {
+    // Starting 80/80 hp; expected dmg 16 — 5 monsters dip to 0.
+    const p = makeEnriched("dip", [
+      node("monster", 1), node("monster", 2), node("monster", 3),
+      node("monster", 4), node("monster", 5),
+    ]);
+    const result = scorePaths(
+      [p],
+      emptyRunState({ hp: { current: 80, max: 80, ratio: 1 } }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].scoreBreakdown.hpDipBelow30PctPenalty ?? 0).toBeLessThan(0);
+    expect(result[0].scoreBreakdown.hpDipBelow15PctPenalty ?? 0).toBeLessThan(0);
+  });
+
+  it("penalizes a naked back-to-back shop pair at -3", () => {
+    const p = makeEnriched(
+      "shops",
+      [node("shop", 2), node("shop", 3)],
+      { shopsTaken: 2 },
+    );
+    const result = scorePaths(
+      [p],
+      emptyRunState({ gold: 30 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].scoreBreakdown.backToBackShopPairUnderGold).toBe(-3);
+  });
+
+  it("does not penalize a back-to-back shop pair if gold at shop #2 >= cardRemovalCost", () => {
+    // Gold at shop #2 = 30 + 2×40 = 110 >= 75.
+    const p = makeEnriched(
+      "shops",
+      [
+        node("monster", 1),
+        node("monster", 2),
+        node("shop", 3),
+        node("shop", 4),
+      ],
+      { shopsTaken: 2, monstersTaken: 2 },
+    );
+    const result = scorePaths(
+      [p],
+      emptyRunState({ gold: 30 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].scoreBreakdown.backToBackShopPairUnderGold ?? 0).toBe(0);
+  });
+
+  it("penalizes hard-pool chain length in Act 2 (one -2 per monster in the chain)", () => {
+    const p = makeEnriched(
+      "chain",
+      [node("monster", 1), node("monster", 2), node("monster", 3), node("rest", 4)],
+      { monstersTaken: 3, restsTaken: 1 },
+    );
+    const result = scorePaths([p], emptyRunState({ act: 2 }), { cardRemovalCost: 75 });
+    expect(result[0].scoreBreakdown.hardPoolChainLength).toBe(-6);
+  });
+
+  it("applies no hard-pool chain penalty in Act 1", () => {
+    const p = makeEnriched(
+      "chain",
+      [node("monster", 1), node("monster", 2), node("monster", 3)],
+      { monstersTaken: 3 },
+    );
+    const result = scorePaths([p], emptyRunState({ act: 1 }), { cardRemovalCost: 75 });
+    expect(result[0].scoreBreakdown.hardPoolChainLength ?? 0).toBe(0);
+  });
+});

@@ -1,4 +1,5 @@
 import type { EnrichedPath } from "./enrich-paths";
+import type { PathNode } from "./path-patterns";
 import type { RunState } from "./run-state";
 
 export const MAP_SCORE_WEIGHTS = {
@@ -102,6 +103,61 @@ function findNakedShopFloors(path: EnrichedPath, startGold: number): number[] {
   return nakedFloors;
 }
 
+function countRestBeforeElite(nodes: PathNode[]): number {
+  let count = 0;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    if (nodes[i].type === "rest" && nodes[i + 1].type === "elite") count += 1;
+  }
+  return count;
+}
+
+function countRestAfterElite(nodes: PathNode[]): number {
+  let count = 0;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    if (nodes[i].type === "elite" && nodes[i + 1].type === "rest") count += 1;
+  }
+  return count;
+}
+
+function countUnknowns(nodes: PathNode[]): number {
+  return nodes.filter((n) => n.type === "event" || n.type === "unknown").length;
+}
+
+function countTreasures(nodes: PathNode[]): number {
+  return nodes.filter((n) => n.type === "treasure").length;
+}
+
+function countBackToBackShopPairsUnderGold(
+  path: EnrichedPath,
+  startGold: number,
+  cardRemovalCost: number,
+): number {
+  let count = 0;
+  const nodes = path.nodes;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    if (nodes[i].type === "shop" && nodes[i + 1].type === "shop") {
+      const goldAtShop2 = estimateGoldAtFloor(path, nodes[i + 1].floor, startGold);
+      if (goldAtShop2 < cardRemovalCost) count += 1;
+    }
+  }
+  return count;
+}
+
+function hardPoolChainLengthTotal(nodes: PathNode[]): number {
+  let total = 0;
+  let run = 0;
+  for (const n of nodes) {
+    if (n.type === "monster") {
+      run += 1;
+    } else {
+      total += run;
+      run = 0;
+    }
+  }
+  total += run;
+  return total;
+}
+
 function applyHardFilter(
   paths: EnrichedPath[],
   runState: RunState,
@@ -163,15 +219,76 @@ export function scorePaths(
 
   const reasons = applyHardFilter(paths, runState, options, walks);
   const everyPathDisqualified = reasons.size === paths.length;
+  const restHeal = Math.round(runState.hp.max * REST_HEAL_PCT);
 
-  return paths.map((p) => {
+  const scored: ScoredPath[] = paths.map((p) => {
+    const walk = walks.get(p.id)!;
+    const breakdown: Partial<Record<keyof typeof MAP_SCORE_WEIGHTS, number>> = {};
+
+    breakdown.elitesTaken = MAP_SCORE_WEIGHTS.elitesTaken * p.aggregates.elitesTaken;
+    breakdown.elitesInAct1Bonus =
+      runState.act === 1
+        ? MAP_SCORE_WEIGHTS.elitesInAct1Bonus * p.aggregates.elitesTaken
+        : 0;
+    breakdown.restBeforeElite =
+      MAP_SCORE_WEIGHTS.restBeforeElite * countRestBeforeElite(p.nodes);
+    breakdown.restAfterElite =
+      MAP_SCORE_WEIGHTS.restAfterElite * countRestAfterElite(p.nodes);
+    breakdown.treasuresTaken =
+      MAP_SCORE_WEIGHTS.treasuresTaken * countTreasures(p.nodes);
+
+    const unknownsTaken = countUnknowns(p.nodes);
+    if (runState.act <= 2) {
+      breakdown.unknownsActs1And2 = MAP_SCORE_WEIGHTS.unknownsActs1And2 * unknownsTaken;
+    } else {
+      breakdown.unknownsAct3 = MAP_SCORE_WEIGHTS.unknownsAct3 * unknownsTaken;
+    }
+
+    const projectedHpAtBossFight = Math.min(
+      runState.hp.max,
+      walk.projectedHpEnteringPreBossRest + restHeal,
+    );
+    breakdown.projectedHpAtBossFight =
+      (MAP_SCORE_WEIGHTS.projectedHpAtBossFight * projectedHpAtBossFight) /
+      Math.max(1, runState.hp.max);
+
+    breakdown.distanceToAct3EliteOpportunities =
+      runState.act === 3 && runState.ascension >= 10
+        ? MAP_SCORE_WEIGHTS.distanceToAct3EliteOpportunities * p.aggregates.elitesTaken
+        : 0;
+
+    breakdown.hpDipBelow30PctPenalty =
+      MAP_SCORE_WEIGHTS.hpDipBelow30PctPenalty * walk.dipsBelow30Pct;
+    breakdown.hpDipBelow15PctPenalty =
+      MAP_SCORE_WEIGHTS.hpDipBelow15PctPenalty * walk.dipsBelow15Pct;
+
+    const backToBackShopPairCount = countBackToBackShopPairsUnderGold(
+      p,
+      runState.gold,
+      options.cardRemovalCost,
+    );
+    breakdown.backToBackShopPairUnderGold =
+      backToBackShopPairCount === 0
+        ? 0
+        : MAP_SCORE_WEIGHTS.backToBackShopPairUnderGold * backToBackShopPairCount;
+
+    const hardPoolApplies = runState.act >= 2;
+    breakdown.hardPoolChainLength = hardPoolApplies
+      ? MAP_SCORE_WEIGHTS.hardPoolChainLength * hardPoolChainLengthTotal(p.nodes)
+      : 0;
+
+    let score = 0;
+    for (const v of Object.values(breakdown)) score += v ?? 0;
+
     const r = reasons.get(p.id) ?? [];
     return {
       ...p,
-      score: 0,
-      scoreBreakdown: {},
+      score,
+      scoreBreakdown: breakdown,
       disqualified: everyPathDisqualified ? true : r.length > 0,
       disqualifyReasons: r,
     };
   });
+
+  return scored;
 }
