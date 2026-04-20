@@ -41,7 +41,7 @@ export function CardPickView({ state }: CardPickViewProps) {
   const showLegacySummary = !evaluation?.coaching;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 min-h-0 h-full overflow-y-auto overflow-x-hidden pr-1">
       {/* Header row — label + loading indicator. Legacy summary only renders
           when coaching is absent (phase-3 backwards-compat fallback). */}
       <div className="flex items-center justify-between gap-3">

@@ -29,11 +29,9 @@ describe("CardPickCoaching", () => {
 
   it("verdict banner splits headline and is always visible", () => {
     render(<CardPickCoaching coaching={fullCoaching} />);
-    // Heading 3 (verdict) shows the first sentence, stripped and bold.
     expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
       "Take Inflame.",
     );
-    // Reason (second sentence) renders under the verdict.
     expect(screen.getByText(/Commits the deck to Strength\./)).toBeInTheDocument();
   });
 
@@ -43,67 +41,84 @@ describe("CardPickCoaching", () => {
     expect(meter).toHaveAttribute("title", "conf: 0.82");
   });
 
-  it("coach notes are collapsed by default when confidence >= 0.6", () => {
+  it("shows deck state and commitment briefs by default (always visible)", () => {
     render(<CardPickCoaching coaching={fullCoaching} />);
-    expect(screen.queryByText(/14-card healthy deck/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Inflame is a Strength keystone/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Standalone damage/)).not.toBeInTheDocument();
-  });
-
-  it("shows coach notes after the toggle is clicked", () => {
-    render(<CardPickCoaching coaching={fullCoaching} />);
-    const toggle = screen.getByRole("button", {
-      expanded: false,
-      name: /Coach notes/i,
-    });
-    fireEvent.click(toggle);
     expect(screen.getByText(/14-card healthy deck/)).toBeInTheDocument();
     expect(screen.getByText(/Inflame is a Strength keystone/)).toBeInTheDocument();
-    expect(screen.getByText(/Standalone damage/)).toBeInTheDocument();
-    expect(screen.getByText(/Deck has 3 Strength support cards/)).toBeInTheDocument();
   });
 
-  it("tradeoff downside is collapsed until its row is clicked", () => {
+  it("collapses tradeoffs and patterns by default at high confidence", () => {
+    render(<CardPickCoaching coaching={fullCoaching} />);
+    expect(screen.queryByText(/Standalone damage\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unlocks scaling\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Deck has 3 Strength support cards/)).not.toBeInTheDocument();
+  });
+
+  it("shows tradeoff upsides after the Tradeoffs section is opened", () => {
     render(<CardPickCoaching coaching={fullCoaching} />);
     fireEvent.click(
-      screen.getByRole("button", { expanded: false, name: /Coach notes/i }),
+      screen.getByRole("button", { expanded: false, name: /Tradeoffs/i }),
     );
-    // Upside (always visible) + downside (hidden until row click).
+    expect(screen.getByText(/Standalone damage\./)).toBeInTheDocument();
+    expect(screen.getByText(/Unlocks scaling\./)).toBeInTheDocument();
+    // Downsides still hidden — they're nested behind per-row disclosure.
     expect(screen.queryByText(/Doesn't scale\./)).not.toBeInTheDocument();
-    const cardRow = screen.getByRole("button", {
-      expanded: false,
-      name: /Standalone damage/,
-    });
-    fireEvent.click(cardRow);
+  });
+
+  it("reveals a tradeoff downside only after its row is clicked", () => {
+    render(<CardPickCoaching coaching={fullCoaching} />);
+    fireEvent.click(
+      screen.getByRole("button", { expanded: false, name: /Tradeoffs/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { expanded: false, name: /Standalone damage/ }),
+    );
     expect(screen.getByText(/Doesn't scale\./)).toBeInTheDocument();
   });
 
-  it("auto-opens coach notes when confidence is below 0.6", () => {
+  it("shows teaching callouts after the Patterns section is opened", () => {
+    render(<CardPickCoaching coaching={fullCoaching} />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        expanded: false,
+        name: /Patterns to remember/i,
+      }),
+    );
+    expect(
+      screen.getByText(/Deck has 3 Strength support cards/),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-opens tradeoffs and patterns when confidence is below 0.6", () => {
     render(
       <CardPickCoaching coaching={{ ...fullCoaching, confidence: 0.5 }} />,
     );
-    expect(screen.getByText(/14-card healthy deck/)).toBeInTheDocument();
-    expect(screen.getByText(/Standalone damage/)).toBeInTheDocument();
+    expect(screen.getByText(/Standalone damage\./)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Deck has 3 Strength support cards/),
+    ).toBeInTheDocument();
   });
 
-  it("renders without sections when tradeoffs and callouts are empty", () => {
+  it("omits tradeoffs/patterns sections when their lists are empty", () => {
     const minimal = { ...fullCoaching, keyTradeoffs: [], teachingCallouts: [] };
     render(<CardPickCoaching coaching={minimal} />);
-    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
-      "Take Inflame.",
-    );
-    // notesCount is 0 — parenthetical count should not render.
-    expect(screen.queryByText(/\(0\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tradeoffs/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Patterns to remember/)).not.toBeInTheDocument();
+    // Briefs still visible.
+    expect(screen.getByText(/14-card healthy deck/)).toBeInTheDocument();
   });
 
-  it("does not render the emoji character from the prior design", () => {
+  it("does not render the emoji bullet from the prior design", () => {
     render(<CardPickCoaching coaching={fullCoaching} />);
     fireEvent.click(
-      screen.getByRole("button", { expanded: false, name: /Coach notes/i }),
+      screen.getByRole("button", {
+        expanded: false,
+        name: /Patterns to remember/i,
+      }),
     );
-    // Prior implementation used 💡 as the callout bullet. Redesign removes it
-    // in favor of a middle-dot glyph consistent with the rest of the icon language.
-    const calloutList = screen.getByText(/Deck has 3 Strength support cards/).closest("li");
-    expect(calloutList?.textContent ?? "").not.toContain("💡");
+    const calloutItem = screen
+      .getByText(/Deck has 3 Strength support cards/)
+      .closest("li");
+    expect(calloutItem?.textContent ?? "").not.toContain("💡");
   });
 });
