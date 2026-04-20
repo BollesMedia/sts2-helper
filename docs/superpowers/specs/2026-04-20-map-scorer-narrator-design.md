@@ -60,10 +60,11 @@ POST /api/evaluate (type: "map")
 Desktop listener (mapListeners):
   On gameStateReceived with state_type === "map":
     ├── shouldReEvaluate(prevState, nextState)?
-    │     - start-of-act after ancient resolves
+    │     - start-of-act after ancient resolves (Act 1: immediate)
     │     - player's current node is NOT on lastRecommendedPath.nodes
     │         (player deviated; the new node becomes floor 0 for the next score)
-    │     - player is at a fork (next_options.length > 1)
+    │     - player is at a meaningful fork (next_options differ in type
+    │         or downstream subgraph)
     ├── if no trigger: no-op (keep last highlight + last narration)
     ├── if trigger: enrich + score (pure JS, synchronous)
     ├── if winner.id !== previouslyDisplayed.id:
@@ -106,36 +107,50 @@ Desktop listener (mapListeners):
 A path is disqualified if ANY of:
 
 1. **Fatal.** `minHpAlongPath <= 0`.
-2. **0-elite abdication.** In Acts 1 or 2, `elitesTaken === 0` AND some other candidate has `elitesTaken >= 2` AND that candidate's `minHpAlongPath > 0`.
-3. **Naked shop.** `shopsTaken > 0` AND projected gold at shop floor < `cardRemovalCost` AND some alternative has equal-or-more elites with a viable shop.
+2. **Elite abdication.** In **Act 1**, `elitesTaken === 0` AND some other candidate has `elitesTaken >= 2` AND that candidate's `minHpAlongPath > 0`. In **Act 2**, `elitesTaken === 0` AND some other candidate has `elitesTaken >= 1` AND that candidate's `minHpAlongPath > 0`. (Act 2's 2nd elite is often situational — don't hard-filter past 1.)
+3. **Naked shop.** `shopsTaken > 0` AND projected gold at shop floor < `MIN_SHOP_PRICE_FLOOR` (≈50g; lowest realistic shop item price) AND some alternative has equal-or-more elites with a viable shop. (A shop with enough gold for a potion or cheap relic is NOT naked even if removal gold isn't there.)
 
 If EVERY path is disqualified, phase 1 falls back to "least bad" — sort by fewest hard-filter violations, then proceed to phase 2 among that tier. The scorer always picks something; a dead run still deserves coaching.
 
 ### Phase 2 — weighted sum (among survivors)
 
+Each candidate path lives entirely within one act, so "act-scoped" features use the current act number.
+
 ```ts
 score =
   +10 * elitesTaken
+  + (act === 1 ? +2 * elitesTaken : 0)                  // Act 1 elite bonus (early relics compound)
   + 8 * restBeforeEliteCount
   + 5 * restAfterEliteCount
   + 6 * treasuresTaken
-  +10 * (projectedHpEnteringPreBossRest / maxHp)
-  + 3 * distanceToAct3EliteOpportunities (only Act 3 at Asc 10+)
+  + (act <= 2 ? +2 : +1) * unknownsTaken                // `?` events are positive EV; weaker pool in Act 3
+  + 4 * (projectedHpAtBossFight / maxHp)                // post-rest HP; the value that matters at the boss
+  + (act === 3 && ascension >= 10 ? +3 * distanceToAct3EliteOpportunities : 0)  // Double Boss lever
   - 5 * minHpDipBelow30Pct_count
   -12 * minHpDipBelow15Pct_count
-  - 3 * backToBackShopPairCount
-  - 2 * hardPoolChainsWithoutRest
+  - 3 * backToBackShopPairCount_underGold               // only if projectedGoldAtShop2 < cardRemovalCost
+  - 2 * hardPoolChainLengthTotal                        // sum of chain lengths, not chain count
 ```
 
-Note: the pre-boss rest is guaranteed by the game, so the "naked approach to boss" concern is already captured by `minHpDipBelow30Pct_count` / `minHpDipBelow15Pct_count` and by `projectedHpEnteringPreBossRest` (which rewards entering that guaranteed rest with more HP). No separate `nakedPreBossChainCount` feature.
+New features to derive (not currently in `enrich-paths.ts`):
+- `projectedHpAtBossFight` = `projectedHpEnteringPreBossRest + restHeal`, where `restHeal = Math.round(0.30 * maxHp)` (the standard rest-heal amount). Clamp to `maxHp`.
+- `unknownsTaken` = count of `?` (event/unknown) nodes on the path.
+- `backToBackShopPairCount_underGold` = count of shop pairs at consecutive floors where projected gold at shop #2 is below `cardRemovalCost`. Gold projection uses the existing gold simulator (or is derived from run state + nodes if no simulator yet — add one if needed).
+- `hardPoolChainLengthTotal` = in Act 2/3 only, sum of lengths of maximal monster-node runs (no rest/shop/treasure interrupts) between the path start and the pre-boss rest.
+
+Notes:
+- The pre-boss rest is guaranteed by the game, so the "naked approach to boss" concern is captured by `minHpDipBelow30Pct_count` / `minHpDipBelow15Pct_count` and by `projectedHpAtBossFight` (post-rest HP). No separate `nakedPreBossChainCount` feature.
+- HP is anchored post-rest, not pre-rest. Pre-rest HP weighted linearly creates a monster-light bias because 50%→80% and 100%→100% look very different pre-rest but resolve to a small delta at the boss.
+- Shop penalty only fires when the second shop is also under removal gold; two-shop paths with gold to actually use shop #2 aren't penalized.
+- Hard-pool chains scale by total length, not count — a single 5-node chain is worse than a single 3-node chain, and a 3+2 split is the same as a 5-run.
 
 All weights live in a single exported `MAP_SCORE_WEIGHTS` const so tuning is a one-file change.
 
 ### Tiebreakers (paths within ±0.5 score)
 
 1. Higher `restBeforeEliteCount`.
-2. Lower `minHpDipMagnitude` (absolute, not count-based).
-3. Higher `projectedHpEnteringPreBossRest`.
+2. Higher `projectedHpAtBossFight` (post-rest HP directly determines boss-fight survival).
+3. Lower `minHpDipMagnitude` (absolute, not count-based) — dips resolve at the guaranteed rest so they're secondary.
 4. Stable order by the candidate index (earliest next_option wins on total ties).
 
 ### Score shape
@@ -158,8 +173,8 @@ const gap = ranked[0].score - ranked[1].score;
 const gapRatio = gap / Math.max(1, Math.abs(ranked[0].score));
 confidence =
   gapRatio >= 0.25 ? 0.95 :
-  gapRatio >= 0.10 ? 0.80 :
-  gapRatio >= 0.05 ? 0.65 : 0.50;
+  gapRatio >= 0.15 ? 0.80 :
+  gapRatio >= 0.07 ? 0.65 : 0.50;
 ```
 
 Large gap = confident recommendation. Narrow gap = close call — surfaced to the player via the existing confidence pill in the UI.
@@ -271,7 +286,7 @@ The old `shouldEvaluateMap` grew a pile of soft gates (`hpDropExceedsThreshold`,
 
 1. **Start of act (post-ancient).** First map-state of a new act. Acts 2 and 3 begin with an ancient heal event — if the map-state arrives pre-heal (HP shown is pre-heal), wait one tick for the heal to resolve; this replaces the old 3-tick grace with a deterministic "ancient event resolved" check. Act 1 has no ancient, so the trigger fires immediately on first Act 1 map-state.
 2. **Player off-path.** Player's `current_node` is NOT a node on `lastRecommendedPath.nodeIds`. Treat the new node as floor 0 and re-score from there. (This covers deliberate deviation, branch-swapping due to a chosen node, and recovery from prior-frame glitches.)
-3. **Player at a fork.** `next_options.length > 1` and the player has not yet moved this tick. This is the normal "we're at a decision point" case.
+3. **Player at a meaningful fork.** `next_options.length > 1` AND the options differ in node type OR in downstream reachable paths. Forks where all `next_options` are the same node type AND their downstream subgraphs are identical are a no-op (there is no real decision to coach).
 
 Absence of any trigger = no-op. We keep the highlighted path and the last narrator text.
 
@@ -309,10 +324,12 @@ Learning weights from this data is a phase-5 project; this phase just makes sure
 ### Unit
 
 - `score-paths.test.ts`:
-  - Each hard filter rule: positive and negative fixture.
-  - Weighted-sum assembly: one fixture per feature contribution, plus a regression fixture that reproduces each user-reported failure (0-elite in abundant run, rest→elite×2 path, etc.).
-  - Tiebreaker behavior.
+  - Each hard filter rule: positive and negative fixture (incl. Act 1 two-elite floor vs Act 2 one-elite floor).
+  - Weighted-sum assembly: one fixture per feature contribution — including `elitesInAct1` bonus, `unknownsTakenActs1And2` vs `unknownsTakenAct3` asymmetry, `projectedHpAtBossFight` (not pre-rest), `backToBackShopPairCount_underGold` (only penalized when gold short), `hardPoolChainLengthTotal` scaling.
+  - Regression fixture per user-reported failure (0-elite in abundant run, rest→elite×2 path, etc.).
+  - Tiebreaker order: restBeforeElite → projectedHpAtBossFight → minHpDipMagnitude → candidate index.
   - "All paths disqualified" fallback.
+  - Naked-shop threshold is `MIN_SHOP_PRICE_FLOOR` (~50g), not `cardRemovalCost`.
 - `build-narrator-input.test.ts`:
   - Shape round-trip.
   - Active rule emission at threshold boundaries.
@@ -323,12 +340,15 @@ Learning weights from this data is a phase-5 project; this phase just makes sure
   - Diverging, converging, diverging again → two branches.
   - Cap at 3 branches.
 - `should-evaluate-map.test.ts`:
-  - Start-of-act with ancient unresolved → skip (one-tick wait).
-  - Start-of-act with ancient resolved → trigger.
+  - Act 1 start-of-act (no ancient) → trigger immediately.
+  - Act 2/3 start-of-act with ancient unresolved → skip (one-tick wait).
+  - Act 2/3 start-of-act with ancient resolved → trigger.
   - Player node on `lastRecommendedPath.nodeIds` and not at fork → skip.
   - Player node NOT on `lastRecommendedPath.nodeIds` → trigger (node becomes floor 0).
-  - `next_options.length > 1` → trigger.
-  - None of the three → no-op.
+  - Fork with differing types (e.g. M vs E) → trigger.
+  - Fork with same type AND identical downstream subgraphs → skip.
+  - Fork with same type but differing downstream subgraphs → trigger.
+  - None of the above → no-op.
 
 ### Integration (route)
 
