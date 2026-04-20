@@ -35,18 +35,24 @@ export function CardPickView({ state }: CardPickViewProps) {
     ? resolveTopPick(evaluation.rankings, evaluation.skipRecommended ?? false)
     : null;
 
+  // The coaching panel owns the verdict line when present. Fall back to the
+  // legacy ranking-derived summary only when coaching is missing so the
+  // player never sees two competing verdicts on the same screen.
+  const showLegacySummary = !evaluation?.coaching;
+
   return (
     <div className="flex flex-col gap-3">
-      {/* Header row with inline summary */}
+      {/* Header row — label + loading indicator. Legacy summary only renders
+          when coaching is absent (phase-3 backwards-compat fallback). */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-display font-bold text-spire-text shrink-0">Card Reward</h2>
 
-        {topPickResult && !isLoading && (
+        {showLegacySummary && topPickResult && !isLoading && (
           <p className="text-xs font-medium truncate flex-1 text-right text-emerald-400">
             {topPickResult.summary}
           </p>
         )}
-        {evaluation?.skipRecommended && !topPickResult && !isLoading && (
+        {showLegacySummary && evaluation?.skipRecommended && !topPickResult && !isLoading && (
           <p className="text-xs font-medium text-zinc-500 truncate flex-1 text-right">
             Skip — {evaluation.skipReasoning ?? "none worth adding"}
           </p>
@@ -59,9 +65,8 @@ export function CardPickView({ state }: CardPickViewProps) {
         )}
       </div>
 
-      <CardPickCoaching coaching={evaluation?.coaching} />
-
-      {/* Card ratings — compact grid */}
+      {/* Card ratings come FIRST — this is the actual decision surface.
+          Coaching panel is informational and renders below. */}
       <div className="grid grid-cols-3 gap-3">
         {isLoading && !evaluation ? (
           <>
@@ -93,6 +98,8 @@ export function CardPickView({ state }: CardPickViewProps) {
           })
         )}
       </div>
+
+      <CardPickCoaching coaching={evaluation?.coaching} />
 
       {error && (
         <EvalError
