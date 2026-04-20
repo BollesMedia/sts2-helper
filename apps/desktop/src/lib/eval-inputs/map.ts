@@ -13,10 +13,26 @@ import {
   type EnrichedPath,
 } from "@sts2/shared/evaluation/map/enrich-paths";
 import { formatFactsBlock } from "@sts2/shared/evaluation/map/format-facts-block";
-import type {
-  RepairMapNode,
-  RepairNextOption,
-} from "@sts2/shared/evaluation/map/repair-macro-path";
+
+/**
+ * Loose structural shapes for the scorer request payload. These used to live
+ * in `repair-macro-path.ts` alongside the LLM-drift repair pipeline; post
+ * phase 4 the scorer only consumes `enrichedPaths` + `runState` +
+ * `cardRemovalCost`, so the types are kept here purely to shape the round-trip
+ * to `/api/evaluate` for future server-side sanity checks.
+ */
+interface ComplianceMapNode {
+  col: number;
+  row: number;
+  type: string;
+  children: [col: number, row: number][];
+}
+
+interface ComplianceNextOption {
+  col: number;
+  row: number;
+  type: string;
+}
 
 /**
  * Inputs for the server-side scorer + narrator pipeline, projected from
@@ -25,8 +41,8 @@ import type {
  * future server-side sanity checks).
  */
 export interface MapComplianceInputs {
-  nodes: RepairMapNode[];
-  nextOptions: RepairNextOption[];
+  nodes: ComplianceMapNode[];
+  nextOptions: ComplianceNextOption[];
   boss: { col: number; row: number };
   currentPosition: { col: number; row: number } | null;
   enrichedPaths: EnrichedPath[];
