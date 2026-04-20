@@ -296,17 +296,16 @@ export function setupMapEvalListener() {
           }
         }
 
+        const actChanged = prevContext ? prevContext.act !== run.act : false;
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
-          actChanged: prevContext ? prevContext.act !== run.act : false,
+          isStartOfAct: actChanged,
+          ancientHealResolved: true, // TODO(Task 10): derive from HP heuristic
           currentPosition: currentPos,
           isOnRecommendedPath: isOnPath,
-          allOptionsAreAncient,
-          hpDropExceedsThreshold,
-          goldCrossedThreshold,
-          deckSizeChangedSignificantly,
-          shopInPathBecameWorthless,
+          nextOptions: options.map((o) => ({ col: o.col, row: o.row, type: o.type.toLowerCase() })),
+          nextOptionSubgraphFingerprints: options.map(() => ""), // TODO(Task 10): compute fingerprints
         };
 
         // Defer the first post-act-change eval if HP still looks pre-heal.
@@ -315,7 +314,7 @@ export function setupMapEvalListener() {
         // be the pre-boss-fight remainder rather than the post-ancient
         // heal. A few-tick grace window lets the heal land.
         const activeRunIdForGrace = state.run.activeRunId;
-        if (input.actChanged && activeRunIdForGrace) {
+        if (actChanged && activeRunIdForGrace) {
           const graceKey = activeRunIdForGrace;
           const existing = actChangeGrace.get(graceKey);
           const isSameActChange = existing && existing.act === run.act;
@@ -345,7 +344,7 @@ export function setupMapEvalListener() {
           !hpDropExceedsThreshold &&
           !goldCrossedThreshold &&
           !deckSizeChangedSignificantly &&
-          !input.actChanged
+          !actChanged
         ) {
           const allNodes = mapState.map?.nodes ?? [];
           const bossPos = mapState.map.boss;
