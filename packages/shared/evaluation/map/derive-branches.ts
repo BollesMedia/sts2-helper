@@ -32,18 +32,18 @@ const BRANCH_RATIONALE: Record<string, { rec: string; alt: string }> = {
 };
 
 function nodeSig(n: PathNode): string {
-  const anyNode = n as PathNode & { col?: number };
-  return `${n.floor}:${anyNode.col ?? 0},${n.type}`;
+  return `${n.floor}:${n.nodeId ?? n.type}`;
 }
 
 function nodeLabel(n: PathNode): string {
+  if (n.type === "unknown" || n.type === "event") return "Event";
   const t = n.type;
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-function pickTopDelta(winner: ScoredPath, runnerUp: ScoredPath): string {
-  let best = "";
-  let bestVal = -Infinity;
+function pickTopDelta(winner: ScoredPath, runnerUp: ScoredPath): string | null {
+  let best: string | null = null;
+  let bestVal = 0; // strictly positive
   for (const [key, wVal] of Object.entries(winner.scoreBreakdown)) {
     const rVal = runnerUp.scoreBreakdown[key as keyof typeof winner.scoreBreakdown] ?? 0;
     const delta = (wVal ?? 0) - rVal;
@@ -71,7 +71,7 @@ export function deriveBranches(
     const diverges = nodeSig(w) !== nodeSig(r);
     if (diverges && !previousDivergence) {
       const topDelta = pickTopDelta(winner, runnerUp);
-      const rationale = BRANCH_RATIONALE[topDelta] ?? {
+      const rationale = (topDelta && BRANCH_RATIONALE[topDelta]) ?? {
         rec: `${nodeLabel(w)} — scorer preferred`,
         alt: `${nodeLabel(r)} — lower weighted score`,
       };

@@ -4,7 +4,7 @@ import type { ScoredPath } from "./score-paths";
 import type { PathNode } from "./path-patterns";
 
 function node(type: PathNode["type"], floor: number, col = 0): PathNode {
-  return { type, floor, col, row: floor } as PathNode;
+  return { type, floor, nodeId: `${col},${floor}` } as PathNode;
 }
 
 function makeScored(
@@ -118,5 +118,30 @@ describe("deriveBranches", () => {
     const runnerUp = makeScored("r", [node("monster", 1, 2)], 0);
     const branches = deriveBranches(winner, runnerUp, { confidence: 0.6 });
     expect(branches[0].close_call).toBe(true);
+  });
+
+  it("falls back to generic rationale when winner has no positive scoreBreakdown delta", () => {
+    // Identical breakdowns — tiebreaker-won winner with no positive delta.
+    const winner = makeScored("w", [node("rest", 1, 1), node("elite", 2, 1)], 18, {
+      elitesTaken: 10, restBeforeElite: 8,
+    });
+    const runnerUp = makeScored("r", [node("monster", 1, 2), node("elite", 2, 2)], 18, {
+      elitesTaken: 10, restBeforeElite: 8,
+    });
+    const branches = deriveBranches(winner, runnerUp, { confidence: 0.9 });
+    expect(branches).toHaveLength(1);
+    // Fallback rationale: "Rest — scorer preferred" / "Monster — lower weighted score"
+    expect(branches[0].recommended).toContain("Rest");
+    expect(branches[0].alternatives[0].tradeoff).toContain("Monster");
+  });
+
+  it("uses nodeId for divergence detection on real-shape PathNodes", () => {
+    // Two monster nodes at floor 1 with different nodeIds should diverge.
+    const n1: PathNode = { floor: 1, type: "monster", nodeId: "1,1" };
+    const n2: PathNode = { floor: 1, type: "monster", nodeId: "2,1" };
+    const winner = makeScored("w", [n1], 10);
+    const runnerUp = makeScored("r", [n2], 5);
+    const branches = deriveBranches(winner, runnerUp, { confidence: 0.9 });
+    expect(branches).toHaveLength(1);
   });
 });
