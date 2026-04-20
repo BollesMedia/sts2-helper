@@ -49,11 +49,32 @@ export function toCardRewardEvaluation(
       ? parsed.spending_plan
       : null;
 
+  const coaching = parsed.coaching
+    ? {
+        reasoning: {
+          deckState: parsed.coaching.reasoning.deck_state,
+          commitment: parsed.coaching.reasoning.commitment,
+        },
+        headline: parsed.coaching.headline,
+        confidence: parsed.coaching.confidence,
+        keyTradeoffs: parsed.coaching.key_tradeoffs.map((t) => ({
+          position: t.position,
+          upside: t.upside,
+          downside: t.downside,
+        })),
+        teachingCallouts: parsed.coaching.teaching_callouts.map((c) => ({
+          pattern: c.pattern,
+          explanation: c.explanation,
+        })),
+      }
+    : undefined;
+
   return {
     rankings,
     skipRecommended: parsed.skip_recommended,
     skipReasoning: parsed.skip_reasoning ?? null,
     spendingPlan,
+    ...(coaching ? { coaching } : {}),
   };
 }
 

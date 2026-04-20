@@ -32,6 +32,11 @@ import { buildComplianceReport } from "@sts2/shared/evaluation/map/compliance-re
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
+import { computeDeckState } from "@sts2/shared/evaluation/card-reward/deck-state";
+import { tagCard } from "@sts2/shared/evaluation/card-reward/card-tags";
+import { formatCardFacts } from "@sts2/shared/evaluation/card-reward/format-card-facts";
+import { sanitizeCardRewardCoachOutput } from "@sts2/shared/evaluation/card-reward-coach-schema";
+import { CARD_REWARD_SCAFFOLD } from "@sts2/shared/evaluation/prompt-builder";
 import { getStatisticalEvaluation } from "@sts2/shared/evaluation/statistical-evaluator";
 import { getCommunityTierSignals } from "@sts2/shared/evaluation/community-tier";
 import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
@@ -815,6 +820,70 @@ export async function POST(request: Request) {
     )
     .join("\n");
 
+  // Card reward coach enrichment. Skip for shops (phase 5) — only fires
+  // when type === "card_reward". On any failure, fall through with empty
+  // factsBlock/scaffold so legacy prompt behavior is preserved.
+  let factsBlock = "";
+  let scaffold = "";
+  if (type === "card_reward" && body.context) {
+    try {
+      // EvaluationContext doesn't declare hp / upcoming fields, but callers
+      // may send them in the JSON body (duck-typed request). Widen through
+      // `unknown` so the enrichment works whether the client populates them
+      // or not.
+      const ctxExt = body.context as typeof body.context & {
+        hp?: { current?: number; max?: number };
+        upcomingNodeType?: "elite" | "monster" | "boss" | "rest" | "shop" | "event" | "treasure" | "unknown" | null;
+        bossesPossible?: string[];
+        dangerousMatchups?: string[];
+      };
+      const deckCards = ctxExt.deckCards ?? [];
+      const relics = ctxExt.relics ?? [];
+      const actRaw = ctxExt.act ?? 1;
+      const act = (actRaw >= 1 && actRaw <= 3 ? actRaw : 1) as 1 | 2 | 3;
+      const hpMax = ctxExt.hp?.max ?? 0;
+      const hpCurrent = ctxExt.hp?.current ?? (
+        ctxExt.hpPercent != null && hpMax > 0
+          ? Math.round(ctxExt.hpPercent * hpMax)
+          : 0
+      );
+
+      const deckState = computeDeckState({
+        deck: deckCards as unknown as Parameters<typeof computeDeckState>[0]["deck"],
+        relics: relics as unknown as Parameters<typeof computeDeckState>[0]["relics"],
+        act,
+        floor: ctxExt.floor ?? 0,
+        ascension: ctxExt.ascension ?? 0,
+        hp: { current: hpCurrent, max: hpMax },
+        upcomingNodeType: ctxExt.upcomingNodeType ?? null,
+        bossesPossible: ctxExt.bossesPossible ?? [],
+        dangerousMatchups: ctxExt.dangerousMatchups ?? [],
+      });
+
+      const siblings = items.map((it) => ({ name: it.name }));
+      const taggedOffers = items.map((it, i) => ({
+        index: i + 1,
+        name: it.name,
+        rarity: it.rarity ?? "",
+        type: it.type ?? "",
+        cost: it.cost ?? null,
+        description: it.description ?? "",
+        tags: tagCard(
+          { name: it.name },
+          deckState,
+          siblings.filter((s) => s.name !== it.name),
+          deckCards.map((c) => ({ name: c.name })),
+        ),
+      }));
+
+      factsBlock = "\n" + formatCardFacts(deckState, taggedOffers) + "\n";
+      scaffold = "\n" + CARD_REWARD_SCAFFOLD + "\n";
+    } catch (err) {
+      console.error("[Evaluate] card reward enrichment failed, continuing without:", err);
+      // Falls through with empty factsBlock/scaffold — legacy prompt behavior.
+    }
+  }
+
   const isExclusive = body.exclusive !== false; // default true for card_reward
   const cardSchema = buildCardRewardSchema(items, type === "shop");
 
@@ -826,7 +895,7 @@ export async function POST(request: Request) {
     : "";
 
   const userPrompt = `${contextStr}
-${goldBudget}
+${goldBudget}${factsBlock}${scaffold}
 CRITICAL: This is Slay the Spire 2. Many cards have DIFFERENT effects than STS1. Evaluate ONLY by the description shown after the dash (—). Do NOT assume what a card does from its name.
 
 ${type === "card_reward" ? "Offered cards" : "Shop items (affordable only)"}:
@@ -877,6 +946,11 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
       );
     }
     result.output.rankings = cleanedRankings;
+
+    // Sanitize coaching block if present (caps tradeoffs/callouts, clamps confidence).
+    if (result.output.coaching) {
+      result.output.coaching = sanitizeCardRewardCoachOutput(result.output.coaching);
+    }
 
     const evaluation = toCardRewardEvaluation(result.output, items);
     console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);

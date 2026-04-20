@@ -62,4 +62,11 @@ export interface CardRewardEvaluation {
   skipRecommended: boolean;
   skipReasoning: string | null;
   spendingPlan?: string | null;
+  coaching?: {
+    reasoning: { deckState: string; commitment: string };
+    headline: string;
+    confidence: number;
+    keyTradeoffs: { position: number; upside: string; downside: string }[];
+    teachingCallouts: { pattern: string; explanation: string }[];
+  };
 }
