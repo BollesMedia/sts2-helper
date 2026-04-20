@@ -68,6 +68,45 @@ describe("inferRunOutcome", () => {
         lastAct: 3,
       })).toBeNull();
     });
+
+    // #74: STS2 sometimes jumps from the final boss fight directly to
+    // menu without emitting combat_rewards. Previously this stranded
+    // ascension wins on the "Run paused" screen.
+    it("detects victory from menu transition with cleared act 3 boss", () => {
+      expect(outcome({
+        currentStateType: "menu",
+        lastWasBoss: true,
+        lastEnemiesAllDead: true,
+        lastAct: 3,
+      })).toBe("victory");
+    });
+
+    it("does NOT detect victory from menu transition after an act 2 boss", () => {
+      expect(outcome({
+        currentStateType: "menu",
+        lastWasBoss: true,
+        lastEnemiesAllDead: true,
+        lastAct: 2,
+      })).toBeNull();
+    });
+
+    it("does NOT detect victory from menu transition without boss context", () => {
+      expect(outcome({
+        currentStateType: "menu",
+        lastWasBoss: false,
+        lastEnemiesAllDead: true,
+        lastAct: 3,
+      })).toBeNull();
+    });
+
+    it("does NOT detect victory from menu transition when enemies were not all dead", () => {
+      expect(outcome({
+        currentStateType: "menu",
+        lastWasBoss: true,
+        lastEnemiesAllDead: false,
+        lastAct: 3,
+      })).toBeNull();
+    });
   });
 
   describe("defeat detection", () => {
