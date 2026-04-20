@@ -7,6 +7,7 @@ import {
 } from "./score-paths";
 import type { EnrichedPath } from "./enrich-paths";
 import type { RunState } from "./run-state";
+import type { PathNode } from "./path-patterns";
 
 function emptyRunState(overrides: Partial<RunState> = {}): RunState {
   return {
@@ -61,5 +62,150 @@ describe("scorePaths smoke", () => {
   it("returns an empty array when given no paths", () => {
     const result = scorePaths([] as EnrichedPath[], emptyRunState(), { cardRemovalCost: 75 });
     expect(result).toEqual([]);
+  });
+});
+
+function makeEnriched(
+  id: string,
+  nodes: PathNode[],
+  overrides: Partial<EnrichedPath["aggregates"]> = {},
+): EnrichedPath {
+  const elitesTaken = nodes.filter((n) => n.type === "elite").length;
+  const restsTaken = nodes.filter((n) => n.type === "rest").length;
+  const shopsTaken = nodes.filter((n) => n.type === "shop").length;
+  const monstersTaken = nodes.filter((n) => n.type === "monster").length;
+  return {
+    id,
+    nodes,
+    patterns: [],
+    aggregates: {
+      elitesTaken,
+      monstersTaken,
+      restsTaken,
+      shopsTaken,
+      hardPoolFightsOnPath: 0,
+      totalFights: elitesTaken + monstersTaken,
+      projectedHpEnteringPreBossRest: 40,
+      fightBudgetStatus: "within_budget",
+      hpProjectionVerdict: "safe",
+      ...overrides,
+    },
+  };
+}
+
+function node(type: PathNode["type"], floor: number, col = 0): PathNode {
+  return { type, floor, col, row: floor } as PathNode;
+}
+
+describe("scorePaths — phase 1 hard filter", () => {
+  it("disqualifies a path whose min HP reaches 0", () => {
+    // 5 monsters in a row with expectedDmg=16 and hp=60 → dips to -20.
+    const lethal = makeEnriched("lethal", [
+      node("monster", 1),
+      node("monster", 2),
+      node("monster", 3),
+      node("monster", 4),
+      node("monster", 5),
+    ], { monstersTaken: 5, totalFights: 5 });
+    const safe = makeEnriched("safe", [
+      node("monster", 1),
+      node("rest", 2),
+      node("monster", 3),
+    ]);
+    const result = scorePaths([lethal, safe], emptyRunState(), { cardRemovalCost: 75 });
+    const scored = result.find((p) => p.id === "lethal");
+    expect(scored?.disqualified).toBe(true);
+    expect(scored?.disqualifyReasons).toContain("fatal");
+  });
+
+  it("disqualifies a 0-elite path in Act 1 when a 2-elite alternative exists and survives", () => {
+    const zeroElite = makeEnriched("zero", [node("monster", 1), node("rest", 2)]);
+    const twoElite = makeEnriched(
+      "two",
+      [node("rest", 1), node("elite", 2), node("rest", 3), node("elite", 4)],
+      { elitesTaken: 2 },
+    );
+    const result = scorePaths(
+      [zeroElite, twoElite],
+      emptyRunState({ act: 1 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "zero")?.disqualified).toBe(true);
+    expect(result.find((p) => p.id === "zero")?.disqualifyReasons).toContain("elite_abdication");
+    expect(result.find((p) => p.id === "two")?.disqualified).toBe(false);
+  });
+
+  it("disqualifies a 0-elite path in Act 2 when a 1-elite alternative exists and survives", () => {
+    const zeroElite = makeEnriched("zero", [node("monster", 1), node("rest", 2)]);
+    const oneElite = makeEnriched("one", [node("rest", 1), node("elite", 2)], { elitesTaken: 1 });
+    const result = scorePaths(
+      [zeroElite, oneElite],
+      emptyRunState({ act: 2 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "zero")?.disqualified).toBe(true);
+    expect(result.find((p) => p.id === "zero")?.disqualifyReasons).toContain("elite_abdication");
+  });
+
+  it("does NOT disqualify a 0-elite path in Act 3 (abdication rule is Acts 1/2 only)", () => {
+    const zeroElite = makeEnriched("zero", [node("monster", 1), node("rest", 2)]);
+    const twoElite = makeEnriched(
+      "two",
+      [node("rest", 1), node("elite", 2), node("rest", 3), node("elite", 4)],
+      { elitesTaken: 2 },
+    );
+    const result = scorePaths(
+      [zeroElite, twoElite],
+      emptyRunState({ act: 3 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "zero")?.disqualified).toBe(false);
+  });
+
+  it("disqualifies a naked-shop path when projected gold < MIN_SHOP_PRICE_FLOOR and an alternative exists", () => {
+    // Starting gold 30, ~40g per fight, shop at floor 2 so gold ≈ 30 + ~0 fights = 30 < 50.
+    const nakedShop = makeEnriched("naked", [node("shop", 2)], { shopsTaken: 1 });
+    const viable = makeEnriched(
+      "viable",
+      [node("elite", 1), node("elite", 2)],
+      { elitesTaken: 2 },
+    );
+    const result = scorePaths(
+      [nakedShop, viable],
+      emptyRunState({ gold: 30 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "naked")?.disqualified).toBe(true);
+    expect(result.find((p) => p.id === "naked")?.disqualifyReasons).toContain("naked_shop");
+  });
+
+  it("keeps a shop path when projected gold at the shop floor is >= MIN_SHOP_PRICE_FLOOR", () => {
+    const okShop = makeEnriched("ok", [node("shop", 2)], { shopsTaken: 1 });
+    const other = makeEnriched("other", [node("monster", 1)]);
+    const result = scorePaths(
+      [okShop, other],
+      emptyRunState({ gold: 100 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "ok")?.disqualified).toBe(false);
+  });
+
+  it("falls back to 'least bad' when every path is disqualified", () => {
+    const fatal1 = makeEnriched("f1", [
+      node("monster", 1), node("monster", 2), node("monster", 3),
+      node("monster", 4), node("monster", 5),
+    ]);
+    const fatal2 = makeEnriched("f2", [
+      node("monster", 1), node("monster", 2), node("monster", 3),
+      node("monster", 4), node("monster", 5), node("monster", 6),
+    ]);
+    const result = scorePaths(
+      [fatal1, fatal2],
+      emptyRunState(),
+      { cardRemovalCost: 75 },
+    );
+    // Both disqualified, but result is non-empty — caller still gets something.
+    expect(result.length).toBe(2);
+    expect(result.every((p) => p.disqualified)).toBe(true);
   });
 });
