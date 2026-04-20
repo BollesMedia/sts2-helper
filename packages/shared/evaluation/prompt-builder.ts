@@ -8,12 +8,12 @@ import type { EvaluationContext } from "./types";
  * - BASE_PROMPT: stable across every eval of every type — hallucination
  *   guards first, then deck-building heuristics, then output rules.
  * - TYPE_ADDENDA[type]: stable per eval type.
- * - MAP_PATHING_SCAFFOLD / CARD_REWARD_SCAFFOLD: stable per eval type.
+ * - MAP_NARRATOR_PROMPT / CARD_REWARD_SCAFFOLD: stable per eval type.
  * - User prompt carries the volatile runtime data (facts blocks, offers).
  * This ordering keeps the cacheable prefix maximal.
  *
  * Approximate sizes (tokens): BASE_PROMPT ~410, ancient addendum ~340
- * (largest), others ~30–140, MAP_PATHING_SCAFFOLD ~600,
+ * (largest), others ~30–140, MAP_NARRATOR_PROMPT ~150,
  * CARD_REWARD_SCAFFOLD ~195.
  */
 
@@ -62,44 +62,32 @@ OUTPUT RULES.
 - confidence is a float 0.0–1.0. >0.90 clear, 0.70–0.90 solid, 0.40–0.70 close call, <0.40 uncertain. Values outside [0,1] are clamped server-side.
 - Return JSON only.`;
 
-// --- Map Pathing Reasoning Scaffold ---
-// Elite count is the load-bearing rule. 2 elites per act is the FLOOR — this
-// survives because Haiku defaults to HP conservation and under-takes elites.
-// Path selection rules are HARD: applied before the prose reasoning.
+// --- Map Narrator Prompt ---
+// Task 7: The deterministic scorer picks the path; the LLM only narrates the
+// verdict. `MAP_PATHING_SCAFFOLD` is retained as an empty-string export until
+// Task 8 removes the remaining caller in `apps/desktop/src/lib/eval-inputs/map.ts`.
 
-export const MAP_PATHING_SCAFFOLD = `
-PATH SELECTION (hard rules — apply before reasoning).
-Pick the path with the MOST elites that isn't CRITICAL HP_risk or EXCEEDS_BUDGET. 2 elites per act is the FLOOR for every act, including Act 3 — elites drop relics, and at Ascension 10 the "Double Boss" finale makes relic density decisive. A 0-elite path with ABUNDANT or MODERATE risk_capacity is almost always wrong.
+export const MAP_PATHING_SCAFFOLD = "";
 
-Tiebreakers, in order:
-1. More elites.
-2. Contains a REST→ELITE pair (rest absorbs elite damage). Two such pairs = gold standard.
-3. HP_risk: SAFE > RISKY > CRITICAL.
-4. fightBudget: WITHIN_BUDGET > TIGHT > EXCEEDS_BUDGET.
+export const MAP_NARRATOR_PROMPT = `
+You are narrating a MAP coaching recommendation. You do NOT pick the path. The path has already been chosen by a deterministic scorer.
 
-Only drop below 2 elites when every ≥2-elite alternative is CRITICAL HP_risk, or the map genuinely lacks them. Only pick EXCEEDS_BUDGET / CRITICAL when every alternative is equally bad — then surface the tradeoff in \`reasoning.act_goal\`.
+You receive:
+- chosenPath: summary + aggregates
+- activeRules: the rules the chosen path satisfies strongly
+- runnersUpTradeoffs: what this path gives up vs alternatives
+- runState: deck and act context
 
-REASONING STEPS.
-1. risk_capacity: restate the RUN STATE verdict and HP buffer in your own words. Can this run push for elites or must it consolidate?
-2. act_goal: one sentence. What should the remaining floors accomplish? Conditional goals are fine, e.g. "Take elite at f28 if HP ≥ 55, else monster."
+Produce:
+- headline (1 sentence): the verdict in the player's voice.
+- reasoning (2–3 sentences): why these rules matter for THIS run.
+- teaching_callouts (max 4): one per rule the player should internalize. 1–2 sentences each.
 
-SELF-CONSISTENCY. If act_goal mentions taking N elites, macro_path MUST contain ≥ N elite nodes. If they conflict, rewrite the goal to match the path.
-
-MACRO_PATH FORMAT.
-- Copy the chosen Path sequence from CANDIDATE PATHS verbatim — EVERY node from the chosen next-option through the act boss, inclusive. Partial paths break client highlighting.
-- The FIRST floor is the chosen next-option node (NOT the player's current position).
-- node_id is copied EXACTLY from the \`@col,row\` tokens (e.g., \`M@2,5\` → node_id "2,5"). Do NOT recompute coordinates.
-
-KEY BRANCHES: 1–3 non-obvious decision points. Set close_call=true when it is one; that's not a failure state. Conditional recommendations are welcome ("Elite IF HP ≥ 55, else Monster").
-
-TEACHING CALLOUTS: up to 4. Pick the patterns from CANDIDATE PATHS that are pedagogically useful for THIS path, not a complete list.
-
-LENGTH.
-- headline: 1 sentence. risk_capacity and act_goal: ≤ 2 sentences each.
-- Branch decision: ≤ 10 words (a short question). recommended: ≤ 15 words. alternatives[].tradeoff: 1 sentence.
-- teaching_callouts[].explanation: 1 sentence.
-
-CAPS (server truncates extras): key_branches ≤ 3, teaching_callouts ≤ 4. confidence is a float in [0, 1] — out-of-range values are clamped.
+Rules:
+- Do NOT describe another path as "better" — the scorer has decided.
+- Do NOT invent facts beyond the input.
+- Do NOT propose alternative paths.
+- Render active rules as coaching prose.
 `.trim();
 
 // --- Card Reward Reasoning Scaffold ---
@@ -128,13 +116,6 @@ SHOP. Default priority: card removal > relic > card > potion. Evaluate each item
 - Cards on 50% sale clear a much lower bar. Colorless cards are shop-exclusive — favor if on-archetype.
 - Potions: only when a slot is open, the potion answers an imminent elite/boss, and gold still covers removal.
 - Act 1: removal focus, save for Act 2's better cards. Act 2: peak shop — removal + relics + rares. Act 3: spend all gold; gold is worthless after the final boss.`,
-
-  map: `
-MAP PATHING. The RUN STATE block has risk, budgets, and thresholds — apply them, don't restate. Act-specific priorities:
-- Treasure = free relic, always high priority.
-- Act 1: card-acquisition density matters more than HP — a thin weak deck is Act 1's biggest risk.
-- Act 2: peak window for elites + shops + event gambles. Convert HP into permanent power.
-- Act 3: finish the engine via upgrades, but the 2-elite floor still applies. At Ascension 10 the "Double Boss" finale makes elite relics the decisive factor — don't conserve for a mythical safe lane.`,
 
   rest_site: `
 REST SITE. Default actions: Rest (heal 30% max HP) and Forge (upgrade 1 card). Other actions only appear when a relic/event unlocks them.

@@ -3,6 +3,8 @@ import {
   mapCoachOutputSchema,
   sanitizeMapCoachOutput,
   MAP_COACH_LIMITS,
+  mapNarratorOutputSchema,
+  sanitizeMapNarratorOutput,
 } from "./map-coach-schema";
 
 const validBranch = {
@@ -186,5 +188,38 @@ describe("sanitizeMapCoachOutput", () => {
     const tooMany = { ...valid, key_branches: Array(5).fill(validBranch) };
     sanitizeMapCoachOutput(tooMany);
     expect(tooMany.key_branches).toHaveLength(5);
+  });
+});
+
+describe("mapNarratorOutputSchema", () => {
+  it("accepts the minimal narrator shape", () => {
+    const parsed = mapNarratorOutputSchema.parse({
+      headline: "Take the 2-elite route.",
+      reasoning: "Relics compound in Act 1.",
+      teaching_callouts: [
+        { pattern: "elitesTaken", explanation: "Elites drop relics; skipping them is the biggest common mistake." },
+      ],
+    });
+    expect(parsed.headline).toBe("Take the 2-elite route.");
+    expect(parsed.teaching_callouts).toHaveLength(1);
+  });
+
+  it("rejects missing required fields", () => {
+    expect(() =>
+      mapNarratorOutputSchema.parse({ headline: "", reasoning: "x", teaching_callouts: [] }),
+    ).toThrow();
+  });
+
+  it("sanitize clamps teaching_callouts to the documented cap", () => {
+    const raw = {
+      headline: "x",
+      reasoning: "y",
+      teaching_callouts: Array.from({ length: 10 }).map((_, i) => ({
+        pattern: `p${i}`,
+        explanation: `e${i}`,
+      })),
+    };
+    const cleaned = sanitizeMapNarratorOutput(raw);
+    expect(cleaned.teaching_callouts).toHaveLength(4);
   });
 });
