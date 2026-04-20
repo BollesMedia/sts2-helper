@@ -33,6 +33,8 @@ export interface NarratorInput {
   };
 }
 
+// `kind` is currently 1:1 with the weight key but left as its own field so
+// future rules can diverge (e.g. aggregate multiple weight keys into one rule).
 const ACTIVE_RULE_THRESHOLDS: Record<
   string,
   { kind: string; applies: (signedValue: number) => boolean }
@@ -69,25 +71,19 @@ function countRestEliteWindows(nodes: PathNode[]): number {
   return count;
 }
 
-function topPositiveRationale(winner: ScoredPath, other: ScoredPath): string {
+function topRationale(
+  winner: ScoredPath,
+  other: ScoredPath,
+  direction: "max" | "min",
+): string {
   let best = "";
-  let bestDelta = -Infinity;
+  let bestDelta = direction === "max" ? -Infinity : Infinity;
+  const better = direction === "max"
+    ? (d: number, b: number) => d > b
+    : (d: number, b: number) => d < b;
   for (const [k, wVal] of Object.entries(winner.scoreBreakdown)) {
     const delta = (wVal ?? 0) - (other.scoreBreakdown[k as keyof typeof winner.scoreBreakdown] ?? 0);
-    if (delta > bestDelta) {
-      best = k;
-      bestDelta = delta;
-    }
-  }
-  return best;
-}
-
-function topNegativeRationale(winner: ScoredPath, other: ScoredPath): string {
-  let best = "";
-  let bestDelta = Infinity;
-  for (const [k, wVal] of Object.entries(winner.scoreBreakdown)) {
-    const delta = (wVal ?? 0) - (other.scoreBreakdown[k as keyof typeof winner.scoreBreakdown] ?? 0);
-    if (delta < bestDelta) {
+    if (better(delta, bestDelta)) {
       best = k;
       bestDelta = delta;
     }
@@ -121,8 +117,8 @@ export function buildNarratorInput(
     activeRules,
     runnersUpTradeoffs: runnersUp.slice(0, 2).map((r, i) => ({
       vsPosition: i + 1,
-      whatThisWins: topPositiveRationale(winner, r),
-      whatItCosts: topNegativeRationale(winner, r),
+      whatThisWins: topRationale(winner, r, "max"),
+      whatItCosts: topRationale(winner, r, "min"),
     })),
     runState: {
       hpPct: runState.hp.ratio,
