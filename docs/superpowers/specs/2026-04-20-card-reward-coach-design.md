@@ -151,9 +151,18 @@ export interface DeckState {
 - `archetype.committed` is the archetype with `hasKeystone === true` (at most one — if multiple, pick highest support).
 - `orphaned` lists archetypes that have support but no keystone AND aren't committed.
 
-### Reuse existing archetype-detector
+### Reuse existing archetype-detector (partial)
 
-`packages/shared/evaluation/archetype-detector.ts` already ships. `deriveArchetypes(deck)` wraps it for the card_reward shape.
+`packages/shared/evaluation/archetype-detector.ts` already ships. It exposes:
+- `detectArchetypes(deck, relics) → ArchetypeScore[]` with `{archetype, confidence}` — archetype *presence* + relative rank.
+- `hasScalingSources(deck) → boolean` and `getScalingSources(deck) → string[]` — already matches what we need for `engine.hasScaling`.
+
+What it does NOT expose and must be built in this phase:
+- **Per-archetype `supportCount`** — the raw card-match count. `ARCHETYPE_SIGNALS` is private inside the detector; we either (a) refactor to export the raw counts alongside confidence, or (b) re-run the signal match in a thin helper. Option (a) is cleaner and low-risk — extract the signal table + a `countArchetypeSupport(deck)` helper, keep `detectArchetypes` as a consumer of it.
+- **Keystone detection** — needs a separate list of "anchor" cards per archetype (Inflame, Demon Form for Strength; Corruption for Exhaust; etc.). Lives in the scraped `card-roles.json` as a new field, NOT in the existing detector file.
+- **Orphan detection** — cross-references committed archetype vs viable archetypes; pure composition over the above.
+
+So the archetype work in this phase is: (1) refactor `archetype-detector.ts` to expose raw support counts, (2) add keystone data to `card-roles.json`, (3) write `deriveArchetypes(deckState)` that composes the above into the richer `ArchetypeSignal` shape. The detector's existing behavior stays intact for its other callers.
 
 ## Per-card tagging
 
@@ -174,11 +183,13 @@ export interface CardTags {
 
 1. Look up the card by id/name in `card-roles.json` (scraped). If present, read `role`, `keystoneFor`, `fitsArchetypes` directly.
 2. If missing from lookup, fall back to keyword heuristics over the card description (e.g., description contains "gain X Strength" → `role = "scaling"`). Heuristics are a short list; log a warning when they fire so the scrape can be extended.
-3. `deadWithCurrentDeck`:
-   - `role === "scaling"` AND deck has no payoff for that scaling mechanism AND act === 1.
-   - OR `keystoneFor === X` AND deck has zero support cards for X.
-   - OR `role === "power_payoff"` (e.g., something that consumes Strength) AND deck has no scaling source.
-4. `duplicatePenalty = true` if deck already has the same card AND it's not an archetype-critical anchor (don't penalize second copy of a keystone).
+3. `deadWithCurrentDeck` — conservative, requires multiple conditions to fire:
+   - `role === "power_payoff"` (e.g., Heavy Blade, Body Slam — cards whose value depends on Strength/block already being on the board) AND `!engine.hasScaling` AND `!engine.hasBlockPayoff` AND NO other offered card in this pick would provide the missing source. Intuition: a payoff is dead if the deck can't supply the input AND the player can't fix that in the same pick window.
+   - OR `role === "scaling"` AND `archetypes.committed` exists AND the scaling card doesn't fit the committed archetype. (A poison keystone is dead in a strength-committed deck; NOT dead in an uncommitted deck — that scaling card might BE the commitment.)
+   - NEVER flag a `role === "scaling"` card as dead in an uncommitted deck just because the deck lacks matching support. Scaling cards are often the pick that *unlocks* the archetype.
+4. `duplicatePenalty`:
+   - Lookup `maxCopies` from `card-roles.json` (keystones default to 1; strikes/defends can stack; payoff cards vary per archetype).
+   - `duplicatePenalty = true` iff deck already contains `>= maxCopies` of this card.
 
 Pure function; colocated tests for 6-8 representative cards.
 
@@ -232,12 +243,18 @@ Before ranking, reason step-by-step:
 
 1. DECK STATE: restate the deck's size verdict, committed archetype (or lack
    thereof), and what the deck needs most (damage, block, scaling, removal).
-2. PICK RATIONALE: for each offered card, state its best-case role in THIS
+2. SKIP BAR: state the minimum tier / archetype fit a pick must clear to earn
+   a deck slot right now. "Take a B-tier only if it's on-archetype or solves a
+   block/damage gap." "Skip unless A-tier." This bar drives step 4.
+3. PICK RATIONALE: for each offered card, state its best-case role in THIS
    deck (not in a vacuum). Flag if a card is dead_with_current_deck per the
    facts.
-3. COMMITMENT: if a keystone is offered and the deck already supports the
+4. COMMITMENT: if a keystone is offered and the deck already supports the
    archetype, picking it may be correct even if the card's raw tier is lower —
    keystones unlock scaling. Say so explicitly.
+5. DECIDE: apply the skip bar from step 2. If no offered card clears it, set
+   skip_recommended=true. Otherwise pick the card that best meets the bar and
+   the deck's primary need.
 
 Then produce the output. Do not restate game rules; the DECK STATE block
 has them. Your job is judgment under this specific deck, not general theory.
@@ -309,8 +326,15 @@ The existing per-card tier badge grid is unchanged. "Pick: X" inline summary sta
 
 ### Unit (vitest, colocated)
 
-- `deck-state.test.ts` — size verdict thresholds by act, archetype detection, engine status booleans, dead-card count, orphan detection.
-- `card-tags.test.ts` — 6-8 representative cards: a keystone, a dead scaling card, a duplicate penalty case, a plain damage card, a Power requiring support.
+- `deck-state.test.ts` — size verdict thresholds by act, archetype detection, engine status booleans, dead-card count, orphan detection, **zero-viable-archetype deck (10-card starter, early Act 1)** — facts block must report "none" for archetypes rather than omitting the field.
+- `card-tags.test.ts` — representative cases with explicit non-dead coverage:
+  - A keystone (Inflame) — `keystoneFor: "strength"`, `deadWithCurrentDeck: false` regardless of deck state.
+  - Power_payoff dead (Heavy Blade, no strength source in deck, no scaling card offered as sibling).
+  - Power_payoff NOT dead (Heavy Blade WITH Inflame offered as a sibling pick — payoff savable via the same window).
+  - Scaling card in an uncommitted deck — NOT dead (this is the pick that unlocks the archetype).
+  - Scaling card in a deck committed to a different archetype — dead.
+  - `maxCopies` duplicate: Inflame with one copy already present (`maxCopies: 1`) → `duplicatePenalty: true`.
+  - Non-penalized duplicate: Strike (no keystone, `maxCopies` large) → `duplicatePenalty: false`.
 - `format-card-facts.test.ts` — facts block rendering with full state + empty-archetype edge case.
 - `card-reward-coach-schema.test.ts` — zod round-trip valid example, sanitize truncates over-cap arrays, clamps confidence, dedupes tradeoffs.
 - `card-pick-coaching.test.tsx` — renders null on absent coaching; renders all sections on full coaching; renders partial gracefully.
@@ -337,6 +361,16 @@ Trigger a card_reward eval in a real run (via desktop). Verify:
 ## Rollout
 
 Single release. No feature flag. `coaching` optional on the wire means legacy clients fall back to the current UI automatically; new responses layer coaching on top.
+
+## Alternatives considered
+
+**Extend `rankings[].reasoning` in place instead of a new `coaching` block.** Rejected — per-card reasoning and deck-level framing are different concerns. Per-card strings are short, post-pick specific; coaching is a holistic read of the deck that applies *across* options. Merging them would force the LLM to repeat deck-level framing in every ranking entry; separating them lets each field stay focused.
+
+**Shared `Coaching<T>` generic across all eval types.** Worth revisiting in phase 5 (shop) because shop shares the "pick one card or skip" shell. Phase 3 ships the concrete card_reward shape; a generic is premature until a second concrete consumer (shop) validates the abstraction. Tracked as a phase-5 refactor candidate.
+
+**Compliance layer (repair + rerank) in the same phase as coaching.** Rejected — card_reward failure modes are different from map (judgment on tier/fit vs. structural macro_path). Ship coaching first, observe what compliance failures actually look like in the telemetry, THEN design the dominance/repair rules for card picks in phase 4. Shipping both coupled would bake unvalidated assumptions into compliance rules.
+
+**Coaching stored as a top-level `choices` column instead of nested in `rankings_snapshot`.** Rejected — locality matters. Keeping coaching in `rankings_snapshot` means a single read of that jsonb blob surfaces the full eval payload. Separate column would require a migration and a JOIN on every analytics query. Trade-off is slower aggregate queries on coaching fields specifically — acceptable until volume demands it.
 
 ## Risks and mitigations
 
