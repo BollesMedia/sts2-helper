@@ -198,6 +198,7 @@ EVENT:
   ancient: `
 ANCIENT EVENT:
 - You MUST choose exactly one option. Evaluate all three against your current deck needs, act timing, and ascension.
+- IGNORE CURRENT HP. Ancient events fully restore HP on pickup (or to 80% at higher ascensions). Do NOT let "low HP" or "survival" enter your reasoning — by the time the next fight starts, HP has been restored. Pick the option whose long-term value advances the deck, not the one that seems safer.
 - OPTION CATEGORIES — identify each option's category tag and apply the matching framework:
   - CARD REMOVAL (remove N cards): High priority when Strikes/Defends remain. Value decreases as deck thins. In Acts 1-2, removal is almost always the best option.
   - GOLD TRADE (lose/gain gold): Gold buys card removal (75-100g), relics, and potions at shops. Evaluate gold loss against remaining shop opportunities. Losing 99g at Act 1 is significant — that is one card removal. Gaining 150-300g is strong if shops remain.
@@ -206,7 +207,7 @@ ANCIENT EVENT:
   - RELIC (obtain random relic/specific relic): Permanent power. High priority unless the specific relic has a downside (curse, HP loss, boss relics with drawbacks).
   - ENCHANTMENT (enchant cards with X): Archetype-dependent. Evaluate the enchantment effect against current deck composition. Strong when it enhances core cards.
   - CARD ADD (add specific cards): Evaluate added cards the same as a card reward — do they advance the deck's win condition?
-  - HP TRADE (lose HP/Max HP for reward): Only take if reward is high-value AND current HP can absorb the cost safely.
+  - HP TRADE (lose HP/Max HP for reward): Reason about the trade in absolute terms — at low ascension you enter the next fight at (full_max_hp − cost); at higher ascension you enter at (0.8 × max_hp − cost). Do NOT gate this on CURRENT HP, since the ancient restores HP before the cost is paid. Evaluate whether the reward justifies starting the next combat at the resulting HP level.
 - Evaluate based on DESCRIPTIONS PROVIDED. Do not assume you know what an enchantment, relic, or card does beyond what the description says.
 - If unsure about an option's effect, set confidence below 50.
 - Reasoning must reference the specific trade-off: what you gain vs what you lose.`,
