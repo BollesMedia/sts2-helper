@@ -63,11 +63,7 @@ OUTPUT RULES.
 - Return JSON only.`;
 
 // --- Map Narrator Prompt ---
-// Task 7: The deterministic scorer picks the path; the LLM only narrates the
-// verdict. `MAP_PATHING_SCAFFOLD` is retained as an empty-string export until
-// Task 8 removes the remaining caller in `apps/desktop/src/lib/eval-inputs/map.ts`.
-
-export const MAP_PATHING_SCAFFOLD = "";
+// The deterministic scorer picks the path; the LLM only narrates the verdict.
 
 export const MAP_NARRATOR_PROMPT = `
 You are narrating a MAP coaching recommendation. You do NOT pick the path. The path has already been chosen by a deterministic scorer.

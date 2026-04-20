@@ -1,10 +1,7 @@
 import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import type { MapNodeType } from "@sts2/shared/evaluation/map-coach-schema";
-import {
-  buildCompactContext,
-  MAP_PATHING_SCAFFOLD,
-} from "@sts2/shared/evaluation/prompt-builder";
+import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import {
   computeRunState,
   type RunState,
@@ -206,9 +203,7 @@ export function buildMapPrompt(params: {
 
   const prompt = `${contextStr}
 
-${factsBlock}
-
-${MAP_PATHING_SCAFFOLD}`;
+${factsBlock}`;
 
   const compliance: MapComplianceInputs = {
     nodes: allNodes.map((n) => ({

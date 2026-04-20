@@ -1,7 +1,7 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
-import { selectActiveRun, mapEvalUpdated, mapPathRetraced, runStarted, runEnded } from "../run/runSlice";
+import { selectActiveRun, mapEvalUpdated, runStarted, runEnded } from "../run/runSlice";
 import { selectMapEvalContext, selectBestPathNodesSet, selectNodePreferences } from "../run/runSelectors";
 import {
   evalStarted,
@@ -19,7 +19,7 @@ import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
 import { computeMapEvalKey, buildMapPrompt } from "../../lib/eval-inputs/map";
 import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
-import { traceConstraintAwarePath } from "../../views/map/constraint-aware-tracer";
+import { computeSubgraphFingerprint, type FingerprintNode } from "../../lib/compute-subgraph-fingerprint";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 import { detectMapNodeOutcome } from "@sts2/shared/choice-detection/detect-map-node-outcome";
@@ -47,24 +47,6 @@ const EVAL_TYPE = "map" as const;
 const lastMapRunState = new Map<string, unknown>();
 
 /**
- * Per-run skip counter for the "entering new act with unhealed HP" window.
- *
- * Flow: Act N boss dies → Ancient event → Ancient pick heals HP → Act N+1
- * map appears. The game sometimes dispatches the map state update BEFORE
- * the heal is reflected in `player.hp`, so the first eval after actChange
- * can run with pre-heal HP and produce a CRITICAL-risk reading on what is
- * actually a freshly-healed run.
- *
- * Defer the eval for up to `ACT_CHANGE_GRACE_SKIPS` state updates when we
- * detect act-change + abnormally low HP. The next update with higher HP
- * fires the eval with the correct context. Failsafe: after the skip cap we
- * proceed regardless — if the player genuinely entered the act at low HP,
- * they need the eval.
- */
-const ACT_CHANGE_GRACE_SKIPS = 3;
-const actChangeGrace = new Map<string, { act: number; skips: number }>();
-
-/**
  * Parse a coach macro-path entry (`"col,row"`) into coordinates. Returns null
  * if either token is missing / non-numeric / negative / non-integer. The
  * schema layer enforces the same regex, but we keep this defensive so a
@@ -87,12 +69,10 @@ export function parseNodeId(nodeId: string): { col: number; row: number } | null
  * Map evaluation listener.
  *
  * Watches game state changes on the map. Decides whether to evaluate
- * (via shouldEvaluateMap), then owns the full eval pipeline: API call,
- * path tracing, recommended nodes, and Redux persistence.
- *
- * Tier 1 deviation (off-path, no material context change) re-traces
- * locally using stored LLM nodePreferences — no API call needed.
- * Tier 2 deviation (HP/gold/deck changed) triggers a full re-evaluation.
+ * (via shouldEvaluateMap — three structural triggers: new map, moved
+ * onto off-path node, or fork with distinct downstream subgraphs), then
+ * owns the full eval pipeline: API call, path derivation, recommended
+ * nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
   let prevMapPosition: { col: number; row: number } | null = null;
@@ -104,7 +84,6 @@ export function setupMapEvalListener() {
     predicate: (action) => runStarted.match(action) || runEnded.match(action),
     effect: () => {
       lastMapRunState.clear();
-      actChangeGrace.clear();
     },
   });
 
@@ -130,11 +109,11 @@ export function setupMapEvalListener() {
 
       // #77: populate the run-state cache eagerly so the map_node choice
       // write path always has a non-null snapshot to persist — even on the
-      // first move of a run, or when the eval is gated off
-      // (allOptionsAreAncient, grace-skip, single-option-on-path). Cost is a
-      // synchronous buildMapPrompt call (no network); the resulting prompt
-      // is only used by the downstream eval path, which still runs when
-      // un-gated. Downstream path re-reads the cache.
+      // first move of a run, or when the eval is gated off by
+      // `shouldEvaluateMap` (e.g. single-option row, unhealed act-start).
+      // Cost is a synchronous buildMapPrompt call (no network); the
+      // resulting prompt is only used by the downstream eval path, which
+      // still runs when un-gated. Downstream path re-reads the cache.
       const activeRunIdForEagerCache = state.run.activeRunId;
       if (activeRunIdForEagerCache && options.length > 0) {
         try {
@@ -173,20 +152,9 @@ export function setupMapEvalListener() {
           ? bestPathNodes.has(`${currentPos.col},${currentPos.row}`)
           : false;
 
-        // Compute Tier 2 context-change flags
         const currentHp = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
         const currentGold = mapPlayer?.gold ?? 0;
         const currentDeckSize = selectActiveDeck(state).length;
-
-        const hpDropExceedsThreshold = prevContext
-          ? (prevContext.hpPercent - currentHp) > 0.20
-          : false;
-        const goldCrossedThreshold = prevContext
-          ? (prevContext.gold >= 150 && currentGold < 150) || (prevContext.gold < 150 && currentGold >= 150)
-          : false;
-        const deckSizeChangedSignificantly = prevContext
-          ? Math.abs(prevContext.deckSize - currentDeckSize) >= 2
-          : false;
 
         // --- Map node choice logging ---
         if (currentPos && prevMapPosition &&
@@ -270,140 +238,34 @@ export function setupMapEvalListener() {
         }
         prevMapPosition = currentPos;
 
-        // STS2 places Ancient nodes alone in their row, so when an act starts
-        // on an Ancient the player's only next move is into the event. Skip
-        // the eval until after the event resolves and the player gets real
-        // options (#56). `.every()` is the defensive form — if the game ever
-        // ships a row with multiple ancient options, the gate still matches,
-        // and a hypothetical mixed Ancient/non-Ancient row would NOT match
-        // (the player would have a real choice worth evaluating).
-        const allOptionsAreAncient =
-          options.length > 0 && options.every((o) => o.type === "Ancient");
-
-        // Check if the recommended path ahead contains a shop that's now worthless
-        const removalCost = selectActivePlayer(state)?.cardRemovalCost ?? 75;
-        let shopInPathBecameWorthless = false;
-        if (prevContext && isOnPath && currentGold < removalCost && prevContext.gold >= removalCost) {
-          // Gold dropped below removal cost — check if path ahead has a shop
-          const allNodes = mapState.map?.nodes ?? [];
-          const currentRow = currentPos?.row ?? 0;
-          const bestNodes = bestPathNodes;
-          for (const node of allNodes) {
-            if (node.row > currentRow && node.type === "Shop" && bestNodes.has(`${node.col},${node.row}`)) {
-              shopInPathBecameWorthless = true;
-              break;
-            }
-          }
-        }
-
         const actChanged = prevContext ? prevContext.act !== run.act : false;
+        const ancientHealResolved = !actChanged || currentHp >= 0.5;
+
+        const allNodesForFp: FingerprintNode[] = (mapState.map?.nodes ?? []).map((n) => ({
+          col: n.col,
+          row: n.row,
+          type: n.type.toLowerCase(),
+          children: n.children.map(([col, row]) => ({ col, row })),
+        }));
+        const bossRow = mapState.map.boss.row;
+        const fingerprints = options.map((o) =>
+          computeSubgraphFingerprint(allNodesForFp, { col: o.col, row: o.row }, bossRow - 1),
+        );
+
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
           isStartOfAct: actChanged,
-          ancientHealResolved: true, // TODO(Task 10): derive from HP heuristic
+          ancientHealResolved,
           currentPosition: currentPos,
           isOnRecommendedPath: isOnPath,
           nextOptions: options.map((o) => ({ col: o.col, row: o.row, type: o.type.toLowerCase() })),
-          nextOptionSubgraphFingerprints: options.map(() => ""), // TODO(Task 10): compute fingerprints
+          nextOptionSubgraphFingerprints: fingerprints,
         };
-
-        // Defer the first post-act-change eval if HP still looks pre-heal.
-        // STS2 applies the ancient's HP heal asynchronously from the map
-        // state update, so `currentHp` on the first tick of a new act can
-        // be the pre-boss-fight remainder rather than the post-ancient
-        // heal. A few-tick grace window lets the heal land.
-        const activeRunIdForGrace = state.run.activeRunId;
-        if (actChanged && activeRunIdForGrace) {
-          const graceKey = activeRunIdForGrace;
-          const existing = actChangeGrace.get(graceKey);
-          const isSameActChange = existing && existing.act === run.act;
-          const skips = isSameActChange ? existing.skips : 0;
-          if (currentHp < 0.5 && skips < ACT_CHANGE_GRACE_SKIPS) {
-            actChangeGrace.set(graceKey, { act: run.act, skips: skips + 1 });
-            logDevEvent("eval", "map_act_change_grace_skip", {
-              act: run.act,
-              hpPct: currentHp,
-              skipsSoFar: skips + 1,
-            });
-            return;
-          }
-          // HP looks healed (or we've hit the skip cap) — clear and proceed.
-          if (existing) actChangeGrace.delete(graceKey);
-        }
 
         const shouldEval = shouldEvaluateMap(input);
         logDevEvent("eval", "map_should_eval", { input, shouldEval });
         if (!shouldEval) return;
-
-        // Tier 1: If deviated but no material context change, just re-trace locally
-        if (
-          currentPos &&
-          !isOnPath &&
-          storedPrefs &&
-          !hpDropExceedsThreshold &&
-          !goldCrossedThreshold &&
-          !deckSizeChangedSignificantly &&
-          !actChanged
-        ) {
-          const allNodes = mapState.map?.nodes ?? [];
-          const bossPos = mapState.map.boss;
-          const player = selectActivePlayer(state);
-
-          const tracerInput = {
-            nodes: allNodes,
-            bossPos,
-            nodePreferences: storedPrefs,
-            hpPercent: currentHp,
-            gold: currentGold,
-            act: run.act,
-            ascension: run.ascension,
-            maxHp: mapPlayer?.max_hp ?? 80,
-            currentRemovalCost: player?.cardRemovalCost ?? 75,
-          };
-
-          // Re-trace from current position using stored weights
-          const retracedPath = traceConstraintAwarePath({
-            startCol: currentPos.col,
-            startRow: currentPos.row,
-            ...tracerInput,
-          });
-
-          // Build recommendedNodes from all options' traces
-          const recommendedNodes = new Set<string>();
-          for (const opt of options) {
-            recommendedNodes.add(`${opt.col},${opt.row}`);
-            const optPath = traceConstraintAwarePath({
-              startCol: opt.col,
-              startRow: opt.row,
-              ...tracerInput,
-            });
-            for (const p of optPath) {
-              recommendedNodes.add(`${p.col},${p.row}`);
-            }
-          }
-          for (const p of retracedPath) {
-            recommendedNodes.add(`${p.col},${p.row}`);
-          }
-
-          const bestPathNodes2 = new Set<string>();
-          for (const p of retracedPath) {
-            bestPathNodes2.add(`${p.col},${p.row}`);
-          }
-
-          logDevEvent("eval", "map_tier1_retrace", {
-            currentPos,
-            storedPrefs,
-            retracedPath,
-            recommendedNodes: [...recommendedNodes],
-          });
-          listenerApi.dispatch(mapPathRetraced({
-            recommendedPath: retracedPath,
-            bestPathNodes: [...bestPathNodes2],
-            recommendedNodes: [...recommendedNodes],
-          }));
-          return;
-        }
       }
 
       // --- Dedup ---
