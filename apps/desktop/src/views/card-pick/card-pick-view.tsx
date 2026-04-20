@@ -4,6 +4,7 @@ import { cn } from "@sts2/shared/lib/cn";
 import type { CardRewardState } from "@sts2/shared/types/game-state";
 import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { CardRating } from "./card-rating";
+import { CardPickCoaching } from "../../components/card-pick-coaching";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
 import { resolveTopPick } from "../../lib/resolve-top-pick";
@@ -57,6 +58,8 @@ export function CardPickView({ state }: CardPickViewProps) {
           </span>
         )}
       </div>
+
+      <CardPickCoaching coaching={evaluation?.coaching} />
 
       {/* Card ratings — compact grid */}
       <div className="grid grid-cols-3 gap-3">
