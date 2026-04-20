@@ -25,8 +25,11 @@ import {
 } from "@sts2/shared/evaluation/map-coach-schema";
 import type { EnrichedPath } from "@sts2/shared/evaluation/map/enrich-paths";
 import { scorePaths } from "@sts2/shared/evaluation/map/score-paths";
+import type { ScoredPath } from "@sts2/shared/evaluation/map/score-paths";
 import { deriveBranches } from "@sts2/shared/evaluation/map/derive-branches";
+import type { DerivedBranch } from "@sts2/shared/evaluation/map/derive-branches";
 import { buildNarratorInput } from "@sts2/shared/evaluation/map/build-narrator-input";
+import type { NarratorInput } from "@sts2/shared/evaluation/map/build-narrator-input";
 import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
@@ -80,6 +83,61 @@ function mapNodeType(
     default:
       return "unknown";
   }
+}
+
+// ─── Map response assembler — shared by happy path and NoObjectGeneratedError recovery ───
+
+interface NarratorText {
+  headline: string;
+  reasoning: string;
+  teaching_callouts: { pattern: string; explanation: string }[];
+}
+
+function assembleMapResponse(args: {
+  scored: ScoredPath[];
+  winner: ScoredPath;
+  confidence: number;
+  branches: DerivedBranch[];
+  narratorInput: NarratorInput;
+  narratorText: NarratorText;
+}): MapCoachOutputRaw {
+  const macroPath = {
+    floors: args.winner.nodes.map((n) => ({
+      floor: n.floor,
+      node_type: mapNodeType(n.type),
+      node_id: n.nodeId ?? "",
+    })),
+    summary: args.narratorInput.chosenPath.summary,
+  };
+  return {
+    reasoning: {
+      risk_capacity: args.narratorText.reasoning,
+      act_goal: args.narratorText.headline,
+    },
+    headline: args.narratorText.headline,
+    confidence: args.confidence,
+    macro_path: macroPath,
+    key_branches: args.branches,
+    teaching_callouts: args.narratorText.teaching_callouts.map((c) => ({
+      pattern: c.pattern,
+      floors: [],
+      explanation: c.explanation,
+    })),
+    compliance: {
+      repaired: false,
+      reranked: false,
+      rerank_reason: null,
+      repair_reasons: [],
+      // @ts-expect-error augmenting compliance with scoredPaths telemetry
+      scoredPaths: args.scored.map((p) => ({
+        id: p.id,
+        score: p.score,
+        scoreBreakdown: p.scoreBreakdown,
+        disqualified: p.disqualified,
+        disqualifyReasons: p.disqualifyReasons,
+      })),
+    },
+  };
 }
 
 // ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
@@ -551,6 +609,14 @@ export async function POST(request: Request) {
       maxRetries: 3,
     };
 
+    // Scorer context — hoisted so the NoObjectGeneratedError recovery path
+    // can access them to reassemble a full MapCoachOutputRaw response.
+    let scored: ScoredPath[] = [];
+    let winner: ScoredPath | undefined;
+    let confidence = 0.5;
+    let branches: DerivedBranch[] = [];
+    let narratorInput: NarratorInput | undefined;
+
     try {
       // Map coach has its own return path — the scorer runs deterministically
       // on the server and the LLM only produces narrator text. We assemble
@@ -565,7 +631,7 @@ export async function POST(request: Request) {
           );
         }
 
-        const scored = scorePaths(
+        scored = scorePaths(
           compliance.enrichedPaths,
           compliance.runState,
           { cardRemovalCost: compliance.cardRemovalCost },
@@ -576,10 +642,10 @@ export async function POST(request: Request) {
             { status: 400 },
           );
         }
-        const winner = scored[0];
+        winner = scored[0];
         const runnerUp = scored[1];
 
-        const confidence = (() => {
+        confidence = (() => {
           if (!runnerUp) return 0.95;
           const gap = winner.score - runnerUp.score;
           const gapRatio = gap / Math.max(1, Math.abs(winner.score));
@@ -589,21 +655,20 @@ export async function POST(request: Request) {
           return 0.50;
         })();
 
-        const branches = runnerUp
+        branches = runnerUp
           ? deriveBranches(winner, runnerUp, { confidence })
           : [];
 
-        const narratorInput = buildNarratorInput(
+        narratorInput = buildNarratorInput(
           winner,
           scored.slice(1, 3),
           compliance.runState,
         );
 
-        const narratorPrompt = `${MAP_NARRATOR_PROMPT}\n\nINPUT:\n${JSON.stringify(narratorInput)}`;
-
         const mapResult = await generateText({
           ...callOptions,
-          prompt: narratorPrompt,
+          system: MAP_NARRATOR_PROMPT,
+          prompt: `INPUT:\n${JSON.stringify(narratorInput)}`,
           output: Output.object({ schema: mapNarratorOutputSchema }),
         });
 
@@ -617,48 +682,11 @@ export async function POST(request: Request) {
 
         const narratorText = sanitizeMapNarratorOutput(mapResult.output);
 
-        const macroPath = {
-          floors: winner.nodes.map((n) => ({
-            floor: n.floor,
-            node_type: mapNodeType(n.type),
-            node_id: n.nodeId ?? `${n.floor},${n.floor}`,
-          })),
-          summary: narratorInput.chosenPath.summary,
-        };
-
-        const response: MapCoachOutputRaw = {
-          reasoning: {
-            risk_capacity: narratorText.reasoning,
-            act_goal: narratorText.headline,
-          },
-          headline: narratorText.headline,
-          confidence,
-          macro_path: macroPath,
-          key_branches: branches,
-          teaching_callouts: narratorText.teaching_callouts.map((c) => ({
-            pattern: c.pattern,
-            floors: [],
-            explanation: c.explanation,
-          })),
-          compliance: {
-            repaired: false,
-            reranked: false,
-            rerank_reason: null,
-            repair_reasons: [],
-            // scoredPaths telemetry flows through to choices.rankings_snapshot
-            // via the desktop listener's existing `raw: parsed` channel.
-            // @ts-expect-error augmenting compliance with telemetry (Task 12)
-            scoredPaths: scored.map((p) => ({
-              id: p.id,
-              score: p.score,
-              scoreBreakdown: p.scoreBreakdown,
-              disqualified: p.disqualified,
-              disqualifyReasons: p.disqualifyReasons,
-            })),
-          },
-        };
-
-        return NextResponse.json(sanitizeMapCoachOutput(response));
+        return NextResponse.json(
+          sanitizeMapCoachOutput(
+            assembleMapResponse({ scored, winner, confidence, branches, narratorInput, narratorText }),
+          ),
+        );
       }
 
       const result = isSimpleEval
@@ -695,11 +723,11 @@ export async function POST(request: Request) {
               const repairedJson: unknown = JSON.parse(repaired);
               // Parse with the schema matching the current eval so the
               // resulting value is narrowly typed (no cast needed).
-              if (isMapEval) {
-                // Narrator-only recovery — the scorer already ran
-                // client-side (and the server-side call above would have
-                // thrown on missing compliance). Return the narrator text
-                // and let the desktop fall back gracefully.
+              if (isMapEval && winner && narratorInput) {
+                // Reassemble a full MapCoachOutputRaw using the repaired narrator
+                // text + the scorer variables that are still in scope. The desktop's
+                // adaptMapCoach expects the complete shape — a partial narrator-only
+                // response would crash it.
                 const parsed = mapNarratorOutputSchema.parse(repairedJson);
                 console.log("[Evaluate] Map narrator JSON repaired (trailing comma)");
                 if (error.usage) {
@@ -711,12 +739,11 @@ export async function POST(request: Request) {
                     outputTokens: error.usage.outputTokens ?? 0,
                   }).catch(console.error);
                 }
+                const narratorText = sanitizeMapNarratorOutput(parsed);
                 return NextResponse.json(
-                  {
-                    error: "narrator_parse_recovered",
-                    narrator: sanitizeMapNarratorOutput(parsed),
-                  },
-                  { status: 200 },
+                  sanitizeMapCoachOutput(
+                    assembleMapResponse({ scored, winner, confidence, branches, narratorInput, narratorText }),
+                  ),
                 );
               }
               const schema = isSimpleEval ? simpleEvalSchema : genericEvalSchema;
