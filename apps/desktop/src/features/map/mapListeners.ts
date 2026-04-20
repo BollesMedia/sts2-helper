@@ -416,8 +416,8 @@ export function setupMapEvalListener() {
           : null;
 
         // Persist path + context to Redux. `nodePreferences` is left intact
-        // from prior evals (the coach doesn't produce them; Tier 1 retrace
-        // still uses the last known set if any).
+        // from prior evals (the coach doesn't produce them; kept so
+        // buildPreEvalPayload can forward them to subsequent scorer runs).
         listenerApi.dispatch(mapEvalUpdated({
           recommendedPath: fullPath,
           recommendedNodes: [...recommendedNodes],
