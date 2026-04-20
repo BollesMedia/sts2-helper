@@ -103,6 +103,8 @@ function findNakedShopFloors(path: EnrichedPath, startGold: number): number[] {
   return nakedFloors;
 }
 
+// Detectors in path-patterns.ts return first-hit / longest-run for narrator signals.
+// Scoring needs totals; counting here is not duplication, it's a different aggregation.
 function countRestBeforeElite(nodes: PathNode[]): number {
   let count = 0;
   for (let i = 0; i < nodes.length - 1; i++) {
@@ -161,7 +163,6 @@ function hardPoolChainLengthTotal(nodes: PathNode[]): number {
 function applyHardFilter(
   paths: EnrichedPath[],
   runState: RunState,
-  options: ScorePathsOptions,
   walks: Map<string, WalkSnapshot>,
 ): Map<string, string[]> {
   const reasons = new Map<string, string[]>();
@@ -199,8 +200,6 @@ function applyHardFilter(
       }
     }
 
-    void options; // reserved for future constraints
-
     if (rs.length > 0) reasons.set(p.id, rs);
   }
 
@@ -217,7 +216,7 @@ export function scorePaths(
   const walks = new Map<string, WalkSnapshot>();
   for (const p of paths) walks.set(p.id, simulatePathHp(p, runState));
 
-  const reasons = applyHardFilter(paths, runState, options, walks);
+  const reasons = applyHardFilter(paths, runState, walks);
   const everyPathDisqualified = reasons.size === paths.length;
   const restHeal = Math.round(runState.hp.max * REST_HEAL_PCT);
 
@@ -262,15 +261,9 @@ export function scorePaths(
     breakdown.hpDipBelow15PctPenalty =
       MAP_SCORE_WEIGHTS.hpDipBelow15PctPenalty * walk.dipsBelow15Pct;
 
-    const backToBackShopPairCount = countBackToBackShopPairsUnderGold(
-      p,
-      runState.gold,
-      options.cardRemovalCost,
-    );
     breakdown.backToBackShopPairUnderGold =
-      backToBackShopPairCount === 0
-        ? 0
-        : MAP_SCORE_WEIGHTS.backToBackShopPairUnderGold * backToBackShopPairCount;
+      MAP_SCORE_WEIGHTS.backToBackShopPairUnderGold *
+      countBackToBackShopPairsUnderGold(p, runState.gold, options.cardRemovalCost);
 
     const hardPoolApplies = runState.act >= 2;
     breakdown.hardPoolChainLength = hardPoolApplies

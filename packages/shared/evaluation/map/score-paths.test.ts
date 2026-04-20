@@ -325,7 +325,7 @@ describe("scorePaths — phase 2 weighted sum", () => {
       emptyRunState({ gold: 30 }),
       { cardRemovalCost: 75 },
     );
-    expect(result[0].scoreBreakdown.backToBackShopPairUnderGold ?? 0).toBe(0);
+    expect(result[0].scoreBreakdown.backToBackShopPairUnderGold ?? 0).toBeCloseTo(0);
   });
 
   it("penalizes hard-pool chain length in Act 2 (one -2 per monster in the chain)", () => {
