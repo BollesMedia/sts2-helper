@@ -554,6 +554,10 @@ export async function POST(request: Request) {
       maxOutputTokens: 2048,
       system: systemPrompt,
       prompt: mapPromptFull,
+      // Default is 2 retries. Bump to 3 so one more exponential-backoff
+      // attempt covers short rate-limit windows without blowing past the
+      // Next.js function timeout.
+      maxRetries: 3,
     };
 
     try {
@@ -911,6 +915,7 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
       maxOutputTokens: items.length > 5 ? 4096 : 1024,
       system: systemPrompt,
       prompt: userPrompt,
+      maxRetries: 3,
       output: Output.object({ schema: cardSchema }),
     });
 
@@ -1060,11 +1065,27 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
     const message = error instanceof Error ? error.message : String(error);
     console.error("Evaluation failed:", message);
 
-    // Detect rate limiting from the AI SDK / Anthropic
-    const isRateLimit = message.includes("rate") || message.includes("429");
+    // Walk the error chain — AI SDK wraps Anthropic 429s inside
+    // NoObjectGeneratedError / APICallError, so the outer message often says
+    // "No output generated" while the cause carries the rate-limit signal.
+    const isRateLimit = (() => {
+      let cur: unknown = error;
+      for (let i = 0; i < 4 && cur; i++) {
+        if (cur instanceof Error) {
+          const m = cur.message ?? "";
+          if (m.includes("429") || /rate[\s_-]?limit/i.test(m)) return true;
+          // @ts-expect-error optional statusCode on API errors
+          if (cur.statusCode === 429) return true;
+          cur = cur.cause;
+        } else {
+          break;
+        }
+      }
+      return false;
+    })();
     const status = isRateLimit ? 429 : 500;
     const detail = isRateLimit
-      ? "Rate limited — please wait a moment"
+      ? "Rate limited — please wait a moment and retry"
       : "Evaluation service error";
 
     return NextResponse.json(
