@@ -73,12 +73,46 @@ export function enrichPaths(
       monstersOnPath - runState.monsterPool.fightsUntilHardPool,
     );
     const totalFights = elitesTaken + monstersOnPath;
-    const projectedHpEnteringPreBossRest = Math.max(
-      0,
-      runState.hp.current - runState.riskCapacity.expectedDamagePerFight * totalFights,
-    );
 
-    // Rests roughly restore ~30% max HP — translate to "fight equivalents".
+    // Walk the path node-by-node simulating HP so in-path rest heals and
+    // elite damage spikes are accounted for. This is what makes the
+    // REST→ELITE pattern visibly survivable: the rest heals BEFORE the
+    // elite swing, and the elite is fought at full(er) HP. The old calc
+    // (current_hp - totalFights × expectedDmg) ignored rest recovery and
+    // flagged rest→elite paths as CRITICAL even when they were actually
+    // the safest option.
+    const preBossRestFloor = runState.bossPreview.preBossRestFloor;
+    const restHeal = Math.round(runState.hp.max * 0.3);
+    // Elites hit roughly 1.5× a regular fight's expected damage. Approximate.
+    const eliteMultiplier = 1.5;
+    const expectedDmg = runState.riskCapacity.expectedDamagePerFight;
+
+    let hpSim = runState.hp.current;
+    let minHpAlongPath = hpSim;
+    for (const node of p.nodes) {
+      // Stop at the guaranteed pre-boss rest — "projected HP entering
+      // pre-boss rest" is the HP BEFORE that node, not after.
+      if (node.floor === preBossRestFloor) break;
+      switch (node.type) {
+        case "monster":
+          hpSim -= expectedDmg;
+          break;
+        case "elite":
+          hpSim -= Math.round(expectedDmg * eliteMultiplier);
+          break;
+        case "rest":
+          hpSim = Math.min(runState.hp.max, hpSim + restHeal);
+          break;
+        default:
+          // shop / treasure / event / unknown / boss — no direct HP change in the sim
+          break;
+      }
+      if (hpSim < minHpAlongPath) minHpAlongPath = hpSim;
+    }
+    const projectedHpEnteringPreBossRest = Math.max(0, hpSim);
+
+    // Rests roughly restore ~30% max HP — translate to "fight equivalents"
+    // for the fight-budget calc (still useful as a coarse signal).
     const restEquivalents = restsTaken * 2;
     const effectiveBudget =
       runState.riskCapacity.fightsBeforeDanger + restEquivalents;
@@ -88,12 +122,23 @@ export function enrichPaths(
     else if (totalFights <= effectiveBudget * 1.3) fightBudgetStatus = "tight";
     else fightBudgetStatus = "exceeds_budget";
 
+    // HP verdict now uses BOTH the pre-boss projection and the minimum HP
+    // seen along the path. A path that dips to 0 mid-route is CRITICAL
+    // regardless of final HP. Thresholds preserve the original bands
+    // (safe ≥ 50%, risky 20–50%, critical < 20%) with an added death-floor
+    // check via minHpAlongPath so a path that simulates a 0-HP dip between
+    // rest nodes still registers as CRITICAL.
     const projectedRatio =
       projectedHpEnteringPreBossRest / Math.max(1, runState.hp.max);
+    const minRatio = minHpAlongPath / Math.max(1, runState.hp.max);
     let hpProjectionVerdict: HpProjectionVerdict;
-    if (projectedRatio >= 0.5) hpProjectionVerdict = "safe";
-    else if (projectedRatio >= 0.3) hpProjectionVerdict = "risky";
-    else hpProjectionVerdict = "critical";
+    if (minHpAlongPath <= 0 || projectedRatio < 0.2) {
+      hpProjectionVerdict = "critical";
+    } else if (projectedRatio < 0.5 || minRatio < 0.2) {
+      hpProjectionVerdict = "risky";
+    } else {
+      hpProjectionVerdict = "safe";
+    }
 
     return {
       ...p,
