@@ -13,6 +13,7 @@ import { selectActiveRunId } from "../run/runSlice";
 import { buildEvaluationContext } from "@sts2/shared/evaluation/context-builder";
 import { getPlayer, type RestSiteState } from "@sts2/shared/types/game-state";
 import { getPromptContext, updateFromContext } from "@sts2/shared/evaluation/run-narrative";
+import { floorsToNextBossFloor } from "../../lib/act-boss-floors";
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { preEvalRestWeights, applyRestWeights } from "@sts2/shared/evaluation/post-eval-weights";
 import { buildRestContext } from "../../lib/build-rest-context";
@@ -53,9 +54,7 @@ export function setupRestSiteEvalListener() {
 
       const mapCtx = selectMapContext(state);
       const currentFloor = restState.run.floor;
-      const bossDistance = mapCtx?.floorsToNextBoss ?? Math.min(
-        ...[17, 34, 51].filter((bf) => bf > currentFloor).map((bf) => bf - currentFloor)
-      );
+      const bossDistance = mapCtx?.floorsToNextBoss ?? floorsToNextBossFloor(currentFloor) ?? 0;
 
       // Pre-eval short-circuit: skip LLM when answer is obvious
       const hpPercent = restPlayer.max_hp > 0 ? restPlayer.hp / restPlayer.max_hp : 1;
@@ -156,6 +155,7 @@ export function setupRestSiteEvalListener() {
             recommendation: r.recommendation,
           })),
           evalType: "rest_site",
+          raw: evaluation, // #98
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: evaluation }));

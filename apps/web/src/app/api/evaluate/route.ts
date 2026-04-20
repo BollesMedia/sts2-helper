@@ -256,16 +256,6 @@ interface EvaluateRequest {
   gameVersion: string | null;
   goldBudget?: number | null;
   /**
-   * Optional run-state snapshot computed desktop-side (map coach phase 1).
-   * Historically this field was accepted and echoed back so the desktop
-   * could forward it to `/api/choice`. Echo removed in #76 — desktop now
-   * caches its locally-computed `RunState` directly (see `lastMapRunState`
-   * in `mapListeners.ts`) so the round-trip through the server is unused.
-   * Kept as an optional field so older clients still parse, but it's no
-   * longer read on the response path.
-   */
-  runStateSnapshot?: unknown;
-  /**
    * Optional inputs for the phase-2 compliance pipeline (repair + rerank).
    * Populated by the desktop map-coach call path — absent for callers that
    * haven't migrated yet, in which case the route ships the LLM output

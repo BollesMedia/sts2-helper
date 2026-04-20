@@ -102,6 +102,7 @@ export function setupShopEvalListener() {
             recommendation: r.recommendation,
           })),
           evalType: "shop",
+          raw: data, // #98
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: data }));

@@ -1,20 +1,6 @@
 import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
 import type { MapContext } from "../features/run/runSlice";
-
-/**
- * Cumulative STS2 act boss floors. Matches the pattern already used in
- * `restSiteEvalListener.ts:57` (`[17, 34, 51]`). `run.floor` is global
- * across acts (floor 18 = Act 2 floor 1; floor 35 = Act 3 floor 1).
- * Used as the primary signal for `floorsToNextBoss` because `run.floor`
- * stays in sync with the UI while `current_position.row` lags when the
- * player is on a non-combat screen (rest site, shop, event) — see #72.
- */
-const ACT_BOSS_FLOORS = [17, 34, 51] as const;
-
-function floorsToNextBossFloor(currentFloor: number): number | null {
-  const next = ACT_BOSS_FLOORS.find((bf) => bf >= currentFloor);
-  return next != null ? next - currentFloor : null;
-}
+import { floorsToNextBossFloor } from "./act-boss-floors";
 
 export function buildMapContext(mapState: MapState): MapContext {
   const currentRow = mapState.map.current_position?.row ?? 0;
