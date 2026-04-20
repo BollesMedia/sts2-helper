@@ -30,9 +30,13 @@ export type RunOutcome = "victory" | "defeat" | null;
  * Victory is detected from:
  * 1. Boss combat where all enemies died → combat_rewards transition
  * 2. Architect event (post-final-boss reward screen)
+ * 3. Menu transition directly from a cleared Act 3 boss (#74). STS2
+ *    sometimes jumps straight from the boss fight to menu, skipping
+ *    combat_rewards. Without this branch, confirmed Ascension wins get
+ *    stuck on the "Run paused" screen and never post to /api/run.
  *
  * Defeat is detected from:
- * 3. Overlay with NGameOverScreen (the mod's death screen)
+ * 4. Overlay with NGameOverScreen (the mod's death screen)
  */
 export function inferRunOutcome(input: RunOutcomeInput): RunOutcome {
   const {
@@ -64,6 +68,18 @@ export function inferRunOutcome(input: RunOutcomeInput): RunOutcome {
   // Final boss combat → combat_rewards with all enemies dead = victory
   if (
     currentStateType === "combat_rewards" &&
+    lastWasBoss &&
+    lastEnemiesAllDead &&
+    lastAct >= 3
+  ) {
+    return "victory";
+  }
+
+  // Menu transition from a cleared Act 3 boss (#74). The last-combat
+  // fields still reflect the boss kill at the moment of the menu
+  // transition — safe to trust them.
+  if (
+    currentStateType === "menu" &&
     lastWasBoss &&
     lastEnemiesAllDead &&
     lastAct >= 3

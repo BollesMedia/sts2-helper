@@ -29,9 +29,12 @@ export const TEST_BOSS = { col: 1, row: 3 };
 // --- Map State Factory ---
 
 export function createMapState(
-  overrides: Partial<MapState["map"]> & { player?: MapState["player"] } = {},
+  overrides: Partial<MapState["map"]> & {
+    player?: MapState["player"];
+    run?: MapState["run"];
+  } = {},
 ): MapState & MultiplayerFields {
-  const { player, ...mapOverrides } = overrides;
+  const { player, run, ...mapOverrides } = overrides;
   return {
     state_type: "map",
     player: player ?? {
@@ -51,7 +54,7 @@ export function createMapState(
       boss: TEST_BOSS,
       ...mapOverrides,
     },
-    run: { act: 1, floor: 1, ascension: 0 },
+    run: run ?? { act: 1, floor: 1, ascension: 0 },
   };
 }
 
