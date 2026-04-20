@@ -54,13 +54,6 @@ interface MapPromptRequest extends EvalRequestBase {
   evalType?: string;
   mapPrompt: string;
   /**
-   * Map coach run-state snapshot. Persisted to `/api/choice` by
-   * `mapListeners`; no longer sent to `/api/evaluate` because the server
-   * never read it (#76). Field kept on this interface only to document
-   * the data lives in `lastMapRunState` on the desktop side.
-   */
-  runStateSnapshot?: unknown;
-  /**
    * Optional inputs for the server-side phase-2 compliance pipeline (repair +
    * rerank). When omitted, the server ships the LLM output without a
    * `compliance` field. Only populated for the map coach eval.
