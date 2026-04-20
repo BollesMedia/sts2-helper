@@ -72,17 +72,17 @@ describe("computeEliteBudget", () => {
     expect(b.shouldSeek).toBe(true);
   });
 
-  it("Act 3 with 1 elite already fought — past target", () => {
+  it("Act 3 with 1 elite already fought still wants 2 more — relic density goal", () => {
     const b = computeEliteBudget(3, [{ floor: 42, type: "Elite" }]);
-    expect(b.actTarget).toEqual([0, 1]);
-    expect(b.remaining).toBe(0);
-    expect(b.shouldSeek).toBe(false);
+    expect(b.actTarget).toEqual([2, 3]);
+    expect(b.remaining).toBe(2);
+    expect(b.shouldSeek).toBe(true);
   });
 
-  it("Act 1 untouched returns target (1,2)", () => {
+  it("Act 1 untouched returns target (2,3)", () => {
     const b = computeEliteBudget(1, []);
-    expect(b.actTarget).toEqual([1, 2]);
-    expect(b.remaining).toBe(2);
+    expect(b.actTarget).toEqual([2, 3]);
+    expect(b.remaining).toBe(3);
   });
 });
 

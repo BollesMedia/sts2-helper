@@ -103,20 +103,25 @@ PATH SELECTION RULES (HARD CONSTRAINTS — apply before reasoning):
   closest to TIGHT (fewest fights over the effective budget).
 - Do NOT recommend a path whose HP_risk is CRITICAL unless no alternative
   has a better HP_risk verdict (SAFE or RISKY beats CRITICAL).
-- ELITE COUNT IS LOAD-BEARING. The baseline target is 2 elites per Act 1
-  and Act 2, and 0–1 elites in Act 3. Rationale: elites drop run-defining
-  relics and densify card rewards; skipping them sacrifices permanent power
-  for short-term safety. Apply this in strict priority order:
-    1. Prefer paths with elites == act target (2 in Acts 1–2).
-    2. Among those, prefer paths containing a REST→ELITE pair (a rest node
-       immediately preceding an elite) — the rest window absorbs elite
-       damage and this is the highest-efficiency template. Two rest→elite
-       pairs on one path is the gold standard for Acts 1–2.
-    3. Among those, prefer SAFE > RISKY > CRITICAL HP_risk.
-    4. Among those, prefer WITHIN_BUDGET > TIGHT > EXCEEDS_BUDGET.
-  Reject a 0-elite path in Acts 1–2 unless EVERY alternative with ≥2
-  elites is CRITICAL HP_risk. A 0-elite path with ABUNDANT or MODERATE
-  risk_capacity is almost always wrong.
+- ELITE COUNT IS LOAD-BEARING. 2 elites per act is the FLOOR, not a
+  ceiling — this applies to EVERY act, including Act 3. Rationale: elites
+  drop run-defining relics, better card rewards, and more potions.
+  Especially at higher ascension (Asc 15+, back-to-back boss fights),
+  relic density is the primary differentiator between winning and losing
+  runs. The goal of map navigation is to hit as many elites as HP and
+  fight budget permit. Apply this in strict priority order:
+    1. Prefer paths with MORE elites. Within the same elite count,
+       continue tiebreaking below.
+    2. Prefer paths containing a REST→ELITE pair (a rest node immediately
+       preceding an elite) — the rest window absorbs elite damage and this
+       is the highest-efficiency template. Two rest→elite pairs on one
+       path is the gold standard.
+    3. Prefer SAFE > RISKY > CRITICAL HP_risk.
+    4. Prefer WITHIN_BUDGET > TIGHT > EXCEEDS_BUDGET.
+  A <2-elite path is only correct when EVERY ≥2-elite alternative is
+  CRITICAL HP_risk, or the map structure genuinely doesn't allow 2 elites.
+  A 0-elite path with ABUNDANT or MODERATE risk_capacity is almost always
+  wrong — you are sacrificing permanent power for unearned safety.
 - SELF-CONSISTENCY. If \`reasoning.act_goal\` mentions acquiring elites
   ("take 2 elites", "secure elite by fN", etc.), \`macro_path\` MUST contain
   at least that many elite nodes. If the goal conflicts with the path,
@@ -193,7 +198,7 @@ MAP PATHING — GOAL SHAPING: The RUN STATE block quantifies risk, budgets, and 
 - Treasure nodes = free relic = always high priority (zero HP cost).
 - Act 1 philosophy: card acquisition density. Monster fights produce card rewards, and a thin low-quality deck is the biggest Act 1 risk. Prefer fights that yield picks over HP preservation for its own sake.
 - Act 2 philosophy: peak window for elites, shops, and event gambles. Your deck should be able to convert HP into permanent power here (relics, removals, scaling). Push for density.
-- Act 3 philosophy: boss preparation dominates. Seek upgrades, finish the engine, and avoid unnecessary HP spend. Extra elites/relics only if clearly safe.
+- Act 3 philosophy: boss preparation dominates, AND relics still matter. At higher ascension (especially with back-to-back boss fights) elite relics are the primary differentiator — keep hitting elites, don't conserve for an imagined safe-lane ending. Finish the engine via upgrades, but the elite floor is still 2 per act.
 - General: seek upgrades before more fights when HP is consolidated; prefer permanent power (relics, removals, upgrades) over transient gold/heal when the run state allows.`,
 
   rest_site: `
