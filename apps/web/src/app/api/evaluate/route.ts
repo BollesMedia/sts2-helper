@@ -910,9 +910,13 @@ ${budgetSummary}
 Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matching the order above.`;
 
   try {
+    // With the card-reward coaching block (reasoning, headline, up to 3
+    // tradeoffs, up to 3 callouts) layered on top of the per-card rankings,
+    // a 3-card reward can easily exceed 1024 output tokens. Bump the
+    // baseline so Haiku doesn't truncate its own structured output.
     const result = await generateText({
       model: anthropic(EVAL_MODELS.default),
-      maxOutputTokens: items.length > 5 ? 4096 : 1024,
+      maxOutputTokens: items.length > 5 ? 4096 : 2048,
       system: systemPrompt,
       prompt: userPrompt,
       maxRetries: 3,
@@ -1063,7 +1067,39 @@ Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matc
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Evaluation failed:", message);
+    // Log the full error chain so we can tell truncation from rate-limit from
+    // model halt. "No output generated" is uninformative on its own; the
+    // cause + finish reason + raw text are what we need.
+    const causeChain: string[] = [];
+    {
+      let cur: unknown = error;
+      for (let i = 0; i < 4 && cur instanceof Error && cur.cause !== undefined; i++) {
+        const next: unknown = cur.cause;
+        if (next instanceof Error) {
+          causeChain.push(`cause[${i}]: ${next.message}`);
+          cur = next;
+        } else {
+          causeChain.push(`cause[${i}]: ${String(next)}`);
+          break;
+        }
+      }
+    }
+    const noOutputExtras: string[] = [];
+    if (NoObjectGeneratedError.isInstance(error)) {
+      if (error.finishReason) noOutputExtras.push(`finishReason=${error.finishReason}`);
+      if (error.usage) {
+        noOutputExtras.push(
+          `usage in=${error.usage.inputTokens ?? "?"}/out=${error.usage.outputTokens ?? "?"}`,
+        );
+      }
+      if (error.text) noOutputExtras.push(`text[first 200]=${error.text.slice(0, 200)}`);
+    }
+    console.error(
+      "Evaluation failed:",
+      message,
+      ...(noOutputExtras.length ? ["|", ...noOutputExtras] : []),
+      ...(causeChain.length ? ["|", ...causeChain] : []),
+    );
 
     // Walk the error chain — AI SDK wraps Anthropic 429s inside
     // NoObjectGeneratedError / APICallError, so the outer message often says
