@@ -104,8 +104,6 @@ function applyShopWeights(
   wctx: WeightContext,
   itemDescriptions: Map<number, string>
 ): void {
-  const hasMembershipCard = wctx.relicNames.some((r) => r.includes("membership card"));
-
   for (const ranking of evaluation.rankings) {
     const name = ranking.itemName?.toLowerCase() ?? "";
     const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
@@ -120,31 +118,14 @@ function applyShopWeights(
         ranking.tierValue = 6;
         ranking.confidence = 98;
         ranking.reasoning = "Remove unplayable/curse card — top priority";
-      } else if (hasMembershipCard) {
-        // Membership Card makes removal half price — almost always worth it
-        ranking.tier = adjustTier(ranking.tier, 1);
-        ranking.tierValue = tierToValue(ranking.tier);
-        ranking.reasoning += " (Membership Card halves cost)";
       }
     }
 
-    // Membership Card: auto-buy — best long-term shop investment
-    if (name.includes("membership card")) {
-      ranking.tier = "S";
-      ranking.tierValue = 6;
-      ranking.confidence = 98;
-      ranking.recommendation = "strong_pick";
-      ranking.reasoning = "Best shop relic — 50% off all future purchases";
-    }
-
-    // Orange Pellets: auto-buy — removes all debuffs
-    if (name.includes("orange pellets")) {
-      ranking.tier = "S";
-      ranking.tierValue = 6;
-      ranking.confidence = 95;
-      ranking.recommendation = "strong_pick";
-      ranking.reasoning = "Removes all debuffs when playing all 3 card types";
-    }
+    // NOTE: STS1-era hardcoded auto-buys for "Membership Card" and "Orange
+    // Pellets" were removed. Neither appears in the STS2 canonical relic
+    // list (slaythespire.wiki.gg STS2 Relics List) as of the Early Access
+    // build. If either reappears in a future STS2 patch, evaluation falls
+    // through to the normal LLM path, which reads the actual description.
 
     // Potions: demote if no open potion slots (inferred from current potion count)
     const isPotion = name.includes("potion") || name.includes("elixir") || name.includes("flask") || name.includes("brew");

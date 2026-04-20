@@ -103,11 +103,12 @@ export function computeHpBudget(
 }
 
 // Elite targets — 2 per act is the FLOOR, not a ceiling. Elites drop
-// run-defining relics, better card rewards, and potions; at higher ascension
-// (especially with back-to-back boss fights) relic density is the primary
-// differentiator between winning and losing runs. Keep seeking elites as
-// long as HP_risk and fight budget allow — the scaffold's priority rules
-// handle the safety side.
+// run-defining relics, better card rewards, and potions. At Ascension 10
+// (the current STS2 EA cap) the "Double Boss" modifier forces back-to-back
+// Act 3 bosses, so relic density is the primary differentiator between
+// winning and losing runs. Keep seeking elites as long as HP_risk and
+// fight budget allow — the scaffold's priority rules handle the safety
+// side.
 const ELITE_TARGETS: Record<1 | 2 | 3, [number, number]> = {
   1: [2, 3],
   2: [2, 3],

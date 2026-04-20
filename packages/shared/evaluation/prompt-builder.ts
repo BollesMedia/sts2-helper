@@ -29,7 +29,7 @@ export type EvalType =
 const BASE_PROMPT = `You are an STS2 deck-building coach. Evaluate decisions against the player's current deck needs, not individual card power.
 
 CORE RULES (priority order):
-1. DECK SIZE BY ASCENSION. At Ascension 0-4: take good cards freely — 18-25 cards is healthy, skip only genuinely bad or off-archetype cards. At Ascension 5-9: 15-20 cards, be more selective. At Ascension 10+: 14-18 cards, skip aggressively. A thin deck with no tools loses to encounters it can't answer.
+1. DECK SIZE BY ASCENSION. STS2 Early Access caps at Ascension 10. At Ascension 0-4: take good cards freely — 18-25 cards is healthy, skip only genuinely bad or off-archetype cards. At Ascension 5-8: 15-20 cards, be more selective. At Ascension 9-10: 14-18 cards, skip aggressively. A thin deck with no tools loses to encounters it can't answer.
 2. ARCHETYPE FIRST. When locked, evaluate against the archetype. Off-archetype = skip unless it fills a critical gap (AoE, block, draw). No lock yet = evaluate for front-loaded combat value.
 3. ACT TIMING. Act 1: damage + AoE to survive fights — take most decent cards. Act 2: scaling for multi-enemy encounters. Act 3: complete engine for boss — be selective.
 4. ENERGY COST. 2-cost in 3-energy deck = 67% of your turn. Always weigh cost vs available energy.
@@ -40,7 +40,7 @@ GAME FACTS:
 - STS2 has 3 acts. There is no Act 4.
 - Unplayable and Curse cards are always the #1 removal priority, above Strikes.
 - Relics are vital for clearing Act 3 — maximize relic acquisition opportunities (elites, treasures, events).
-- ENCHANTED CARDS: Ancient events transform deck cards into stronger versions (e.g., Bash → Break). Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
+- ENCHANTED CARDS: Ancient events can transform deck cards into stronger versions with new names. Evaluate the card by its DESCRIPTION, not its name. A card that "applies Vulnerable" IS a Vulnerable card regardless of its name.
 - READ DESCRIPTIONS CAREFULLY: A card only has a keyword (Exhaust, Retain, Innate, etc.) if the description explicitly says so OR it has a [keyword] tag. Do NOT assume a card exhausts, retains, or has other keywords unless stated. "Gain 16 Block" does NOT mean the card exhausts.
 - TARGET SCOPE: "Deal X damage" with no explicit "to ALL enemies" / "to each enemy" / "to all" language is SINGLE-TARGET. Examples: "Deal 10 damage" is single-target. "Deal 9 damage to ALL enemies" is AoE. Do NOT describe a single-target attack as AoE, multi-target, "hits all", or imply it damages multiple enemies. Only claim AoE when the description literally says so. This rule overrides any memory of how a similarly-named STS1 card behaved.
 - SYNERGY CLAIMS: Only claim a synergy if you can explain the EXACT mechanical interaction. "Pairs with Dark Embrace" is only valid if the card actually has Exhaust. Block cards do NOT trigger exhaust synergies unless they explicitly say "Exhaust."
@@ -106,9 +106,9 @@ PATH SELECTION RULES (HARD CONSTRAINTS — apply before reasoning):
 - ELITE COUNT IS LOAD-BEARING. 2 elites per act is the FLOOR, not a
   ceiling — this applies to EVERY act, including Act 3. Rationale: elites
   drop run-defining relics, better card rewards, and more potions.
-  Especially at higher ascension (Asc 15+, back-to-back boss fights),
-  relic density is the primary differentiator between winning and losing
-  runs. The goal of map navigation is to hit as many elites as HP and
+  Especially at Ascension 10 (the current cap) where the "Double Boss"
+  modifier forces two back-to-back Act 3 boss fights, relic density is
+  the primary differentiator between winning and losing runs. The goal of map navigation is to hit as many elites as HP and
   fight budget permit. Apply this in strict priority order:
     1. Prefer paths with MORE elites. Within the same elite count,
        continue tiebreaking below.
@@ -183,8 +183,7 @@ CARD REWARD:
 SHOP:
 - Default priority: card removal > relic > card > potion.
 - Removal is high priority if Strikes/Defends/curses remain. Evaluate against the actual removal cost shown.
-- Early removals (75-100g) are almost always correct. Later removals (125g+) compete with relics for value.
-- Exception: Membership Card and Orange Pellets are auto-buys — spend to 0 for these.
+- Early removals (75g start) are almost always correct. Removal cost scales +25g per use, so later removals (125g+) compete with relics for value. Note: Ascension 6 "Inflation" raises shop-removal cost to 100g start, +50g per use — factor this into later-game removal decisions.
 - Relics are permanent power — but only beat removal when deck has <=2 basic cards remaining.
 - Discounted cards (50% off) have a much lower purchase bar. Colorless cards are shop-exclusive — evaluate favorably if they fit the archetype.
 - Potions: buy only with open slots, when potion answers an upcoming elite/boss, and gold covers removal + potion cost.
@@ -198,15 +197,16 @@ MAP PATHING — GOAL SHAPING: The RUN STATE block quantifies risk, budgets, and 
 - Treasure nodes = free relic = always high priority (zero HP cost).
 - Act 1 philosophy: card acquisition density. Monster fights produce card rewards, and a thin low-quality deck is the biggest Act 1 risk. Prefer fights that yield picks over HP preservation for its own sake.
 - Act 2 philosophy: peak window for elites, shops, and event gambles. Your deck should be able to convert HP into permanent power here (relics, removals, scaling). Push for density.
-- Act 3 philosophy: boss preparation dominates, AND relics still matter. At higher ascension (especially with back-to-back boss fights) elite relics are the primary differentiator — keep hitting elites, don't conserve for an imagined safe-lane ending. Finish the engine via upgrades, but the elite floor is still 2 per act.
+- Act 3 philosophy: boss preparation dominates, AND relics still matter. At Ascension 10 the "Double Boss" modifier forces back-to-back Act 3 boss fights, so elite relics are the primary differentiator — keep hitting elites, don't conserve for an imagined safe-lane ending. Finish the engine via upgrades, but the elite floor is still 2 per act.
 - General: seek upgrades before more fights when HP is consolidated; prefer permanent power (relics, removals, upgrades) over transient gold/heal when the run state allows.`,
 
   rest_site: `
 REST SITE:
-- Upgrade is almost always correct. An upgraded key card compounds value every remaining fight (~3-5 HP prevented per fight). Healing is a one-time HP gain.
+- STS2 rest site defaults: Rest (heal 30% max HP) and Forge (upgrade 1 card). Other actions (Dig, Meditate, etc.) only appear when specific relics/events grant them.
+- Forge is almost always correct. An upgraded key card compounds value every remaining fight (~3-5 HP prevented per fight). Healing is a one-time HP gain.
 - HP is a resource, not a score. HP above 1 is spendable.
-- Smith: name the best upgrade target. Priority: win-condition scaler > most-played card > AoE > power.
-- Dig (if available): best option unless HP critically low before boss.
+- Forge: name the best upgrade target. Priority: win-condition scaler > most-played card > AoE > power.
+- Unlocked extra actions (e.g., Dig via Venerable Tea Set) — take when they offer something Forge/Rest don't.
 - Rest (heal) ONLY when: elite within 2 nodes AND HP < 60%, OR boss within 3 nodes AND HP < 70%, OR no upcoming threats AND HP < 40%.
 - Already-upgraded cards (with +) cannot be upgraded again.`,
 
@@ -221,7 +221,7 @@ EVENT:
   ancient: `
 ANCIENT EVENT:
 - You MUST choose exactly one option. Evaluate all three against your current deck needs, act timing, and ascension.
-- IGNORE CURRENT HP. Ancient events fully restore HP on pickup (or to 80% at higher ascensions). Do NOT let "low HP" or "survival" enter your reasoning — by the time the next fight starts, HP has been restored. Pick the option whose long-term value advances the deck, not the one that seems safer.
+- IGNORE CURRENT HP. Ancient events (between-act rest) heal 100% of missing HP at Ascension 0–1; at Ascension 2+ the "Weary Traveler" modifier reduces the heal to 80% of missing HP. Either way the player enters the next act near-full — do NOT let "low HP" or "survival" enter your reasoning. Pick the option whose long-term value advances the deck, not the one that seems safer.
 - OPTION CATEGORIES — identify each option's category tag and apply the matching framework:
   - CARD REMOVAL (remove N cards): High priority when Strikes/Defends remain. Value decreases as deck thins. In Acts 1-2, removal is almost always the best option.
   - GOLD TRADE (lose/gain gold): Gold buys card removal (75-100g), relics, and potions at shops. Evaluate gold loss against remaining shop opportunities. Losing 99g at Act 1 is significant — that is one card removal. Gaining 150-300g is strong if shops remain.
@@ -230,7 +230,7 @@ ANCIENT EVENT:
   - RELIC (obtain random relic/specific relic): Permanent power. High priority unless the specific relic has a downside (curse, HP loss, boss relics with drawbacks).
   - ENCHANTMENT (enchant cards with X): Archetype-dependent. Evaluate the enchantment effect against current deck composition. Strong when it enhances core cards.
   - CARD ADD (add specific cards): Evaluate added cards the same as a card reward — do they advance the deck's win condition?
-  - HP TRADE (lose HP/Max HP for reward): Reason about the trade in absolute terms — at low ascension you enter the next fight at (full_max_hp − cost); at higher ascension you enter at (0.8 × max_hp − cost). Do NOT gate this on CURRENT HP, since the ancient restores HP before the cost is paid. Evaluate whether the reward justifies starting the next combat at the resulting HP level.
+  - HP TRADE (lose HP/Max HP for reward): Reason in absolute terms. At Asc 0–1 the ancient's heal is 100% of missing HP, so after pickup you're at max_hp, meaning the cost comes out of full HP — enter next fight at (max_hp − cost). At Asc 2+ the heal is 80% of missing HP, so entering HP = current_hp + 0.8 × (max_hp − current_hp), and next fight starts at (entering_hp − cost). Do NOT gate the trade on CURRENT HP pre-pickup; evaluate whether the reward justifies starting the next combat at the resulting HP level.
 - Evaluate based on DESCRIPTIONS PROVIDED. Do not assume you know what an enchantment, relic, or card does beyond what the description says.
 - If unsure about an option's effect, set confidence below 50.
 - Reasoning must reference the specific trade-off: what you gain vs what you lose.`,
@@ -406,12 +406,13 @@ export function buildCompactContext(ctx: EvaluationContext): string {
 
   // Ascension note — brief, ascension-aware
   if (ctx.ascension > 0) {
-    if (ctx.ascension <= 4) {
+    // STS2 Early Access caps at Ascension 10. Tier messaging is 1-3 / 4-7 / 8-10.
+    if (ctx.ascension <= 3) {
       lines.push(`[Ascension ${ctx.ascension}] Be permissive — take more cards, fights are easier`);
     } else if (ctx.ascension <= 7) {
       lines.push(`[Ascension ${ctx.ascension}] Standard difficulty`);
     } else {
-      lines.push(`[Ascension ${ctx.ascension}] Be strict — deck purity critical, fights are brutal`);
+      lines.push(`[Ascension ${ctx.ascension}] Be strict — deck purity critical. At A10 expect the "Double Boss" Act 3 finale`);
     }
   }
 
