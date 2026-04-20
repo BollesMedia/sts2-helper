@@ -22,8 +22,10 @@ import type {
 } from "@sts2/shared/evaluation/map/repair-macro-path";
 
 /**
- * Inputs for the phase-2 compliance pipeline, projected from desktop map state
- * so the server can run repair + rerank without recomputing.
+ * Inputs for the server-side scorer + narrator pipeline, projected from
+ * desktop map state. The scorer only consumes `enrichedPaths` + `runState` +
+ * `cardRemovalCost`; the remaining fields are carried for completeness (e.g.
+ * future server-side sanity checks).
  */
 export interface MapComplianceInputs {
   nodes: RepairMapNode[];
@@ -31,6 +33,8 @@ export interface MapComplianceInputs {
   boss: { col: number; row: number };
   currentPosition: { col: number; row: number } | null;
   enrichedPaths: EnrichedPath[];
+  runState: RunState;
+  cardRemovalCost: number;
 }
 
 export interface NodePreferences {
@@ -226,6 +230,8 @@ ${MAP_PATHING_SCAFFOLD}`;
         }
       : null,
     enrichedPaths: enriched,
+    runState,
+    cardRemovalCost: cardRemovalCost ?? 75,
   };
 
   return { prompt, runState, compliance };

@@ -8,6 +8,7 @@ import {
   buildCompactContext,
   compactStrategy,
   compactBossReference,
+  MAP_NARRATOR_PROMPT,
   type EvalType,
 } from "@sts2/shared/evaluation/prompt-builder";
 import {
@@ -17,18 +18,16 @@ import {
   simpleEvalSchema,
 } from "@sts2/shared/evaluation/eval-schemas";
 import {
-  mapCoachOutputSchema,
+  mapNarratorOutputSchema,
   sanitizeMapCoachOutput,
+  sanitizeMapNarratorOutput,
   type MapCoachOutputRaw,
 } from "@sts2/shared/evaluation/map-coach-schema";
-import { repairMacroPath } from "@sts2/shared/evaluation/map/repair-macro-path";
-import type {
-  RepairMapNode,
-  RepairNextOption,
-} from "@sts2/shared/evaluation/map/repair-macro-path";
-import { rerankIfDominated } from "@sts2/shared/evaluation/map/rerank-if-dominated";
 import type { EnrichedPath } from "@sts2/shared/evaluation/map/enrich-paths";
-import { buildComplianceReport } from "@sts2/shared/evaluation/map/compliance-report";
+import { scorePaths } from "@sts2/shared/evaluation/map/score-paths";
+import { deriveBranches } from "@sts2/shared/evaluation/map/derive-branches";
+import { buildNarratorInput } from "@sts2/shared/evaluation/map/build-narrator-input";
+import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
 import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
@@ -53,42 +52,34 @@ function repairJson(text: string): string {
 }
 
 /**
- * Run the phase-2 compliance pipeline on a sanitized map-coach output and
- * attach the resulting `compliance` field. When inputs are absent (older
- * clients that haven't migrated), the output is returned unchanged.
- *
- * Runs repair → rerank → re-sanitize so the synthetic `key_branch` the rerank
- * prepends (and any preserved teaching callouts) respect the same soft caps
- * `sanitizeMapCoachOutput` enforces on the LLM's raw output.
+ * Narrow a node-type string from the desktop's loose payload down to the
+ * schema's enum. Keeps unrecognized tokens as "unknown" so the assembled
+ * response never fails zod's `nodeTypeEnum` gate.
  */
-function applyMapCompliance(
-  sanitized: MapCoachOutputRaw,
-  inputs: EvaluateRequest["mapCompliance"],
-): MapCoachOutputRaw {
-  if (!inputs) return sanitized;
-
-  const repair = repairMacroPath({
-    output: sanitized,
-    nodes: inputs.nodes,
-    nextOptions: inputs.nextOptions,
-    boss: inputs.boss,
-    currentPosition: inputs.currentPosition,
-  });
-  const rerank = rerankIfDominated({
-    output: repair.output,
-    candidates: inputs.enrichedPaths,
-  });
-  const compliance = buildComplianceReport(repair, rerank);
-
-  // Re-apply soft caps — rerank prepends a synthetic branch and may preserve
-  // callouts that together exceed the post-parse cap.
-  const recapped = sanitizeMapCoachOutput(rerank.output);
-
-  if (process.env.EVAL_DEBUG === "1") {
-    console.log("[Evaluate map compliance]", compliance);
+function mapNodeType(
+  t: string,
+):
+  | "monster"
+  | "elite"
+  | "rest"
+  | "shop"
+  | "treasure"
+  | "event"
+  | "boss"
+  | "unknown" {
+  switch (t) {
+    case "monster":
+    case "elite":
+    case "rest":
+    case "shop":
+    case "treasure":
+    case "event":
+    case "boss":
+    case "unknown":
+      return t;
+    default:
+      return "unknown";
   }
-
-  return { ...recapped, compliance };
 }
 
 // ─── Cached game data (loaded once per cold start, ~30min TTL on Vercel) ───
@@ -256,19 +247,27 @@ interface EvaluateRequest {
   gameVersion: string | null;
   goldBudget?: number | null;
   /**
-   * Optional inputs for the phase-2 compliance pipeline (repair + rerank).
-   * Populated by the desktop map-coach call path — absent for callers that
-   * haven't migrated yet, in which case the route ships the LLM output
-   * without a `compliance` field. See
-   * `packages/shared/evaluation/map/repair-macro-path.ts` and
-   * `packages/shared/evaluation/map/rerank-if-dominated.ts`.
+   * Inputs for the scorer + narrator pipeline. The desktop projects these
+   * from map state in `buildMapPrompt`. `nodes` / `nextOptions` are kept in
+   * a loose structural shape because the scorer only consumes
+   * `enrichedPaths`; the other fields flow through for future use (e.g. a
+   * server-side sanity check that `currentPosition` matches). `runState` is
+   * also computed client-side — duplicating it here would require shipping
+   * raw player/deck/relic state and running the builder twice.
    */
   mapCompliance?: {
-    nodes: RepairMapNode[];
-    nextOptions: RepairNextOption[];
+    nodes: Array<{
+      col: number;
+      row: number;
+      type: string;
+      children?: Array<[number, number]>;
+    }>;
+    nextOptions: Array<{ col: number; row: number; type: string }>;
     boss: { col: number; row: number };
     currentPosition: { col: number; row: number } | null;
     enrichedPaths: EnrichedPath[];
+    runState: RunState;
+    cardRemovalCost: number;
   };
 }
 
@@ -553,13 +552,59 @@ export async function POST(request: Request) {
     };
 
     try {
-      // Map coach has its own return path — pull it out so the typed output
-      // from Output.object({ schema: mapCoachOutputSchema }) stays narrow
-      // (a union across three different schemas in one ternary loses it).
+      // Map coach has its own return path — the scorer runs deterministically
+      // on the server and the LLM only produces narrator text. We assemble
+      // the final MapCoachOutputRaw response so the desktop's adapter shape
+      // stays stable.
       if (isMapEval) {
+        const compliance = body.mapCompliance;
+        if (!compliance || !compliance.enrichedPaths || !compliance.runState) {
+          return NextResponse.json(
+            { error: "Missing map compliance inputs" },
+            { status: 400 },
+          );
+        }
+
+        const scored = scorePaths(
+          compliance.enrichedPaths,
+          compliance.runState,
+          { cardRemovalCost: compliance.cardRemovalCost },
+        );
+        if (scored.length === 0) {
+          return NextResponse.json(
+            { error: "No candidate paths to score" },
+            { status: 400 },
+          );
+        }
+        const winner = scored[0];
+        const runnerUp = scored[1];
+
+        const confidence = (() => {
+          if (!runnerUp) return 0.95;
+          const gap = winner.score - runnerUp.score;
+          const gapRatio = gap / Math.max(1, Math.abs(winner.score));
+          if (gapRatio >= 0.25) return 0.95;
+          if (gapRatio >= 0.15) return 0.80;
+          if (gapRatio >= 0.07) return 0.65;
+          return 0.50;
+        })();
+
+        const branches = runnerUp
+          ? deriveBranches(winner, runnerUp, { confidence })
+          : [];
+
+        const narratorInput = buildNarratorInput(
+          winner,
+          scored.slice(1, 3),
+          compliance.runState,
+        );
+
+        const narratorPrompt = `${MAP_NARRATOR_PROMPT}\n\nINPUT:\n${JSON.stringify(narratorInput)}`;
+
         const mapResult = await generateText({
           ...callOptions,
-          output: Output.object({ schema: mapCoachOutputSchema }),
+          prompt: narratorPrompt,
+          output: Output.object({ schema: mapNarratorOutputSchema }),
         });
 
         logUsage(supabase, {
@@ -570,21 +615,50 @@ export async function POST(request: Request) {
           outputTokens: mapResult.usage.outputTokens ?? 0,
         }).catch(console.error);
 
-        // Clamp confidence and truncate key_branches / teaching_callouts.
-        // The schema can't enforce these via zod min/max because Anthropic's
-        // structured-output endpoint rejects the resulting JSON Schema
-        // constraints (#52, #68). See `map-coach-schema.ts`.
-        const sanitized = sanitizeMapCoachOutput(mapResult.output);
-        const finalOutput = applyMapCompliance(sanitized, body.mapCompliance);
-        // Echo the desktop-provided run-state snapshot back so the caller can
-        // forward it to `/api/choice` for persistence. This route does not
-        // write to the `choices` table itself; see `apps/web/src/app/api/
-        // choice/route.ts`. The server-side RunState computation the plan
-        // contemplated is deferred — the desktop already computes it once
-        // inside buildMapPrompt, and duplicating the builder on the server
-        // (without raw state in the request body) would add surface area
-        // without value. Noted as a known follow-up.
-        return NextResponse.json(finalOutput);
+        const narratorText = sanitizeMapNarratorOutput(mapResult.output);
+
+        const macroPath = {
+          floors: winner.nodes.map((n) => ({
+            floor: n.floor,
+            node_type: mapNodeType(n.type),
+            node_id: n.nodeId ?? `${n.floor},${n.floor}`,
+          })),
+          summary: narratorInput.chosenPath.summary,
+        };
+
+        const response: MapCoachOutputRaw = {
+          reasoning: {
+            risk_capacity: narratorText.reasoning,
+            act_goal: narratorText.headline,
+          },
+          headline: narratorText.headline,
+          confidence,
+          macro_path: macroPath,
+          key_branches: branches,
+          teaching_callouts: narratorText.teaching_callouts.map((c) => ({
+            pattern: c.pattern,
+            floors: [],
+            explanation: c.explanation,
+          })),
+          compliance: {
+            repaired: false,
+            reranked: false,
+            rerank_reason: null,
+            repair_reasons: [],
+            // scoredPaths telemetry flows through to choices.rankings_snapshot
+            // via the desktop listener's existing `raw: parsed` channel.
+            // @ts-expect-error augmenting compliance with telemetry (Task 12)
+            scoredPaths: scored.map((p) => ({
+              id: p.id,
+              score: p.score,
+              scoreBreakdown: p.scoreBreakdown,
+              disqualified: p.disqualified,
+              disqualifyReasons: p.disqualifyReasons,
+            })),
+          },
+        };
+
+        return NextResponse.json(sanitizeMapCoachOutput(response));
       }
 
       const result = isSimpleEval
@@ -622,8 +696,12 @@ export async function POST(request: Request) {
               // Parse with the schema matching the current eval so the
               // resulting value is narrowly typed (no cast needed).
               if (isMapEval) {
-                const parsed = mapCoachOutputSchema.parse(repairedJson);
-                console.log("[Evaluate] Map/freeform JSON repaired (trailing comma)");
+                // Narrator-only recovery — the scorer already ran
+                // client-side (and the server-side call above would have
+                // thrown on missing compliance). Return the narrator text
+                // and let the desktop fall back gracefully.
+                const parsed = mapNarratorOutputSchema.parse(repairedJson);
+                console.log("[Evaluate] Map narrator JSON repaired (trailing comma)");
                 if (error.usage) {
                   logUsage(supabase, {
                     userId: body.userId ?? null,
@@ -633,9 +711,13 @@ export async function POST(request: Request) {
                     outputTokens: error.usage.outputTokens ?? 0,
                   }).catch(console.error);
                 }
-                const sanitized = sanitizeMapCoachOutput(parsed);
-                const finalOutput = applyMapCompliance(sanitized, body.mapCompliance);
-                return NextResponse.json(finalOutput);
+                return NextResponse.json(
+                  {
+                    error: "narrator_parse_recovered",
+                    narrator: sanitizeMapNarratorOutput(parsed),
+                  },
+                  { status: 200 },
+                );
               }
               const schema = isSimpleEval ? simpleEvalSchema : genericEvalSchema;
               const parsed = schema.parse(repairedJson);

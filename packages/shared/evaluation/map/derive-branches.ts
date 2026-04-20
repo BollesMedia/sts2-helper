@@ -71,7 +71,7 @@ export function deriveBranches(
     const diverges = nodeSig(w) !== nodeSig(r);
     if (diverges && !previousDivergence) {
       const topDelta = pickTopDelta(winner, runnerUp);
-      const rationale = (topDelta && BRANCH_RATIONALE[topDelta]) ?? {
+      const rationale = (topDelta !== null ? BRANCH_RATIONALE[topDelta] : null) ?? {
         rec: `${nodeLabel(w)} — scorer preferred`,
         alt: `${nodeLabel(r)} — lower weighted score`,
       };
