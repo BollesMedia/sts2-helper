@@ -103,6 +103,24 @@ PATH SELECTION RULES (HARD CONSTRAINTS — apply before reasoning):
   closest to TIGHT (fewest fights over the effective budget).
 - Do NOT recommend a path whose HP_risk is CRITICAL unless no alternative
   has a better HP_risk verdict (SAFE or RISKY beats CRITICAL).
+- ELITE COUNT IS LOAD-BEARING. The baseline target is 2 elites per Act 1
+  and Act 2, and 0–1 elites in Act 3. Rationale: elites drop run-defining
+  relics and densify card rewards; skipping them sacrifices permanent power
+  for short-term safety. Apply this in strict priority order:
+    1. Prefer paths with elites == act target (2 in Acts 1–2).
+    2. Among those, prefer paths containing a REST→ELITE pair (a rest node
+       immediately preceding an elite) — the rest window absorbs elite
+       damage and this is the highest-efficiency template. Two rest→elite
+       pairs on one path is the gold standard for Acts 1–2.
+    3. Among those, prefer SAFE > RISKY > CRITICAL HP_risk.
+    4. Among those, prefer WITHIN_BUDGET > TIGHT > EXCEEDS_BUDGET.
+  Reject a 0-elite path in Acts 1–2 unless EVERY alternative with ≥2
+  elites is CRITICAL HP_risk. A 0-elite path with ABUNDANT or MODERATE
+  risk_capacity is almost always wrong.
+- SELF-CONSISTENCY. If \`reasoning.act_goal\` mentions acquiring elites
+  ("take 2 elites", "secure elite by fN", etc.), \`macro_path\` MUST contain
+  at least that many elite nodes. If the goal conflicts with the path,
+  rewrite the goal to match the path — do not ship a goal the path violates.
 - If the best remaining path is still fightBudget=TIGHT or HP_risk=RISKY,
   state the tradeoff explicitly in \`reasoning.act_goal\` so the player
   understands why it's still the best choice.
