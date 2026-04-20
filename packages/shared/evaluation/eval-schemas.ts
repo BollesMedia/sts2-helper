@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cardRewardCoachingSchema } from "./card-reward-coach-schema";
 
 /**
  * Zod schemas for AI eval responses, shared between the web route handler
@@ -173,6 +174,7 @@ export function buildCardRewardSchema(items: CardRewardItem[], includeShopPlan: 
       ),
     skip_recommended: z.boolean(),
     skip_reasoning: z.string().nullish(),
+    coaching: cardRewardCoachingSchema.optional(),
   };
 
   return includeShopPlan

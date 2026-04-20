@@ -3,7 +3,7 @@ import type { ArchetypeScore } from "./types";
 
 // Card keywords/tags that signal archetypes
 // VERIFIED against Supabase cards table 2026-03-30
-const ARCHETYPE_SIGNALS: Record<string, string[]> = {
+export const ARCHETYPE_SIGNALS: Record<string, string[]> = {
   // Ironclad
   strength: ["demon form", "inflame", "rupture", "crimson mantle", "brand", "howl from beyond", "primal force"],
   exhaust: ["feel no pain", "dark embrace", "corruption", "burning pact", "stoke", "second wind", "fiend fire", "pyre"],
@@ -135,4 +135,21 @@ export function getScalingSources(deckCards: CombatCard[]): string[] {
       return SCALING_KEYWORDS.some((k) => nameLower.includes(k));
     })
     .map((card) => card.name);
+}
+
+export function countArchetypeSupport(
+  deckCards: Pick<CombatCard, "name" | "keywords">[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const card of deckCards) {
+    const nameLower = card.name.toLowerCase();
+    const kwLower = (card.keywords ?? []).map((k) => k.name.toLowerCase());
+    for (const [archetype, signals] of Object.entries(ARCHETYPE_SIGNALS)) {
+      const hit = signals.some(
+        (s) => nameLower.includes(s) || kwLower.some((k) => k.includes(s)),
+      );
+      if (hit) counts[archetype] = (counts[archetype] ?? 0) + 1;
+    }
+  }
+  return counts;
 }

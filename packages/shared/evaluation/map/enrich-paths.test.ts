@@ -156,4 +156,69 @@ describe("enrichPaths", () => {
     ];
     expect(enrichPaths(criticalPath, runState, {})[0].aggregates.hpProjectionVerdict).toBe("critical");
   });
+
+  it("REST→ELITE pairs survive from low HP — walk simulator accounts for in-path heals", () => {
+    // Mirrors the real failure case: player at 19/77 HP, path has two
+    // rest→elite pairs. Old linear projection flagged this CRITICAL
+    // (19 - 5·expectedDmg = negative); walk sim sees the heals and
+    // returns a survivable (non-critical) verdict.
+    const lowHpRunState: RunState = {
+      ...runState,
+      hp: { current: 19, max: 77, ratio: 19 / 77 },
+      riskCapacity: {
+        ...runState.riskCapacity,
+        expectedDamagePerFight: 10,
+        fightsBeforeDanger: 0,
+      },
+      bossPreview: { ...runState.bossPreview, preBossRestFloor: 40 },
+    };
+    const restEliteRestElite = [
+      {
+        id: "P",
+        nodes: [
+          { floor: 24, type: "rest" as const }, // +23 → 42
+          { floor: 25, type: "elite" as const }, // -15 → 27
+          { floor: 26, type: "monster" as const }, // -10 → 17
+          { floor: 27, type: "treasure" as const }, // 17
+          { floor: 28, type: "rest" as const }, // +23 → 40
+          { floor: 29, type: "elite" as const }, // -15 → 25
+        ],
+      },
+    ];
+    const p = enrichPaths(restEliteRestElite, lowHpRunState, {})[0];
+    expect(p.aggregates.hpProjectionVerdict).not.toBe("critical");
+    expect(p.aggregates.projectedHpEnteringPreBossRest).toBeGreaterThan(0);
+  });
+
+  it("flags paths with mid-path 0-HP dips as CRITICAL even if final HP is fine", () => {
+    // Starts 19/77, no rests until very late, so HP crashes to 0 mid-path
+    // before the eventual rest restores it. The minHpAlongPath floor
+    // catches this.
+    const lowHpRunState: RunState = {
+      ...runState,
+      hp: { current: 19, max: 77, ratio: 19 / 77 },
+      riskCapacity: {
+        ...runState.riskCapacity,
+        expectedDamagePerFight: 10,
+        fightsBeforeDanger: 0,
+      },
+      bossPreview: { ...runState.bossPreview, preBossRestFloor: 40 },
+    };
+    const deathDipPath = [
+      {
+        id: "D",
+        nodes: [
+          { floor: 24, type: "monster" as const }, // 19-10=9
+          { floor: 25, type: "monster" as const }, // -10 → -1 (death)
+          { floor: 26, type: "monster" as const },
+          { floor: 27, type: "rest" as const },
+          { floor: 28, type: "monster" as const },
+        ],
+      },
+    ];
+    expect(
+      enrichPaths(deathDipPath, lowHpRunState, {})[0].aggregates
+        .hpProjectionVerdict,
+    ).toBe("critical");
+  });
 });

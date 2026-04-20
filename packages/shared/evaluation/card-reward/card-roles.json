@@ -1,0 +1,191 @@
+{
+  "cards": {
+    "inflame": {
+      "name": "Inflame",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": "strength",
+      "fitsArchetypes": [
+        "strength"
+      ],
+      "maxCopies": 1
+    },
+    "demon form": {
+      "name": "Demon Form",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": "strength",
+      "fitsArchetypes": [
+        "strength"
+      ],
+      "maxCopies": 1
+    },
+    "corruption": {
+      "name": "Corruption",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": "exhaust",
+      "fitsArchetypes": [
+        "exhaust"
+      ],
+      "maxCopies": 1
+    },
+    "dark embrace": {
+      "name": "Dark Embrace",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": "exhaust",
+      "fitsArchetypes": [
+        "exhaust"
+      ],
+      "maxCopies": 1
+    },
+    "feel no pain": {
+      "name": "Feel No Pain",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": "exhaust",
+      "fitsArchetypes": [
+        "exhaust",
+        "block"
+      ],
+      "maxCopies": 1
+    },
+    "barricade": {
+      "name": "Barricade",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": "block",
+      "fitsArchetypes": [
+        "block"
+      ],
+      "maxCopies": 1
+    },
+    "strike": {
+      "name": "Strike",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 99
+    },
+    "defend": {
+      "name": "Defend",
+      "character": "ironclad",
+      "role": "block",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "block"
+      ],
+      "maxCopies": 99
+    },
+    "bash": {
+      "name": "Bash",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 2
+    },
+    "heavy blade": {
+      "name": "Heavy Blade",
+      "character": "ironclad",
+      "role": "power_payoff",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "strength"
+      ],
+      "maxCopies": 2
+    },
+    "pommel strike": {
+      "name": "Pommel Strike",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 2
+    },
+    "iron wave": {
+      "name": "Iron Wave",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "block"
+      ],
+      "maxCopies": 2
+    },
+    "anger": {
+      "name": "Anger",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 2
+    },
+    "cleave": {
+      "name": "Cleave",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 2
+    },
+    "body slam": {
+      "name": "Body Slam",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "block"
+      ],
+      "maxCopies": 2
+    },
+    "clothesline": {
+      "name": "Clothesline",
+      "character": "ironclad",
+      "role": "damage",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 2
+    },
+    "flex": {
+      "name": "Flex",
+      "character": "ironclad",
+      "role": "scaling",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "strength"
+      ],
+      "maxCopies": 2
+    },
+    "shrug it off": {
+      "name": "Shrug It Off",
+      "character": "ironclad",
+      "role": "block",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "block"
+      ],
+      "maxCopies": 2
+    },
+    "true grit": {
+      "name": "True Grit",
+      "character": "ironclad",
+      "role": "block",
+      "keystoneFor": null,
+      "fitsArchetypes": [
+        "block"
+      ],
+      "maxCopies": 2
+    },
+    "warcry": {
+      "name": "Warcry",
+      "character": "ironclad",
+      "role": "draw",
+      "keystoneFor": null,
+      "fitsArchetypes": [],
+      "maxCopies": 2
+    }
+  }
+}

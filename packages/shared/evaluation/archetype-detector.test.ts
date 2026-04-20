@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { detectArchetypes, hasScalingSources, getDrawSources, getScalingSources } from "./archetype-detector";
+import {
+  detectArchetypes,
+  hasScalingSources,
+  getDrawSources,
+  getScalingSources,
+  countArchetypeSupport,
+} from "./archetype-detector";
 import type { CombatCard } from "../types/game-state";
 
 function card(name: string, keywords: string[] = []): CombatCard {
@@ -114,5 +120,35 @@ describe("getScalingSources", () => {
 
   it("returns empty array when no scaling sources exist", () => {
     expect(getScalingSources([card("Strike")])).toHaveLength(0);
+  });
+});
+
+describe("countArchetypeSupport", () => {
+  it("returns a map of archetype -> raw support count from card signals", () => {
+    const deck = [
+      { name: "Inflame", keywords: [] },
+      { name: "Demon Form", keywords: [] },
+      { name: "Heavy Blade", keywords: [] },
+      { name: "Strike", keywords: [] },
+    ];
+    const counts = countArchetypeSupport(deck);
+    expect(counts.strength).toBe(2); // Inflame + Demon Form match strength signals
+    expect(counts.exhaust).toBeUndefined();
+  });
+
+  it("counts each card at most once per archetype even if multiple signals match", () => {
+    const deck = [{ name: "Corruption", keywords: [] }];
+    const counts = countArchetypeSupport(deck);
+    expect(counts.exhaust).toBe(1);
+  });
+
+  it("returns empty object for a starter deck of only basics", () => {
+    const deck = [
+      { name: "Strike", keywords: [] },
+      { name: "Defend", keywords: [] },
+      { name: "Strike", keywords: [] },
+    ];
+    const counts = countArchetypeSupport(deck);
+    expect(Object.keys(counts)).toHaveLength(0);
   });
 });

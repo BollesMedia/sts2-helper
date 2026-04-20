@@ -46,15 +46,24 @@ export async function POST(request: Request) {
     }
 
     const d = result.data;
-    const { error } = await supabase.from("runs").upsert({
-      run_id: d.runId,
-      character: d.character,
-      ascension_level: d.ascension ?? 0,
-      game_version: d.gameVersion ?? null,
-      game_mode: d.gameMode ?? "singleplayer",
-      user_id: auth.userId,
-      run_id_source: d.runIdSource ?? null,
-    });
+    // Conflict target must be `run_id` — Supabase's default upsert conflict
+    // is the primary key, which is always a fresh auto-gen id here. Save-file
+    // canonical runIds (#90) are stable across app restarts, so a second
+    // "start" for the same run must update in place, not collide.
+    const { error } = await supabase
+      .from("runs")
+      .upsert(
+        {
+          run_id: d.runId,
+          character: d.character,
+          ascension_level: d.ascension ?? 0,
+          game_version: d.gameVersion ?? null,
+          game_mode: d.gameMode ?? "singleplayer",
+          user_id: auth.userId,
+          run_id_source: d.runIdSource ?? null,
+        },
+        { onConflict: "run_id" },
+      );
 
     if (error) {
       console.error("Failed to create run:", error);

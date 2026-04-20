@@ -47,6 +47,24 @@ const EVAL_TYPE = "map" as const;
 const lastMapRunState = new Map<string, unknown>();
 
 /**
+ * Per-run skip counter for the "entering new act with unhealed HP" window.
+ *
+ * Flow: Act N boss dies → Ancient event → Ancient pick heals HP → Act N+1
+ * map appears. The game sometimes dispatches the map state update BEFORE
+ * the heal is reflected in `player.hp`, so the first eval after actChange
+ * can run with pre-heal HP and produce a CRITICAL-risk reading on what is
+ * actually a freshly-healed run.
+ *
+ * Defer the eval for up to `ACT_CHANGE_GRACE_SKIPS` state updates when we
+ * detect act-change + abnormally low HP. The next update with higher HP
+ * fires the eval with the correct context. Failsafe: after the skip cap we
+ * proceed regardless — if the player genuinely entered the act at low HP,
+ * they need the eval.
+ */
+const ACT_CHANGE_GRACE_SKIPS = 3;
+const actChangeGrace = new Map<string, { act: number; skips: number }>();
+
+/**
  * Parse a coach macro-path entry (`"col,row"`) into coordinates. Returns null
  * if either token is missing / non-numeric / negative / non-integer. The
  * schema layer enforces the same regex, but we keep this defensive so a
@@ -86,6 +104,7 @@ export function setupMapEvalListener() {
     predicate: (action) => runStarted.match(action) || runEnded.match(action),
     effect: () => {
       lastMapRunState.clear();
+      actChangeGrace.clear();
     },
   });
 
@@ -262,6 +281,30 @@ export function setupMapEvalListener() {
           deckSizeChangedSignificantly,
           shopInPathBecameWorthless,
         };
+
+        // Defer the first post-act-change eval if HP still looks pre-heal.
+        // STS2 applies the ancient's HP heal asynchronously from the map
+        // state update, so `currentHp` on the first tick of a new act can
+        // be the pre-boss-fight remainder rather than the post-ancient
+        // heal. A few-tick grace window lets the heal land.
+        const activeRunIdForGrace = state.run.activeRunId;
+        if (input.actChanged && activeRunIdForGrace) {
+          const graceKey = activeRunIdForGrace;
+          const existing = actChangeGrace.get(graceKey);
+          const isSameActChange = existing && existing.act === run.act;
+          const skips = isSameActChange ? existing.skips : 0;
+          if (currentHp < 0.5 && skips < ACT_CHANGE_GRACE_SKIPS) {
+            actChangeGrace.set(graceKey, { act: run.act, skips: skips + 1 });
+            logDevEvent("eval", "map_act_change_grace_skip", {
+              act: run.act,
+              hpPct: currentHp,
+              skipsSoFar: skips + 1,
+            });
+            return;
+          }
+          // HP looks healed (or we've hit the skip cap) — clear and proceed.
+          if (existing) actChangeGrace.delete(graceKey);
+        }
 
         const shouldEval = shouldEvaluateMap(input);
         logDevEvent("eval", "map_should_eval", { input, shouldEval });
