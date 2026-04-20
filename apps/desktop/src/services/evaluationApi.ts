@@ -54,8 +54,10 @@ interface MapPromptRequest extends EvalRequestBase {
   evalType?: string;
   mapPrompt: string;
   /**
-   * Optional run-state snapshot computed desktop-side for map coach evals.
-   * Echoed by the server and forwarded to `/api/choice` for persistence.
+   * Map coach run-state snapshot. Persisted to `/api/choice` by
+   * `mapListeners`; no longer sent to `/api/evaluate` because the server
+   * never read it (#76). Field kept on this interface only to document
+   * the data lives in `lastMapRunState` on the desktop side.
    */
   runStateSnapshot?: unknown;
   /**
@@ -211,8 +213,9 @@ export const evaluationApi = createApi({
     }),
 
     // Map coach evaluation — parses with zod then transforms snake→camel.
-    // Server also echoes the desktop-computed `runStateSnapshot` back so the
-    // caller can forward it to `/api/choice` for persistence.
+    // Desktop-computed `runStateSnapshot` is cached locally (see
+    // `lastMapRunState` in `mapListeners`) and sent directly to `/api/choice`;
+    // it is NOT round-tripped through the server (#76).
     evaluateMap: build.mutation<MapCoachEvaluation, MapPromptRequest>({
       async queryFn(args) {
         try {
@@ -224,14 +227,9 @@ export const evaluationApi = createApi({
             mapPrompt: args.mapPrompt,
             runId: args.runId,
             gameVersion: args.gameVersion,
-            runStateSnapshot: args.runStateSnapshot,
             mapCompliance: args.mapCompliance,
           });
-          // Server response is map-coach output + optional `runStateSnapshot`
-          // echo. Strip the echo before zod-parsing since the schema is strict.
-          const { runStateSnapshot: _echo, ...rest } = (raw as Record<string, unknown>) ?? {};
-          void _echo;
-          const parsed = mapCoachOutputSchema.parse(rest);
+          const parsed = mapCoachOutputSchema.parse(raw);
           return { data: adaptMapCoach(parsed) };
         } catch (err) {
           return { error: { status: "CUSTOM_ERROR", data: err instanceof Error ? err.message : "Eval failed" } };

@@ -26,15 +26,10 @@ const nodeTypeEnum = z.enum([
 
 export type MapNodeType = z.infer<typeof nodeTypeEnum>;
 
-const repairReasonKindEnum = z.enum([
-  "empty_macro_path",
-  "unknown_node_id",
-  "first_floor_mismatch",
-  "contiguity_gap",
-  "missing_boss",
-  "walk_dead_end",
-  "starts_at_current_position",
-]);
+// Derived from REPAIR_REASON_KINDS — compliance-report.ts is the source of
+// truth. Adding a kind there automatically flows to the wire schema.
+import { REPAIR_REASON_KINDS } from "./map/compliance-report";
+const repairReasonKindEnum = z.enum(REPAIR_REASON_KINDS);
 
 /**
  * Soft caps applied post-parse. Hard limits (number range, array length) are
