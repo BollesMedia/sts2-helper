@@ -64,7 +64,7 @@ function archetypeFitModifier(
   // Keystone for committed archetype.
   if (offer.tags.keystoneFor && offer.tags.keystoneFor === committed) {
     return {
-      kind: "archetypeFit",
+      kind: "keystoneOverride",
       delta: MODIFIER_DELTAS.archetypeFitKeystone,
       reason: `keystone for ${committed}`,
     };
@@ -77,7 +77,7 @@ function archetypeFitModifier(
     viable.some((v) => v.name === offer.tags.keystoneFor)
   ) {
     return {
-      kind: "archetypeFit",
+      kind: "keystoneOverride",
       delta: MODIFIER_DELTAS.archetypeFitKeystone,
       reason: `keystone unlocks ${offer.tags.keystoneFor}`,
     };

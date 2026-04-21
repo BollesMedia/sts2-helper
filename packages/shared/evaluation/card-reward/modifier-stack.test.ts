@@ -88,7 +88,7 @@ describe("computeModifiers — archetype fit", () => {
       communityTier: null,
       winRate: null,
     });
-    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    const mod = result.modifiers.find((m) => m.kind === "keystoneOverride");
     expect(mod?.delta).toBe(2);
     expect(mod?.reason).toContain("exhaust");
   });
@@ -147,7 +147,7 @@ describe("computeModifiers — archetype fit", () => {
       communityTier: null,
       winRate: null,
     });
-    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    const mod = result.modifiers.find((m) => m.kind === "keystoneOverride");
     expect(mod?.delta).toBe(2);
     expect(mod?.reason.toLowerCase()).toContain("poison");
   });
@@ -338,7 +338,7 @@ describe("computeModifiers — composition", () => {
     });
     // B(4) + archetype keystone(+2) + deck gap scaling(+1) + win rate(+1) = 8 → clamped to S(6).
     expect(result.adjustedTier).toBe("S");
-    expect(result.modifiers.map((m) => m.kind).sort()).toEqual(["archetypeFit", "deckGap", "winRateDelta"]);
+    expect(result.modifiers.map((m) => m.kind).sort()).toEqual(["deckGap", "keystoneOverride", "winRateDelta"]);
   });
 
   it("clamps to F when combined negative modifiers would go below 1", () => {

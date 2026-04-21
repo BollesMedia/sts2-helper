@@ -41,7 +41,7 @@ describe("skip-threshold", () => {
 
   it("does not skip Act 3 when a keystone-for-committed card exists", () => {
     const keystoneBreakdown = breakdown("B", 4, [
-      { kind: "archetypeFit", delta: 2, reason: "keystone for exhaust" },
+      { kind: "keystoneOverride", delta: 2, reason: "keystone for exhaust" },
     ]);
     const result = shouldSkipAll([keystoneBreakdown, breakdown("C", 3)], 3);
     expect(result.skip).toBe(false);

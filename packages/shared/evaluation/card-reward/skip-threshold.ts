@@ -14,7 +14,7 @@ export interface SkipDecision {
 function hasKeystoneForCommitted(breakdowns: ModifierBreakdown[]): boolean {
   return breakdowns.some((b) =>
     b.modifiers.some(
-      (m) => m.kind === "archetypeFit" && m.reason.startsWith("keystone for "),
+      (m) => m.kind === "keystoneOverride" && m.reason.startsWith("keystone for "),
     ),
   );
 }

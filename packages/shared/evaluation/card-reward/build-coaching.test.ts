@@ -32,7 +32,7 @@ describe("buildCoaching", () => {
     const top = scoredOffer({
       itemName: "Inflame",
       breakdown: breakdown("A", "S", 6, "keystone for strength", [
-        { kind: "archetypeFit", delta: 2, reason: "keystone for strength" },
+        { kind: "keystoneOverride", delta: 2, reason: "keystone for strength" },
       ]),
     });
     const result: ScoreOffersResult = {
@@ -60,7 +60,7 @@ describe("buildCoaching", () => {
   it("produces a teaching callout per active modifier on the top offer", () => {
     const top = scoredOffer({
       breakdown: breakdown("B", "A", 5, "keystone for strength", [
-        { kind: "archetypeFit", delta: 2, reason: "keystone for strength" },
+        { kind: "keystoneOverride", delta: 2, reason: "keystone for strength" },
         { kind: "deckGap", delta: 1, reason: "fills scaling gap" },
       ]),
     });
@@ -72,7 +72,7 @@ describe("buildCoaching", () => {
     };
     const coach = buildCoaching(result, { act: 1, floor: 3, deckSize: 12, committed: "strength" });
     const patterns = coach.teachingCallouts.map((c) => c.pattern);
-    expect(patterns).toContain("archetypeFit");
+    expect(patterns).toContain("keystoneOverride");
     expect(patterns).toContain("deckGap");
   });
 
@@ -80,7 +80,7 @@ describe("buildCoaching", () => {
     const top = scoredOffer({
       itemIndex: 1,
       breakdown: breakdown("B", "A", 5, "keystone for strength", [
-        { kind: "archetypeFit", delta: 2, reason: "keystone for strength" },
+        { kind: "keystoneOverride", delta: 2, reason: "keystone for strength" },
       ]),
     });
     const runnerUp = scoredOffer({
