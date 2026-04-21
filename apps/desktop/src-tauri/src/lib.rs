@@ -110,7 +110,26 @@ async fn install_required_mods(app: tauri::AppHandle) -> Result<InstallResult, M
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance must be registered BEFORE deep-link so its hook
+    // runs first on subsequent launches. With the "deep-link" feature
+    // enabled in Cargo, the plugin forwards the OAuth callback URL to
+    // the primary instance — fixes Windows "redirected back to login"
+    // regression where the OS spawned a second instance per callback
+    // and neither got the URL. Desktop-only: macOS handles this
+    // natively via AppDelegate; mobile doesn't apply.
+    #[cfg(all(desktop, any(target_os = "windows", target_os = "linux")))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // Focus the existing window on second-launch attempts.
+            if let Some(window) = app.webview_windows().values().next() {
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    builder
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)

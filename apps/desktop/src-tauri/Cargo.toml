@@ -39,6 +39,13 @@ notify = "7"
 [target.'cfg(target_os = "windows")'.dependencies]
 winreg = "0.55"
 
+# Windows/Linux only: keep one running instance, forward deep-link URLs
+# (e.g. sts2replay:// OAuth callback) from subsequent launches into the
+# primary instance. macOS handles this natively via AppDelegate, so the
+# plugin is desktop-only and guarded behind cfg(desktop) in lib.rs.
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+
 [dev-dependencies]
 wiremock = "0.6"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
