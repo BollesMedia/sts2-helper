@@ -114,24 +114,45 @@ function mapNodeTypeToToken(type: string): CandidatePath["nodes"][number]["type"
   }
 }
 
-function walkPathNodes(
+/**
+ * DFS-enumerate every path from `start` to a leaf (boss or max-depth). STS2
+ * maps are bounded DAGs — total unique paths from a single row-1 node is
+ * typically in the low tens, safely bounded by `maxPaths`. Needed because
+ * the scorer can only compare paths it's handed; the previous "leftmost
+ * child" walk systematically missed the actual best path.
+ */
+function enumerateAllPaths(
   start: MapNode,
   all: MapNode[],
   maxDepth = 20,
-): CandidatePath["nodes"] {
+  maxPaths = 200,
+): CandidatePath["nodes"][] {
   const byKey = new Map(all.map((n) => [`${n.col},${n.row}`, n]));
-  const out: CandidatePath["nodes"] = [];
-  let cur: MapNode | undefined = start;
-  for (let d = 0; d < maxDepth && cur; d++) {
-    out.push({
-      floor: cur.row,
-      type: mapNodeTypeToToken(cur.type),
-      nodeId: `${cur.col},${cur.row}`,
-    });
-    if (cur.children.length === 0) break;
-    cur = byKey.get(`${cur.children[0][0]},${cur.children[0][1]}`);
+  const results: CandidatePath["nodes"][] = [];
+
+  function walk(node: MapNode, path: CandidatePath["nodes"]): boolean {
+    const next = [
+      ...path,
+      {
+        floor: node.row,
+        type: mapNodeTypeToToken(node.type),
+        nodeId: `${node.col},${node.row}`,
+      },
+    ];
+    if (results.length >= maxPaths) return false;
+    if (node.children.length === 0 || next.length >= maxDepth) {
+      results.push(next);
+      return true;
+    }
+    for (const [c, r] of node.children) {
+      const child = byKey.get(`${c},${r}`);
+      if (child && !walk(child, next)) return false;
+    }
+    return true;
   }
-  return out;
+
+  walk(start, []);
+  return results;
 }
 
 /**
@@ -198,15 +219,23 @@ export function buildMapPrompt(params: {
 
   const runState = computeRunState(runStateInputs);
 
-  // One candidate path per next_option, walking the primary-child branch.
+  // Enumerate every valid path from each next_option to a boss/leaf. The
+  // scorer ranks them all — the winner is the strongest *specific* plan,
+  // not just the best leftmost-child walk.
   const byKey = new Map(allNodes.map((n) => [`${n.col},${n.row}`, n]));
-  const candidates: CandidatePath[] = options.map((opt, i) => {
+  const candidates: CandidatePath[] = [];
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i];
     const start = byKey.get(`${opt.col},${opt.row}`);
-    return {
-      id: String(i + 1),
-      nodes: start ? walkPathNodes(start, allNodes) : [],
-    };
-  });
+    if (!start) continue;
+    const paths = enumerateAllPaths(start, allNodes);
+    for (let j = 0; j < paths.length; j++) {
+      candidates.push({
+        id: `${i + 1}_${j + 1}`,
+        nodes: paths[j],
+      });
+    }
+  }
 
   const treasureFloorByPath: Record<string, number> = {};
   for (const p of candidates) {
