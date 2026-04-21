@@ -72,6 +72,45 @@ type Step = "upload" | "preview" | "success";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Numeric values each letter tier maps to (matches LETTER_6_MAP in
+// packages/shared/evaluation/tier-normalize.ts). Used to build the
+// scale_config.map payload sent to the confirm endpoint.
+const LETTER_VALUE: Record<string, number> = {
+  S: 6,
+  A: 5,
+  B: 4,
+  C: 3,
+  D: 2,
+  F: 1,
+};
+
+const LETTER_OPTIONS = ["S", "A", "B", "C", "D", "F"] as const;
+type LetterOption = (typeof LETTER_OPTIONS)[number];
+
+/** A tier label like "S" or "3" that a letter/numeric scale already understands. */
+function isStandardTierLabel(label: string, scale: ScaleType): boolean {
+  const cleaned = label.trim();
+  if (!cleaned) return true;
+  const opts = getTierOptions(scale);
+  return opts.some((o) => o.toLowerCase() === cleaned.toLowerCase());
+}
+
+/**
+ * Auto-map raw tier labels (e.g. "Premium", "Want in most decks", "Bad") to
+ * letter tiers by position — the first label encountered becomes S, the
+ * second A, and so on. Admin can override in the mapping UI before confirm.
+ */
+function inferLetterMapping(
+  orderedLabels: readonly string[],
+): Record<string, LetterOption> {
+  const out: Record<string, LetterOption> = {};
+  for (let i = 0; i < orderedLabels.length; i++) {
+    const target = LETTER_OPTIONS[Math.min(i, LETTER_OPTIONS.length - 1)];
+    out[orderedLabels[i]] = target;
+  }
+  return out;
+}
+
 function getTierOptions(scale: ScaleType): string[] {
   switch (scale) {
     case "letter_6":
@@ -159,6 +198,12 @@ function TierListContent() {
     draft?.extractResult ?? null,
   );
   const [cards, setCards] = useState<ExtractedCard[]>(draft?.cards ?? []);
+  // Per-source override: maps raw tier labels (e.g. "Premium") to letter
+  // tiers when a source doesn't use standard S/A/B/… Auto-inferred from
+  // tier order after extraction; admin can adjust in the preview step.
+  const [tierMapping, setTierMapping] = useState<Record<string, LetterOption>>(
+    draft?.tierMapping ?? {},
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
@@ -265,6 +310,28 @@ function TierListContent() {
       }
     }
     setCards(flat);
+
+    // Detect non-standard tier labels and pre-populate a letter mapping so
+    // the confirm payload can set source.scale_config.map. Keeps descriptive
+    // scales like "Premium / Want in most decks / Bad" first-class.
+    const orderedLabels: string[] = [];
+    const seen = new Set<string>();
+    for (const tier of result.extraction.tiers ?? []) {
+      if (!seen.has(tier.label)) {
+        seen.add(tier.label);
+        orderedLabels.push(tier.label);
+      }
+    }
+    const nonStandard = orderedLabels.filter(
+      (l) => !isStandardTierLabel(l, meta.scale_type),
+    );
+    if (nonStandard.length > 0) {
+      setTierMapping((prev) => ({
+        ...inferLetterMapping(orderedLabels),
+        ...prev, // preserve any admin overrides already in the draft
+      }));
+    }
+
     setStep("preview");
     setSubmitting(false);
   };
@@ -300,6 +367,18 @@ function TierListContent() {
       console.warn("[TierListIngestion] Skipped unresolved cards:", skipped);
     }
 
+    // Build scale_config.map from the admin's tier mapping. Merges with any
+    // adapter-provided scale_config (e.g. tiermaker's 7-letter override) so
+    // both descriptive-label and letter-scale cases co-exist.
+    const mappingEntries = Object.entries(tierMapping);
+    const adapterMap = extractResult.scaleConfig?.map ?? {};
+    const mergedMap: Record<string, number> = { ...adapterMap };
+    for (const [rawLabel, letter] of mappingEntries) {
+      mergedMap[rawLabel] = LETTER_VALUE[letter];
+    }
+    const scaleConfig =
+      Object.keys(mergedMap).length > 0 ? { map: mergedMap } : null;
+
     const body = {
       imageUrl,
       ingestionMethod: extractResult.ingestionMethod ?? "vision_llm",
@@ -310,7 +389,7 @@ function TierListContent() {
         source_url: meta.source_url || extractResult.sourceUrl || null,
         trust_weight: meta.trust_weight,
         scale_type: meta.scale_type,
-        scale_config: extractResult.scaleConfig ?? null,
+        scale_config: scaleConfig,
         notes: null,
       },
       list: {
@@ -353,6 +432,7 @@ function TierListContent() {
     setScrapeHtml("");
     setExtractResult(null);
     setCards([]);
+    setTierMapping({});
     setError(null);
     setSavedCount(0);
     setRefreshWarning(null);
@@ -364,9 +444,9 @@ function TierListContent() {
   // Only persist when there's actual extraction state to save.
   useEffect(() => {
     if (step === "preview" && extractResult) {
-      saveDraft({ step, meta, ingestMode, extractResult, cards });
+      saveDraft({ step, meta, ingestMode, extractResult, cards, tierMapping });
     }
-  }, [step, meta, ingestMode, extractResult, cards]);
+  }, [step, meta, ingestMode, extractResult, cards, tierMapping]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -419,8 +499,10 @@ function TierListContent() {
             meta={meta}
             result={extractResult}
             cards={cards}
+            tierMapping={tierMapping}
             submitting={submitting}
             onCardsChange={setCards}
+            onTierMappingChange={setTierMapping}
             onBack={() => setStep("upload")}
             onDiscard={handleReset}
             onConfirm={handleConfirm}
@@ -910,8 +992,10 @@ function PreviewStep({
   meta,
   result,
   cards,
+  tierMapping,
   submitting,
   onCardsChange,
+  onTierMappingChange,
   onBack,
   onDiscard,
   onConfirm,
@@ -919,8 +1003,10 @@ function PreviewStep({
   meta: SourceMeta;
   result: ExtractResult;
   cards: ExtractedCard[];
+  tierMapping: Record<string, LetterOption>;
   submitting: boolean;
   onCardsChange: (cards: ExtractedCard[]) => void;
+  onTierMappingChange: (m: Record<string, LetterOption>) => void;
   onBack: () => void;
   onDiscard: () => void;
   onConfirm: () => void;
@@ -1001,6 +1087,66 @@ function PreviewStep({
           </button>
         </div>
       </div>
+
+      {/* Tier label mapping — only shown when a raw tier label isn't a
+          standard letter/number, e.g. "Premium", "Want in most decks", "Bad".
+          Auto-inferred by position; admin can override. */}
+      {(() => {
+        const rawLabels = Array.from(new Set(cards.map((c) => c.tier)));
+        const nonStandard = rawLabels.filter(
+          (l) => !isStandardTierLabel(l, meta.scale_type),
+        );
+        if (nonStandard.length === 0) return null;
+        return (
+          <div className="rounded-md border border-zinc-800 bg-zinc-950 p-4 space-y-3">
+            <div>
+              <p className="text-xs font-medium text-zinc-300 uppercase tracking-wide">
+                Tier Label Mapping
+              </p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">
+                Source uses descriptive labels. Each maps to a letter tier —
+                adjust if the auto-inferred order is wrong.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {rawLabels.map((raw) => {
+                const isStd = isStandardTierLabel(raw, meta.scale_type);
+                const value = isStd
+                  ? (raw.toUpperCase() as LetterOption)
+                  : (tierMapping[raw] ?? "C");
+                return (
+                  <label
+                    key={raw}
+                    className="flex items-center gap-2 text-xs text-zinc-300"
+                  >
+                    <span className="truncate flex-1" title={raw}>
+                      {raw}
+                    </span>
+                    <span className="text-zinc-600">→</span>
+                    <select
+                      value={value}
+                      disabled={isStd}
+                      onChange={(e) =>
+                        onTierMappingChange({
+                          ...tierMapping,
+                          [raw]: e.target.value as LetterOption,
+                        })
+                      }
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-xs font-mono text-zinc-200 disabled:opacity-50"
+                    >
+                      {LETTER_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Warnings */}
       {extraction.warnings && extraction.warnings.length > 0 && (
@@ -1452,6 +1598,7 @@ interface Draft {
   ingestMode?: IngestMode;
   extractResult: ExtractResult;
   cards: ExtractedCard[];
+  tierMapping?: Record<string, LetterOption>;
 }
 
 function loadDraft(): Draft | null {
