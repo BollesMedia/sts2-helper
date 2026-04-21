@@ -551,34 +551,66 @@ function IngestedListsTable() {
     { revalidateOnFocus: false },
   );
   const [showInactive, setShowInactive] = useState(false);
+  const [authorFilter, setAuthorFilter] = useState<string>("");
 
   const lists = data?.lists ?? [];
-  const visible = showInactive ? lists : lists.filter((l) => l.is_active);
+  // Unique authors, case-insensitive-sorted, from the currently-loaded data.
+  // Keeps the dropdown scoped to authors that actually exist.
+  const authors = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of lists) if (l.source.author) set.add(l.source.author);
+    return Array.from(set).sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase()),
+    );
+  }, [lists]);
+
+  const visible = lists
+    .filter((l) => (showInactive ? true : l.is_active))
+    .filter((l) => !authorFilter || l.source.author === authorFilter);
   const activeCount = lists.filter((l) => l.is_active).length;
   const inactiveCount = lists.length - activeCount;
 
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-        <div>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 gap-4">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-zinc-200">Prior Ingestions</h2>
           <p className="text-xs text-zinc-500 mt-0.5">
             {isLoading
               ? "Loading…"
-              : `${activeCount} active${inactiveCount > 0 ? ` · ${inactiveCount} superseded` : ""}`}
+              : `${activeCount} active${inactiveCount > 0 ? ` · ${inactiveCount} superseded` : ""}${authorFilter ? ` · filtered to ${authorFilter}` : ""}`}
           </p>
         </div>
-        {inactiveCount > 0 && (
-          <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-              className="rounded border-zinc-700 bg-zinc-900"
-            />
-            Show superseded
-          </label>
-        )}
+        <div className="flex items-center gap-4 shrink-0">
+          {authors.length > 1 && (
+            <label className="flex items-center gap-2 text-xs text-zinc-400">
+              <span>Author</span>
+              <select
+                value={authorFilter}
+                onChange={(e) => setAuthorFilter(e.target.value)}
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+              >
+                <option value="">All ({authors.length})</option>
+                {authors.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {inactiveCount > 0 && (
+            <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="rounded border-zinc-700 bg-zinc-900"
+              />
+              Show superseded
+            </label>
+          )}
+        </div>
       </div>
       {error ? (
         <div className="px-4 py-6 text-sm text-red-400">
