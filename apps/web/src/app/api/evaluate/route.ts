@@ -128,11 +128,10 @@ function assembleMapResponse(args: {
       reranked: false,
       rerank_reason: null,
       repair_reasons: [],
-      // @ts-expect-error augmenting compliance with scoredPaths telemetry
       scoredPaths: args.scored.map((p) => ({
         id: p.id,
         score: p.score,
-        scoreBreakdown: p.scoreBreakdown,
+        scoreBreakdown: p.scoreBreakdown as Record<string, number>,
         disqualified: p.disqualified,
         disqualifyReasons: p.disqualifyReasons,
       })),

@@ -106,6 +106,27 @@ export const mapCoachOutputSchema = z.object({
           detail: z.string().optional(),
         }),
       ),
+      /**
+       * Phase-4+ scorer telemetry. Full ranking of every candidate path the
+       * scorer evaluated, including breakdown-per-feature, disqualify state,
+       * and reasons. Used for debugging ("why did the scorer pick this path
+       * over the obvious one?") and as the data source for phase-5
+       * calibration. The nested types use `.passthrough()` so we can extend
+       * scoreBreakdown in place without breaking the wire.
+       */
+      scoredPaths: z
+        .array(
+          z
+            .object({
+              id: z.string(),
+              score: z.number(),
+              scoreBreakdown: z.record(z.string(), z.number()),
+              disqualified: z.boolean(),
+              disqualifyReasons: z.array(z.string()),
+            })
+            .passthrough(),
+        )
+        .optional(),
     })
     .optional(),
 });
