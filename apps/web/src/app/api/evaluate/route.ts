@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { EvaluationContext } from "@sts2/shared/evaluation/types";
+import type {
+  CardEvaluation,
+  CardRewardEvaluation,
+  EvaluationContext,
+} from "@sts2/shared/evaluation/types";
+import { scoreCardOffers } from "@sts2/shared/evaluation/card-reward/score-offers";
+import { buildCoaching } from "@sts2/shared/evaluation/card-reward/build-coaching";
+import type { WinRateInput } from "@sts2/shared/evaluation/card-reward/modifier-stack";
 import {
   buildSystemPrompt,
   buildCompactContext,
@@ -847,8 +854,11 @@ export async function POST(request: Request) {
     }
   }
 
-  // Community tier list consensus — prior from pro player / community sources
+  // Community tier list consensus — prior from pro player / community sources.
+  // The signals Map is also reused by the card_reward scorer short-circuit
+  // below, so it's hoisted out of the try block.
   let communityTierContext = "";
+  let communityTierMap: Awaited<ReturnType<typeof getCommunityTierSignals>> = new Map();
   try {
     const signals = await getCommunityTierSignals(
       supabase,
@@ -856,6 +866,7 @@ export async function POST(request: Request) {
       context.character,
       gameVersion,
     );
+    communityTierMap = signals;
     if (signals.size > 0) {
       const ctLines = items
         .filter((i) => signals.has(i.id))
@@ -923,6 +934,9 @@ export async function POST(request: Request) {
   // factsBlock/scaffold so legacy prompt behavior is preserved.
   let factsBlock = "";
   let scaffold = "";
+  // Hoisted so the card_reward scorer short-circuit below can consume them.
+  let deckState: ReturnType<typeof computeDeckState> | null = null;
+  let taggedOffers: Parameters<typeof formatCardFacts>[1] | null = null;
   if (type === "card_reward" && body.context) {
     try {
       // EvaluationContext doesn't declare hp / upcoming fields, but callers
@@ -946,7 +960,7 @@ export async function POST(request: Request) {
           : 0
       );
 
-      const deckState = computeDeckState({
+      const localDeckState = computeDeckState({
         deck: deckCards as unknown as Parameters<typeof computeDeckState>[0]["deck"],
         relics: relics as unknown as Parameters<typeof computeDeckState>[0]["relics"],
         act,
@@ -959,7 +973,7 @@ export async function POST(request: Request) {
       });
 
       const siblings = items.map((it) => ({ name: it.name }));
-      const taggedOffers = items.map((it, i) => ({
+      const localTaggedOffers = items.map((it, i) => ({
         index: i + 1,
         name: it.name,
         rarity: it.rarity ?? "",
@@ -968,18 +982,99 @@ export async function POST(request: Request) {
         description: it.description ?? "",
         tags: tagCard(
           { name: it.name },
-          deckState,
+          localDeckState,
           siblings.filter((s) => s.name !== it.name),
           deckCards.map((c) => ({ name: c.name })),
         ),
       }));
 
-      factsBlock = "\n" + formatCardFacts(deckState, taggedOffers) + "\n";
+      deckState = localDeckState;
+      taggedOffers = localTaggedOffers;
+      factsBlock = "\n" + formatCardFacts(localDeckState, localTaggedOffers) + "\n";
       scaffold = "\n" + CARD_REWARD_SCAFFOLD + "\n";
     } catch (err) {
       console.error("[Evaluate] card reward enrichment failed, continuing without:", err);
       // Falls through with empty factsBlock/scaffold — legacy prompt behavior.
     }
+  }
+
+  // Scorer + templated coaching short-circuit — bypasses the LLM entirely for
+  // card_reward. Shop still runs through the generateText path below until
+  // Task 10 rewires it. If enrichment failed (deckState/taggedOffers are
+  // null), fall through to the legacy LLM path as a safety net.
+  if (type === "card_reward" && deckState && taggedOffers) {
+    const winRatesById = new Map<string, WinRateInput>();
+    for (const w of winRates ?? []) {
+      winRatesById.set(w.item_id, {
+        pickWinRate: w.pick_win_rate,
+        skipWinRate: w.skip_win_rate,
+        timesPicked: w.times_picked ?? 0,
+        timesSkipped: w.times_skipped ?? 0,
+      });
+    }
+
+    const itemIdsByIndex = new Map<number, string>();
+    items.forEach((it, i) => itemIdsByIndex.set(i + 1, it.id));
+
+    const scored = scoreCardOffers({
+      offers: taggedOffers,
+      deckState,
+      communityTierById: communityTierMap,
+      winRatesById,
+      itemIdsByIndex,
+    });
+
+    const act = (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3;
+    const coaching = buildCoaching(scored, {
+      act,
+      floor: context.floor,
+      deckSize: context.deckSize,
+      committed: deckState.archetypes.committed,
+    });
+
+    const rankings: CardEvaluation[] = scored.offers.map((o) => ({
+      itemId: o.itemId,
+      itemName: o.itemName,
+      itemIndex: o.itemIndex,
+      rank: o.rank,
+      tier: o.tier,
+      tierValue: o.tierValue,
+      synergyScore: 50,
+      confidence: Math.round(coaching.confidence * 100),
+      recommendation:
+        o.rank === 1 && !scored.skipRecommended
+          ? "strong_pick"
+          : scored.skipRecommended
+            ? "skip"
+            : "situational",
+      reasoning: o.reasoning,
+      source: "claude",
+    }));
+
+    const evaluation: CardRewardEvaluation = {
+      rankings,
+      skipRecommended: scored.skipRecommended,
+      skipReasoning: scored.skipReason,
+      coaching: {
+        reasoning: coaching.reasoning,
+        headline: coaching.headline,
+        confidence: coaching.confidence,
+        keyTradeoffs: coaching.keyTradeoffs,
+        teachingCallouts: coaching.teachingCallouts,
+      },
+      // @ts-expect-error augmenting response with scoredOffers telemetry (Task 12 schema update)
+      compliance: {
+        scoredOffers: scored.offers.map((o) => ({
+          itemId: o.itemId,
+          rank: o.rank,
+          tier: o.tier,
+          tierValue: o.tierValue,
+          breakdown: o.breakdown,
+        })),
+      },
+    };
+
+    return NextResponse.json(evaluation);
   }
 
   const isExclusive = body.exclusive !== false; // default true for card_reward
