@@ -8,13 +8,12 @@ import type { EvaluationContext } from "./types";
  * - BASE_PROMPT: stable across every eval of every type — hallucination
  *   guards first, then deck-building heuristics, then output rules.
  * - TYPE_ADDENDA[type]: stable per eval type.
- * - MAP_NARRATOR_PROMPT / CARD_REWARD_SCAFFOLD: stable per eval type.
+ * - MAP_NARRATOR_PROMPT: stable per eval type.
  * - User prompt carries the volatile runtime data (facts blocks, offers).
  * This ordering keeps the cacheable prefix maximal.
  *
  * Approximate sizes (tokens): BASE_PROMPT ~410, ancient addendum ~340
- * (largest), others ~30–140, MAP_NARRATOR_PROMPT ~150,
- * CARD_REWARD_SCAFFOLD ~195.
+ * (largest), others ~30–140, MAP_NARRATOR_PROMPT ~150.
  */
 
 // --- Evaluation Types ---
@@ -86,33 +85,9 @@ Rules:
 - Render active rules as coaching prose.
 `.trim();
 
-// --- Card Reward Reasoning Scaffold ---
-
-export const CARD_REWARD_SCAFFOLD = `
-REASONING STEPS (the DECK STATE block has the facts; your job is judgment).
-1. NEEDS: from DECK STATE, what does this deck need most — damage, block, scaling, removal, a keystone?
-2. SKIP BAR: state the minimum tier/fit a pick must clear right now. Examples: "Skip unless A-tier", "B-tier only if on-archetype or fills the block gap."
-3. ROLE: for each offered card, state its best-case role in THIS deck. Flag any \`dead_with_current_deck\` cards.
-4. KEYSTONE OVERRIDE: if a keystone is offered and the deck supports its archetype, picking it may beat a higher raw tier — keystones unlock scaling. Say so explicitly.
-5. DECIDE: apply the skip bar. If nothing clears it, set skip_recommended=true.
-
-CAPS (server truncates extras): key_tradeoffs ≤ 3, teaching_callouts ≤ 3.
-`.trim();
-
 // --- Type-Specific Addenda ---
 
 const TYPE_ADDENDA: Record<string, string> = {
-  card_reward: `
-CARD REWARD. Pick ONE or skip ALL (exclusive). In Act 1, prioritize raw card quality + landing a keystone. Act 2+, evaluate against the committed archetype. Act 3, only pick what helps the act 3 boss fight.
-Include pick_summary: "Pick [name] — [reason]" or "Skip — [reason]" (≤ 15 words).`,
-
-  shop: `
-SHOP. Default priority: card removal > relic > card > potion. Evaluate each item independently; include spending_plan for affordable items only.
-- Removal: strongly prefer early. Base cost 75g, +25g per use. Ascension 6 "Inflation" raises that to 100g start, +50g per use. Relic beats removal only when the deck has ≤ 2 basic cards left.
-- Cards on 50% sale clear a much lower bar. Colorless cards are shop-exclusive — favor if on-archetype.
-- Potions: only when a slot is open, the potion answers an imminent elite/boss, and gold still covers removal.
-- Act 1: removal focus, save for Act 2's better cards. Act 2: peak shop — removal + relics + rares. Act 3: spend all gold; gold is worthless after the final boss.`,
-
   rest_site: `
 REST SITE. Default actions: Rest (heal 30% max HP) and Forge (upgrade 1 card). Other actions only appear when a relic/event unlocks them.
 - Forge is almost always correct — an upgraded key card compounds every remaining fight. Priority: win-condition scaler > most-played > AoE > power. Cards with + cannot be upgraded again.
