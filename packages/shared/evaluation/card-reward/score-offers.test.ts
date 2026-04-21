@@ -136,3 +136,93 @@ describe("scoreCardOffers", () => {
     expect(result.offers[0].breakdown.baseTier).toBe("C");
   });
 });
+
+describe("scoreCardOffers — regression (user-reported failures)", () => {
+  it("Act 1 basic deck picks keystone over same-tier neutral card", () => {
+    const offers = [
+      offer(1, "Neutral", { role: "damage", keystoneFor: null, fitsArchetypes: [] }),
+      offer(2, "Keystone", { role: "scaling", keystoneFor: "exhaust", fitsArchetypes: ["exhaust"] }),
+    ];
+    const result = scoreCardOffers({
+      offers,
+      deckState: deckState({
+        act: 1,
+        archetypes: { viable: [{ name: "exhaust", supportCount: 2, hasKeystone: false }], committed: null, orphaned: [] },
+        engine: { hasScaling: false, hasBlockPayoff: false, hasRemovalMomentum: 0, hasDrawPower: false },
+      }),
+      communityTierById: new Map([
+        ["1", tier("B")],
+        ["2", tier("B")],
+      ]),
+      winRatesById: new Map(),
+      itemIdsByIndex: new Map([[1, "1"], [2, "2"]]),
+    });
+    expect(result.offers[0].itemName).toBe("Keystone");
+  });
+
+  it("Act 3 committed deck picks on-archetype even if off-archetype has higher base tier", () => {
+    const offers = [
+      offer(1, "OffArch-A", { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"] }),
+      offer(2, "OnArch-B", { role: "damage", keystoneFor: null, fitsArchetypes: ["exhaust"] }),
+    ];
+    const result = scoreCardOffers({
+      offers,
+      deckState: deckState({
+        act: 3,
+        archetypes: { viable: [{ name: "exhaust", supportCount: 4, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTierById: new Map([
+        ["1", tier("A")],
+        ["2", tier("B")],
+      ]),
+      winRatesById: new Map(),
+      itemIdsByIndex: new Map([[1, "1"], [2, "2"]]),
+    });
+    // OffArch: A(5) + off-archetype(-1) + act3-off(-1) = C(3). OnArch: B(4) + on-archetype(+1) = A(5).
+    expect(result.offers[0].itemName).toBe("OnArch-B");
+  });
+
+  it("duplicate penalty drops a third copy below its community tier", () => {
+    const offers = [offer(1, "Strike", { role: "damage", keystoneFor: null, fitsArchetypes: [], duplicatePenalty: true })];
+    const result = scoreCardOffers({
+      offers,
+      deckState: deckState(),
+      communityTierById: new Map([["1", tier("C")]]),
+      winRatesById: new Map(),
+      itemIdsByIndex: new Map([[1, "1"]]),
+    });
+    // C(3) + duplicate(-1) = D(2).
+    expect(result.offers[0].tier).toBe("D");
+  });
+
+  it("win-rate delta pulls a B-tier card down when skip WR dominates", () => {
+    const offers = [offer(1, "Meh", { role: "damage", keystoneFor: null, fitsArchetypes: [] })];
+    const result = scoreCardOffers({
+      offers,
+      deckState: deckState(),
+      communityTierById: new Map([["1", tier("B")]]),
+      winRatesById: new Map([
+        ["1", { pickWinRate: 0.30, skipWinRate: 0.55, timesPicked: 40, timesSkipped: 30 }],
+      ]),
+      itemIdsByIndex: new Map([[1, "1"]]),
+    });
+    // B(4) + WR skip(-1) = C(3).
+    expect(result.offers[0].tier).toBe("C");
+  });
+
+  it("recommends skip in Act 1 when all offers are D-tier", () => {
+    const offers = [offer(1, "A"), offer(2, "B"), offer(3, "C")];
+    const result = scoreCardOffers({
+      offers,
+      deckState: deckState({ act: 1 }),
+      communityTierById: new Map([
+        ["1", tier("D")],
+        ["2", tier("D")],
+        ["3", tier("D")],
+      ]),
+      winRatesById: new Map(),
+      itemIdsByIndex: new Map([[1, "1"], [2, "2"], [3, "3"]]),
+    });
+    expect(result.skipRecommended).toBe(true);
+  });
+});
