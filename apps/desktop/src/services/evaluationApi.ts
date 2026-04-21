@@ -95,6 +95,16 @@ function adaptMapCoach(raw: MapCoachOutputRaw): MapCoachEvaluation {
             kind: r.kind,
             detail: r.detail,
           })),
+          scoredPaths:
+            (raw.compliance as unknown as {
+              scoredPaths?: {
+                id: string;
+                score: number;
+                scoreBreakdown: Record<string, number>;
+                disqualified: boolean;
+                disqualifyReasons: string[];
+              }[];
+            }).scoredPaths,
         }
       : undefined,
   };

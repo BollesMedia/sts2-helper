@@ -80,6 +80,14 @@ export interface MapCoachEvaluation {
     reranked: boolean;
     rerankReason: string | null;
     repairReasons: { kind: string; detail?: string }[];
+    /** Phase-5 telemetry — full scorer ranking for calibration / debugging. */
+    scoredPaths?: {
+      id: string;
+      score: number;
+      scoreBreakdown: Record<string, number>;
+      disqualified: boolean;
+      disqualifyReasons: string[];
+    }[];
   };
 }
 
@@ -116,16 +124,18 @@ function mapNodeTypeToToken(type: string): CandidatePath["nodes"][number]["type"
 
 /**
  * DFS-enumerate every path from `start` to a leaf (boss or max-depth). STS2
- * maps are bounded DAGs — total unique paths from a single row-1 node is
- * typically in the low tens, safely bounded by `maxPaths`. Needed because
- * the scorer can only compare paths it's handed; the previous "leftmost
- * child" walk systematically missed the actual best path.
+ * maps are bounded DAGs — from floor 1 the tree is ~30–80 unique paths, but
+ * from the bottom of Act 3 with ~17 floors remaining it can swell to
+ * 500–1500. `maxPaths` is a ceiling against pathological graphs; hitting it
+ * means the tail of the DFS is truncated (leftmost-biased), which can
+ * starve elite-rich paths on the right of the map. We log on cap-hit so
+ * the dev event stream shows when the candidate pool was incomplete.
  */
 function enumerateAllPaths(
   start: MapNode,
   all: MapNode[],
   maxDepth = 20,
-  maxPaths = 200,
+  maxPaths = 2000,
 ): CandidatePath["nodes"][] {
   const byKey = new Map(all.map((n) => [`${n.col},${n.row}`, n]));
   const results: CandidatePath["nodes"][] = [];

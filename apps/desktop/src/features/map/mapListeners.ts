@@ -420,6 +420,31 @@ export function setupMapEvalListener() {
           .unwrap();
         logDevEvent("eval", "map_api_response", parsed);
 
+        // Top-N scored candidates log — when a pick looks wrong, checking this
+        // reveals whether the scorer's ranking itself is off vs. the candidate
+        // pool not containing the expected best path.
+        const scoredPaths = parsed.compliance?.scoredPaths;
+        if (scoredPaths && scoredPaths.length > 0) {
+          const top = [...scoredPaths]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map((s) => ({
+              id: s.id,
+              score: Number(s.score.toFixed(2)),
+              elites: s.scoreBreakdown.elitesTaken ?? 0,
+              restBeforeElite: s.scoreBreakdown.restBeforeElite ?? 0,
+              projectedHpAtBoss: Number((s.scoreBreakdown.projectedHpAtBossFight ?? 0).toFixed(2)),
+              hpDip30: s.scoreBreakdown.hpDipBelow30PctPenalty ?? 0,
+              hpDip15: s.scoreBreakdown.hpDipBelow15PctPenalty ?? 0,
+              dq: s.disqualified,
+              dqReasons: s.disqualifyReasons,
+            }));
+          logDevEvent("eval", "map_scored_top5", {
+            totalCandidates: scoredPaths.length,
+            top,
+          });
+        }
+
         // --- Post-API path derivation ---
         // The map coach returns a pre-computed macro path (one node per
         // future floor). Convert `node_id` ("col,row") back to coordinates
