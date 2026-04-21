@@ -18,6 +18,7 @@ import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
 import { computeMapEvalKey, buildMapPrompt } from "../../lib/eval-inputs/map";
 import type { RunState } from "@sts2/shared/evaluation/map/run-state";
+import { scorePaths } from "@sts2/shared/evaluation/map/score-paths";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { computeSubgraphFingerprint, type FingerprintNode } from "../../lib/compute-subgraph-fingerprint";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
@@ -45,6 +46,15 @@ const EVAL_TYPE = "map" as const;
  * guarantee would require pairing the snapshot with the evalKey.
  */
 const lastMapRunState = new Map<string, unknown>();
+
+/**
+ * Last narrated winner path (node id set) per runId. Used to skip the
+ * narrator LLM call when the scorer re-fires but picks the same strategic
+ * plan — either because the player advanced along it (new winner path is
+ * a suffix of the old) or because the fork resolved to the same direction.
+ * Cleared on `runStarted` / `runEnded`.
+ */
+const lastNarratedPathByRun = new Map<string, Set<string>>();
 
 /**
  * Parse a coach macro-path entry (`"col,row"`) into coordinates. Returns null
@@ -84,6 +94,7 @@ export function setupMapEvalListener() {
     predicate: (action) => runStarted.match(action) || runEnded.match(action),
     effect: () => {
       lastMapRunState.clear();
+      lastNarratedPathByRun.clear();
     },
   });
 
@@ -115,18 +126,22 @@ export function setupMapEvalListener() {
       // resulting prompt is only used by the downstream eval path, which
       // still runs when un-gated. Downstream path re-reads the cache.
       const activeRunIdForEagerCache = state.run.activeRunId;
+      let eagerCompliance:
+        | { runState: RunState; compliance: ReturnType<typeof buildMapPrompt>["compliance"] }
+        | null = null;
       if (activeRunIdForEagerCache && options.length > 0) {
         try {
           const eagerDeckCards = selectActiveDeck(state);
           const eagerPlayer = selectActivePlayer(state);
           const eagerCtx = buildEvaluationContext(gameState, eagerDeckCards, eagerPlayer);
           if (eagerCtx) {
-            const { runState: eagerRunState } = buildMapPrompt({
+            const { runState: eagerRunState, compliance: eagerComplianceData } = buildMapPrompt({
               context: eagerCtx,
               state: mapState,
               cardRemovalCost: eagerPlayer?.cardRemovalCost ?? null,
             });
             lastMapRunState.set(activeRunIdForEagerCache, eagerRunState);
+            eagerCompliance = { runState: eagerRunState, compliance: eagerComplianceData };
           }
         } catch {
           // buildMapPrompt can throw on unusual state shapes; swallow so
@@ -266,6 +281,36 @@ export function setupMapEvalListener() {
         const shouldEval = shouldEvaluateMap(input);
         logDevEvent("eval", "map_should_eval", { input, shouldEval });
         if (!shouldEval) return;
+
+        // Narrator gate. The scorer is pure JS and already ran for the
+        // eager cache above — reuse it to check whether the winner is
+        // the same strategic plan the narrator already described. If
+        // the new winner path is a subset of the last narrated path
+        // (player advanced along it, or fork resolved to the same
+        // direction), skip the LLM call entirely. Start-of-act always
+        // fires so the first eval of an act gets fresh narration.
+        if (!actChanged && eagerCompliance && activeRunIdForEagerCache) {
+          const scored = scorePaths(
+            eagerCompliance.compliance.enrichedPaths,
+            eagerCompliance.runState,
+            { cardRemovalCost: eagerCompliance.compliance.cardRemovalCost },
+          );
+          const winner = scored[0];
+          const prevNarrated = lastNarratedPathByRun.get(activeRunIdForEagerCache);
+          if (winner && prevNarrated) {
+            const newPathIds = winner.nodes
+              .map((n) => n.nodeId)
+              .filter((id): id is string => typeof id === "string");
+            const isSubset = newPathIds.length > 0 && newPathIds.every((id) => prevNarrated.has(id));
+            if (isSubset) {
+              logDevEvent("eval", "map_skip_narrator_unchanged_winner", {
+                newPathSize: newPathIds.length,
+                storedPathSize: prevNarrated.size,
+              });
+              return;
+            }
+          }
+        }
       }
 
       // --- Dedup ---
@@ -408,6 +453,17 @@ export function setupMapEvalListener() {
         const bestPathNodes = new Set<string>();
         for (const p of fullPath) {
           bestPathNodes.add(`${p.col},${p.row}`);
+        }
+
+        // Stash the narrated path so the scorer gate can skip subsequent
+        // evals whose winner is a suffix (player advanced) or identical
+        // (fork picked the same branch). Uses the server's returned
+        // macro_path, not the local scorer, so the two ends stay in sync.
+        const activeRunIdForNarratedStore = state.run.activeRunId;
+        if (activeRunIdForNarratedStore) {
+          const narratedSet = new Set<string>();
+          for (const f of parsed.macroPath.floors) narratedSet.add(f.nodeId);
+          lastNarratedPathByRun.set(activeRunIdForNarratedStore, narratedSet);
         }
 
         // First entry on the coach path — used for backfill + best-option lookup.
