@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import useSWR from "swr";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
 import type { TierExtractionResult } from "@sts2/shared/evaluation/tier-extraction";
@@ -394,20 +395,23 @@ function TierListContent() {
         )}
 
         {step === "upload" && (
-          <UploadStep
-            meta={meta}
-            ingestMode={ingestMode}
-            imageFile={imageFile}
-            scrapeUrl={scrapeUrl}
-            scrapeHtml={scrapeHtml}
-            submitting={submitting}
-            onMetaChange={setMeta}
-            onIngestModeChange={setIngestMode}
-            onImageChange={setImageFile}
-            onScrapeUrlChange={setScrapeUrl}
-            onScrapeHtmlChange={setScrapeHtml}
-            onSubmit={handleExtract}
-          />
+          <>
+            <IngestedListsTable />
+            <UploadStep
+              meta={meta}
+              ingestMode={ingestMode}
+              imageFile={imageFile}
+              scrapeUrl={scrapeUrl}
+              scrapeHtml={scrapeHtml}
+              submitting={submitting}
+              onMetaChange={setMeta}
+              onIngestModeChange={setIngestMode}
+              onImageChange={setImageFile}
+              onScrapeUrlChange={setScrapeUrl}
+              onScrapeHtmlChange={setScrapeHtml}
+              onSubmit={handleExtract}
+            />
+          </>
         )}
 
         {step === "preview" && extractResult && (
@@ -429,6 +433,196 @@ function TierListContent() {
       </main>
     </div>
   );
+}
+
+// ── Ingestion history table ──────────────────────────────────────────────────
+
+interface IngestedRow {
+  id: string;
+  character: string | null;
+  game_version: string | null;
+  published_at: string;
+  is_active: boolean;
+  source_image_url: string | null;
+  ingestion_method: "vision_llm" | "manual_confirm" | "scraped";
+  ingested_at: string;
+  entry_count: number;
+  source: {
+    id: string;
+    author: string;
+    source_type: SourceType;
+    source_url: string | null;
+    trust_weight: number;
+  };
+}
+
+const fetcher = async (url: string): Promise<{ lists: IngestedRow[] }> => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+};
+
+function IngestedListsTable() {
+  const { data, error, isLoading } = useSWR<{ lists: IngestedRow[] }>(
+    "/api/admin/tier-lists",
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const [showInactive, setShowInactive] = useState(false);
+
+  const lists = data?.lists ?? [];
+  const visible = showInactive ? lists : lists.filter((l) => l.is_active);
+  const activeCount = lists.filter((l) => l.is_active).length;
+  const inactiveCount = lists.length - activeCount;
+
+  return (
+    <section className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-200">Prior Ingestions</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {isLoading
+              ? "Loading…"
+              : `${activeCount} active${inactiveCount > 0 ? ` · ${inactiveCount} superseded` : ""}`}
+          </p>
+        </div>
+        {inactiveCount > 0 && (
+          <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="rounded border-zinc-700 bg-zinc-900"
+            />
+            Show superseded
+          </label>
+        )}
+      </div>
+      {error ? (
+        <div className="px-4 py-6 text-sm text-red-400">
+          Failed to load: {error instanceof Error ? error.message : String(error)}
+        </div>
+      ) : !isLoading && visible.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-zinc-500">
+          No tier lists ingested yet.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-zinc-900/60 text-zinc-400 uppercase tracking-wider">
+              <tr>
+                <Th>Author</Th>
+                <Th>Type</Th>
+                <Th>Character</Th>
+                <Th>Version</Th>
+                <Th>Published</Th>
+                <Th className="text-right">Cards</Th>
+                <Th className="text-right">Trust</Th>
+                <Th>Ingested</Th>
+                <Th>Method</Th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-900">
+              {visible.map((row) => (
+                <tr
+                  key={row.id}
+                  className={`${row.is_active ? "text-zinc-200" : "text-zinc-600"} hover:bg-zinc-900/40 transition-colors`}
+                >
+                  <Td>
+                    {row.source.source_url ? (
+                      <a
+                        href={row.source.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-emerald-400 hover:underline"
+                      >
+                        {row.source.author}
+                      </a>
+                    ) : (
+                      row.source.author
+                    )}
+                  </Td>
+                  <Td className="text-zinc-500">{row.source.source_type}</Td>
+                  <Td>{row.character ?? "any"}</Td>
+                  <Td className="text-zinc-500">{row.game_version ?? "—"}</Td>
+                  <Td className="text-zinc-500">{formatDate(row.published_at)}</Td>
+                  <Td className="text-right font-mono">{row.entry_count}</Td>
+                  <Td className="text-right font-mono text-zinc-500">
+                    {row.source.trust_weight.toFixed(1)}
+                  </Td>
+                  <Td className="text-zinc-500">
+                    {formatRelative(row.ingested_at)}
+                  </Td>
+                  <Td>
+                    <span
+                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-mono ${methodBadge(row.ingestion_method)}`}
+                    >
+                      {row.ingestion_method}
+                    </span>
+                    {!row.is_active && (
+                      <span className="ml-1 text-[10px] text-zinc-600 uppercase">superseded</span>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Th({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <th className={`px-3 py-2 text-left font-medium text-[10px] ${className}`}>
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <td className={`px-3 py-2 whitespace-nowrap ${className}`}>{children}</td>
+  );
+}
+
+function methodBadge(method: IngestedRow["ingestion_method"]): string {
+  if (method === "scraped") return "bg-blue-500/10 text-blue-400";
+  if (method === "manual_confirm") return "bg-zinc-700/40 text-zinc-400";
+  return "bg-purple-500/10 text-purple-400";
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toISOString().split("T")[0];
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const diff = Date.now() - d.getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toISOString().split("T")[0];
 }
 
 // ── Step 1: Upload form ───────────────────────────────────────────────────────
