@@ -44,6 +44,7 @@ import { formatCardFacts } from "@sts2/shared/evaluation/card-reward/format-card
 import { getCommunityTierSignals } from "@sts2/shared/evaluation/community-tier";
 import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
+import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
@@ -967,6 +968,23 @@ export async function POST(request: Request) {
       },
     };
 
+    // Persist each ranking for analytics — fire-and-forget.
+    Promise.all(
+      evaluation.rankings.map((ranking) =>
+        logEvaluation(
+          supabase,
+          context,
+          ranking,
+          runId,
+          gameVersion,
+          body.userId ?? null,
+          evalType,
+          ranking.tierValue,
+          undefined,
+        ),
+      ),
+    ).catch(console.error);
+
     return NextResponse.json(evaluation);
   }
 
@@ -1134,6 +1152,23 @@ export async function POST(request: Request) {
         ],
       },
     };
+
+    // Persist each ranking for analytics — fire-and-forget.
+    Promise.all(
+      evaluation.rankings.map((ranking) =>
+        logEvaluation(
+          supabase,
+          context,
+          ranking,
+          runId,
+          gameVersion,
+          body.userId ?? null,
+          evalType,
+          ranking.tierValue,
+          undefined,
+        ),
+      ),
+    ).catch(console.error);
 
     return NextResponse.json(evaluation);
   }
