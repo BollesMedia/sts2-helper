@@ -51,6 +51,18 @@ describe("scoreShopNonCards", () => {
     expect(result[0].affordable).toBe(false);
   });
 
+  it("honors explicit kind over name substring heuristic", () => {
+    // A relic literally named "Potion Belt" — name substring would mis-classify.
+    const result = scoreShopNonCards({
+      items: [item({ itemName: "Potion Belt", kind: "relic", description: "Expands potion slots" })],
+      act: 1,
+      goldBudget: 500,
+      potionCount: 0,
+    });
+    expect(result[0].kind).toBe("relic");
+    expect(result[0].tier).toBe("A");
+  });
+
   it("sorts ranked items by tier desc, stable by original index", () => {
     const items = [
       item({ itemIndex: 1, itemName: "Potion A", description: "Gain strength", cost: 50 }),

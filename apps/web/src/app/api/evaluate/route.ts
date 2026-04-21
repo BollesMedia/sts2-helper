@@ -987,6 +987,18 @@ export async function POST(request: Request) {
     return NextResponse.json(evaluation);
   }
 
+  function mapItemTypeToKind(
+    t: string | undefined,
+  ): "card_removal" | "relic" | "potion" | undefined {
+    if (!t) return undefined;
+    const lower = t.toLowerCase();
+    if (lower === "card_removal" || lower === "card removal" || lower.includes("remove"))
+      return "card_removal";
+    if (lower === "relic") return "relic";
+    if (lower === "potion") return "potion";
+    return undefined;
+  }
+
   // Shop scorer short-circuit — splits items into cards vs non-cards, runs
   // the card scorer for Attack/Skill/Power items and the non-card ranker for
   // removals/relics/potions, then merges into a unified ranking list.
@@ -1023,29 +1035,47 @@ export async function POST(request: Request) {
     // the enrichment pipeline (hoisted by Task 9). If it's missing (shop
     // without the card_reward enrichment path firing), compute it on the
     // spot.
-    const shopDeckState = deckState ?? computeDeckState({
-      deck: (context.deckCards ?? []) as unknown as Parameters<typeof computeDeckState>[0]["deck"],
-      relics: (context.relics ?? []) as unknown as Parameters<typeof computeDeckState>[0]["relics"],
-      act: (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3,
-      floor: context.floor,
-      ascension: context.ascension,
-      hp: { current: 0, max: 0 },
-    });
+    let shopDeckState: ReturnType<typeof computeDeckState>;
+    let cardTaggedOffers: Array<{
+      index: number;
+      name: string;
+      rarity: string;
+      type: string;
+      cost: number | null;
+      description: string;
+      tags: ReturnType<typeof tagCard>;
+    }>;
+    try {
+      shopDeckState = deckState ?? computeDeckState({
+        deck: (context.deckCards ?? []) as unknown as Parameters<typeof computeDeckState>[0]["deck"],
+        relics: (context.relics ?? []) as unknown as Parameters<typeof computeDeckState>[0]["relics"],
+        act: (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3,
+        floor: context.floor,
+        ascension: context.ascension,
+        hp: { current: 0, max: 0 },
+      });
 
-    const cardTaggedOffers = cardItems.map((it, i) => ({
-      index: i + 1,
-      name: it.name,
-      rarity: it.rarity ?? "",
-      type: it.type ?? "",
-      cost: it.cost ?? null,
-      description: it.description ?? "",
-      tags: tagCard(
-        { name: it.name },
-        shopDeckState,
-        cardItems.filter((s) => s.id !== it.id).map((s) => ({ name: s.name })),
-        (context.deckCards ?? []).map((c) => ({ name: c.name })),
-      ),
-    }));
+      cardTaggedOffers = cardItems.map((it, i) => ({
+        index: i + 1,
+        name: it.name,
+        rarity: it.rarity ?? "",
+        type: it.type ?? "",
+        cost: it.cost ?? null,
+        description: it.description ?? "",
+        tags: tagCard(
+          { name: it.name },
+          shopDeckState,
+          cardItems.filter((s) => s.id !== it.id).map((s) => ({ name: s.name })),
+          (context.deckCards ?? []).map((c) => ({ name: c.name })),
+        ),
+      }));
+    } catch (err) {
+      console.error("[Evaluate] Shop enrichment failed:", err);
+      return NextResponse.json(
+        { error: "Shop enrichment failed", detail: err instanceof Error ? err.message : String(err) },
+        { status: 500 },
+      );
+    }
 
     const cardScored = scoreCardOffers({
       offers: cardTaggedOffers,
@@ -1066,6 +1096,7 @@ export async function POST(request: Request) {
         itemIndex: cardItems.length + i + 1,
         cost: it.cost ?? 0,
         description: it.description ?? "",
+        kind: mapItemTypeToKind(it.type),
       })),
       act: shopAct,
       goldBudget,

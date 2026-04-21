@@ -9,6 +9,7 @@ export interface ShopNonCardItem {
   itemIndex: number;
   cost: number;
   description: string;
+  kind?: ShopItemKind;
 }
 
 export interface ScoredShopNonCardItem extends ShopNonCardItem {
@@ -27,6 +28,7 @@ export interface ScoreShopNonCardsInput {
 }
 
 function classifyItem(item: ShopNonCardItem): ShopItemKind {
+  if (item.kind && item.kind !== "other") return item.kind;
   const name = item.itemName.toLowerCase();
   if (name.includes("remove") || name.includes("card removal")) return "card_removal";
   if (
