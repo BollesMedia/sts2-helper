@@ -16,11 +16,28 @@ import {
 // land at 11–12 bits, different-card pairs at 19–20. 14 separates them
 // cleanly; tighten later if wider-scale backfill data shows collisions.
 const MATCH_THRESHOLD = 14;
-const MAX_HTML_BYTES = 2 * 1024 * 1024;
+const MAX_HTML_BYTES = 8 * 1024 * 1024;
 
 const scrapeSchema = z.object({
-  url: z.string().url(),
-  html: z.string().max(MAX_HTML_BYTES),
+  // Tolerant URL field: accepts bare `tiermaker.com/x/y` or protocol-less
+  // input and upgrades to https://. Full URLs pass through untouched.
+  url: z
+    .string()
+    .min(3)
+    .transform((raw) => {
+      const trimmed = raw.trim();
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      return `https://${trimmed.replace(/^\/\//, "")}`;
+    })
+    .refine((u) => {
+      try {
+        new URL(u);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Not a valid URL"),
+  html: z.string().min(1).max(MAX_HTML_BYTES),
   // When provided, candidate cards are restricted to this character plus
   // always-neutral colors (colorless, curse). Essential for match accuracy —
   // with ~500 candidates, dHash noise produces many same-distance false

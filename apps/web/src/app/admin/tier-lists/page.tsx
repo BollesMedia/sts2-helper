@@ -188,7 +188,21 @@ function TierListContent() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Scrape failed");
+        // Surface schema-validation details so admins see which field is
+        // rejected (bare URL, oversized HTML, unknown character, etc.)
+        // rather than a generic "Invalid request body".
+        const detail =
+          typeof data?.detail === "object" && data.detail !== null
+            ? Object.entries(data.detail)
+                .filter(([k]) => k !== "_errors")
+                .map(([k, v]) => {
+                  const errs = (v as { _errors?: string[] })?._errors;
+                  return errs && errs.length ? `${k}: ${errs.join(", ")}` : null;
+                })
+                .filter(Boolean)
+                .join("; ")
+            : null;
+        setError(detail || data.error || `Scrape failed (${res.status})`);
         setSubmitting(false);
         return;
       }
