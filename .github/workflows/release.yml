@@ -13,8 +13,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: --target universal-apple-darwin
+          # Pinning macos-14 (Sonoma). macos-latest shifted to macos-15 which
+          # has hdiutil / AppleScript quirks that intermittently fail
+          # bundle_dmg.sh during Tauri's DMG bundling step (0.14 CI regression).
+          - platform: macos-14
+            args: --target universal-apple-darwin --verbose
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
           - platform: windows-latest
             args: ''
@@ -51,13 +54,35 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri
+        id: tauri-build
         uses: tauri-apps/tauri-action@v0
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # VITE_* env vars are in apps/desktop/.env.production (committed, publishable values)
           # Do NOT duplicate them here — .env.production is the single source of truth
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: 'STS2 Replay ${{ github.ref_name }}'
+          releaseBody: 'See the assets below to download and install.'
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      # Retry once on transient macOS DMG bundling failures (AppleScript /
+      # hdiutil timeouts in bundle_dmg.sh). The tauri-action is idempotent on
+      # release creation — it finds the existing tag and uploads missing
+      # artifacts.
+      - name: Build Tauri (retry)
+        if: steps.tauri-build.outcome == 'failure'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
