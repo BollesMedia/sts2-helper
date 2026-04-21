@@ -6,8 +6,10 @@
 # Run from inside any worktree after creating it:
 #   scripts/setup-worktree.sh
 #
-# Pulls updates automatically: if you run `vercel env pull` in main, all
-# worktrees pick up the new env immediately (they're symlinks).
+# Pulls updates automatically: if you run `scripts/pull-env.sh` from any
+# worktree, it rebuilds main's .env.local (Vercel env + merged secrets
+# from .env.local.secrets) and every worktree sees the update through
+# the symlink.
 
 set -euo pipefail
 
@@ -34,7 +36,7 @@ link_from_main() {
     echo "Skip $name — not present in main ($target). Run setup in main first:"
     case "$name" in
       apps/web/.vercel) echo "    (cd \"$MAIN_WT/apps/web\" && vercel link)" ;;
-      .env.local) echo "    (cd \"$MAIN_WT/apps/web\" && vercel env pull .env.local)" ;;
+      .env.local) echo "    scripts/pull-env.sh   # pulls Vercel env + merges .env.local.secrets" ;;
     esac
     return
   fi
