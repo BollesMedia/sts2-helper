@@ -9,7 +9,10 @@ import {
 import type { Json } from "@sts2/shared/types/database.types";
 
 const confirmSchema = z.object({
-  imageUrl: z.string().url(),
+  imageUrl: z.string().url().nullable(),
+  ingestionMethod: z
+    .enum(["vision_llm", "manual_confirm", "scraped"])
+    .default("vision_llm"),
   source: z.object({
     id: z.string(),
     author: z.string(),
@@ -59,7 +62,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  const { imageUrl, source, list, entries } = parsed.data;
+  const { imageUrl, ingestionMethod, source, list, entries } = parsed.data;
 
   const supabase = createServiceClient();
 
@@ -125,7 +128,7 @@ export async function POST(request: Request) {
       character: list.character,
       is_active: true,
       source_image_url: imageUrl,
-      ingestion_method: "vision_llm",
+      ingestion_method: ingestionMethod,
       entry_count: entries.length,
     })
     .select("id")

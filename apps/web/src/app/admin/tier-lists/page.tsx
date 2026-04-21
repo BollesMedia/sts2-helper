@@ -10,6 +10,8 @@ import type { TierExtractionResult } from "@sts2/shared/evaluation/tier-extracti
 type SourceType = "image" | "spreadsheet" | "website" | "reddit" | "youtube";
 type ScaleType = "letter_6" | "letter_5" | "numeric_10" | "numeric_5" | "binary";
 type Character = "any" | "ironclad" | "silent" | "defect" | "regent" | "necrobinder";
+type IngestMode = "image" | "scrape";
+type IngestionMethod = "vision_llm" | "scraped";
 
 interface SourceMeta {
   author: string;
@@ -43,9 +45,13 @@ interface ExtractedCard {
 }
 
 interface ExtractResult {
-  imageUrl: string;
+  imageUrl: string | null;
   extraction: TierExtractionResult;
   cardIdMap: Record<string, string>;
+  ingestionMethod?: IngestionMethod;
+  sourceUrl?: string;
+  scaleConfig?: { map: Record<string, number> } | null;
+  stats?: { total: number; matched: number; unmatched: number };
 }
 
 type Step = "upload" | "preview" | "success";
@@ -131,7 +137,10 @@ function TierListContent() {
   const draft = typeof window !== "undefined" ? loadDraft() : null;
   const [step, setStep] = useState<Step>(draft?.step ?? "upload");
   const [meta, setMeta] = useState<SourceMeta>(draft?.meta ?? defaultMeta);
+  const [ingestMode, setIngestMode] = useState<IngestMode>(draft?.ingestMode ?? "image");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [scrapeUrl, setScrapeUrl] = useState("");
+  const [scrapeHtml, setScrapeHtml] = useState("");
   const [extractResult, setExtractResult] = useState<ExtractResult | null>(
     draft?.extractResult ?? null,
   );
@@ -145,33 +154,59 @@ function TierListContent() {
 
   const handleExtract = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!imageFile) return;
-
     setSubmitting(true);
     setError(null);
 
-    // Prepare image for upload — preserves original when under Gemini's
-    // 20MB cap, otherwise lossless-resizes to 3000px long-edge (enough
-    // pixels for card-name OCR on dense grids). No lossy compression.
-    const uploadFile = await downscaleImage(imageFile, 3000);
+    let result: ExtractResult;
+    if (ingestMode === "scrape") {
+      if (!scrapeUrl || !scrapeHtml) {
+        setError("Paste the source URL and the tier list HTML before extracting.");
+        setSubmitting(false);
+        return;
+      }
+      const res = await fetch("/api/admin/tier-lists/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: scrapeUrl,
+          html: scrapeHtml,
+          character: meta.character === "any" ? null : meta.character,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Scrape failed");
+        setSubmitting(false);
+        return;
+      }
+      result = data as ExtractResult;
+    } else {
+      if (!imageFile) {
+        setSubmitting(false);
+        return;
+      }
+      // Prepare image for upload — preserves original when under Gemini's
+      // 20MB cap, otherwise lossless-resizes to 3000px long-edge (enough
+      // pixels for card-name OCR on dense grids). No lossy compression.
+      const uploadFile = await downscaleImage(imageFile, 3000);
 
-    const formData = new FormData();
-    formData.append("image", uploadFile);
+      const formData = new FormData();
+      formData.append("image", uploadFile);
 
-    const res = await fetch("/api/admin/tier-lists/extract", {
-      method: "POST",
-      body: formData,
-    });
+      const res = await fetch("/api/admin/tier-lists/extract", {
+        method: "POST",
+        body: formData,
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      setError(data.error ?? "Extraction failed");
-      setSubmitting(false);
-      return;
+      if (!res.ok) {
+        setError(data.error ?? "Extraction failed");
+        setSubmitting(false);
+        return;
+      }
+      result = data as ExtractResult;
     }
-
-    const result = data as ExtractResult;
     setExtractResult(result);
 
     // Build a normalized lookup so we can auto-match common variants
@@ -233,14 +268,15 @@ function TierListContent() {
 
     const body = {
       imageUrl,
+      ingestionMethod: extractResult.ingestionMethod ?? "vision_llm",
       source: {
         id: deriveSourceId(meta.author, meta.source_type),
         author: meta.author,
         source_type: meta.source_type,
-        source_url: meta.source_url || null,
+        source_url: meta.source_url || extractResult.sourceUrl || null,
         trust_weight: meta.trust_weight,
         scale_type: meta.scale_type,
-        scale_config: null,
+        scale_config: extractResult.scaleConfig ?? null,
         notes: null,
       },
       list: {
@@ -277,7 +313,10 @@ function TierListContent() {
   const handleReset = () => {
     setStep("upload");
     setMeta(defaultMeta);
+    setIngestMode("image");
     setImageFile(null);
+    setScrapeUrl("");
+    setScrapeHtml("");
     setExtractResult(null);
     setCards([]);
     setError(null);
@@ -291,9 +330,9 @@ function TierListContent() {
   // Only persist when there's actual extraction state to save.
   useEffect(() => {
     if (step === "preview" && extractResult) {
-      saveDraft({ step, meta, extractResult, cards });
+      saveDraft({ step, meta, ingestMode, extractResult, cards });
     }
-  }, [step, meta, extractResult, cards]);
+  }, [step, meta, ingestMode, extractResult, cards]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -324,10 +363,16 @@ function TierListContent() {
         {step === "upload" && (
           <UploadStep
             meta={meta}
+            ingestMode={ingestMode}
             imageFile={imageFile}
+            scrapeUrl={scrapeUrl}
+            scrapeHtml={scrapeHtml}
             submitting={submitting}
             onMetaChange={setMeta}
+            onIngestModeChange={setIngestMode}
             onImageChange={setImageFile}
+            onScrapeUrlChange={setScrapeUrl}
+            onScrapeHtmlChange={setScrapeHtml}
             onSubmit={handleExtract}
           />
         )}
@@ -357,17 +402,29 @@ function TierListContent() {
 
 function UploadStep({
   meta,
+  ingestMode,
   imageFile,
+  scrapeUrl,
+  scrapeHtml,
   submitting,
   onMetaChange,
+  onIngestModeChange,
   onImageChange,
+  onScrapeUrlChange,
+  onScrapeHtmlChange,
   onSubmit,
 }: {
   meta: SourceMeta;
+  ingestMode: IngestMode;
   imageFile: File | null;
+  scrapeUrl: string;
+  scrapeHtml: string;
   submitting: boolean;
   onMetaChange: (m: SourceMeta) => void;
+  onIngestModeChange: (m: IngestMode) => void;
   onImageChange: (f: File | null) => void;
+  onScrapeUrlChange: (v: string) => void;
+  onScrapeHtmlChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
 }) {
   const set = <K extends keyof SourceMeta>(k: K, v: SourceMeta[K]) =>
@@ -377,25 +434,79 @@ function UploadStep({
     "w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600";
   const labelCls = "text-sm text-zinc-400";
 
+  const canSubmit =
+    ingestMode === "image" ? !!imageFile : !!scrapeUrl && !!scrapeHtml;
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <h2 className="text-lg font-semibold text-zinc-100">Ingest Tier List</h2>
 
-      {/* Image upload */}
+      {/* Mode toggle */}
+      <div className="inline-flex rounded-md border border-zinc-800 p-0.5 bg-zinc-950">
+        <ModeTab
+          active={ingestMode === "image"}
+          label="Upload image"
+          hint="Gemini vision"
+          onClick={() => onIngestModeChange("image")}
+        />
+        <ModeTab
+          active={ingestMode === "scrape"}
+          label="Paste HTML"
+          hint="tiermaker.com, …"
+          onClick={() => onIngestModeChange("scrape")}
+        />
+      </div>
+
+      {/* Source input */}
       <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-3">
-        <h3 className="text-sm font-medium text-zinc-300">Image</h3>
-        <div>
-          <label className={labelCls}>Tier list image</label>
-          <input
-            type="file"
-            accept="image/*"
-            required
-            onChange={(e) => onImageChange(e.target.files?.[0] ?? null)}
-            className="mt-1 block w-full text-sm text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:text-zinc-300 hover:file:bg-zinc-700 cursor-pointer"
-          />
-        </div>
-        {imageFile && (
-          <p className="text-xs text-zinc-500">{imageFile.name}</p>
+        {ingestMode === "image" ? (
+          <>
+            <h3 className="text-sm font-medium text-zinc-300">Image</h3>
+            <div>
+              <label className={labelCls}>Tier list image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => onImageChange(e.target.files?.[0] ?? null)}
+                className="mt-1 block w-full text-sm text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:text-zinc-300 hover:file:bg-zinc-700 cursor-pointer"
+              />
+            </div>
+            {imageFile && (
+              <p className="text-xs text-zinc-500">{imageFile.name}</p>
+            )}
+          </>
+        ) : (
+          <>
+            <h3 className="text-sm font-medium text-zinc-300">Paste from source</h3>
+            <p className="text-xs text-zinc-500">
+              Open the tier list in your browser, inspect the tier container,
+              copy its <code className="font-mono">outerHTML</code>, and paste
+              below. Cards are matched to our DB by image-hash.
+            </p>
+            <div>
+              <label className={labelCls}>Source URL</label>
+              <input
+                type="url"
+                value={scrapeUrl}
+                onChange={(e) => onScrapeUrlChange(e.target.value)}
+                placeholder="https://tiermaker.com/…"
+                className={`mt-1 ${inputCls}`}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Tier list HTML</label>
+              <textarea
+                value={scrapeHtml}
+                onChange={(e) => onScrapeHtmlChange(e.target.value)}
+                placeholder='<div id="tier-wrap">…</div>'
+                rows={8}
+                className={`mt-1 ${inputCls} font-mono text-[11px] leading-snug`}
+              />
+              <p className="mt-1 text-[11px] text-zinc-600">
+                {scrapeHtml.length.toLocaleString()} chars pasted
+              </p>
+            </div>
+          </>
         )}
       </section>
 
@@ -523,13 +634,46 @@ function UploadStep({
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={submitting || !imageFile}
+          disabled={submitting || !canSubmit}
           className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitting ? "Extracting..." : "Extract Tiers"}
+          {submitting
+            ? ingestMode === "scrape"
+              ? "Scraping..."
+              : "Extracting..."
+            : ingestMode === "scrape"
+              ? "Scrape & Match"
+              : "Extract Tiers"}
         </button>
       </div>
     </form>
+  );
+}
+
+function ModeTab({
+  active,
+  label,
+  hint,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded px-3 py-1.5 text-sm transition-colors ${
+        active
+          ? "bg-zinc-800 text-zinc-100"
+          : "text-zinc-400 hover:text-zinc-200"
+      }`}
+    >
+      <span className="font-medium">{label}</span>
+      <span className="ml-1.5 text-[11px] text-zinc-500">{hint}</span>
+    </button>
   );
 }
 
@@ -666,17 +810,35 @@ function PreviewStep({
       )}
 
       <div className="grid grid-cols-[1fr_2fr] gap-6">
-        {/* Uploaded image */}
+        {/* Uploaded image or scrape source */}
         <div className="space-y-2">
           <p className="text-xs text-zinc-500 uppercase tracking-wide">
-            Source Image
+            {imageUrl ? "Source Image" : "Source"}
           </p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
-            alt="Uploaded tier list"
-            className="w-full rounded-md border border-zinc-800 object-contain max-h-[600px]"
-          />
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt="Uploaded tier list"
+              className="w-full rounded-md border border-zinc-800 object-contain max-h-[600px]"
+            />
+          ) : (
+            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400 break-all">
+              <p className="text-zinc-500 mb-1">Scraped from:</p>
+              {result.sourceUrl ? (
+                <a
+                  href={result.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-400 hover:underline"
+                >
+                  {result.sourceUrl}
+                </a>
+              ) : (
+                <span>unknown</span>
+              )}
+            </div>
+          )}
           <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 space-y-1 text-xs text-zinc-500">
             <p>
               <span className="text-zinc-400">Detected scale:</span>{" "}
@@ -1043,6 +1205,7 @@ const DRAFT_KEY = "sts2-tier-list-draft-v1";
 interface Draft {
   step: Step;
   meta: SourceMeta;
+  ingestMode?: IngestMode;
   extractResult: ExtractResult;
   cards: ExtractedCard[];
 }
@@ -1052,10 +1215,11 @@ function loadDraft(): Draft | null {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Draft;
-    // Minimal sanity check — require the shape we need to render preview
-    if (!parsed.extractResult?.imageUrl || !Array.isArray(parsed.cards)) {
-      return null;
-    }
+    // Minimal sanity check — require the shape we need to render preview.
+    // A scraped draft has a null imageUrl but still has a source URL + cards.
+    const er = parsed.extractResult;
+    const hasSource = !!er && (er.imageUrl || er.sourceUrl);
+    if (!hasSource || !Array.isArray(parsed.cards)) return null;
     return parsed;
   } catch {
     return null;
