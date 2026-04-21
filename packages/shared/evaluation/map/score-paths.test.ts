@@ -134,6 +134,20 @@ describe("scorePaths — phase 1 hard filter", () => {
     expect(result.find((p) => p.id === "two")?.disqualified).toBe(false);
   });
 
+  it("disqualifies a 0-elite path in Act 1 when only a 1-elite alternative is reachable", () => {
+    // Mid-path re-eval scenario: player committed left, max reachable is 1 elite.
+    // Still better than 0 elites — we should disqualify the zero-elite path.
+    const zeroElite = makeEnriched("zero", [node("monster", 1), node("rest", 2)]);
+    const oneElite = makeEnriched("one", [node("rest", 1), node("elite", 2)], { elitesTaken: 1 });
+    const result = scorePaths(
+      [zeroElite, oneElite],
+      emptyRunState({ act: 1 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "zero")?.disqualified).toBe(true);
+    expect(result.find((p) => p.id === "zero")?.disqualifyReasons).toContain("elite_abdication");
+  });
+
   it("disqualifies a 0-elite path in Act 2 when a 1-elite alternative exists and survives", () => {
     const zeroElite = makeEnriched("zero", [node("monster", 1), node("rest", 2)]);
     const oneElite = makeEnriched("one", [node("rest", 1), node("elite", 2)], { elitesTaken: 1 });

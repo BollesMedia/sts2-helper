@@ -179,10 +179,16 @@ function applyHardFilter(
     // Rule 1 — fatal.
     if (walk.minHp <= 0) rs.push("fatal");
 
-    // Rule 2 — elite abdication.
+    // Rule 2 — elite abdication. Skipping ALL elites in Acts 1 and 2 when at
+    // least one surviving elite alternative exists is almost always wrong —
+    // elites drop relics, and early relics compound. The rule doesn't
+    // distinguish Act 1 vs 2 thresholds (an earlier design said Act 1 needed
+    // a 2-elite alt; practice showed that's too lenient when only 1-elite
+    // alts are reachable from mid-path re-evals).
     if (p.aggregates.elitesTaken === 0) {
-      if (runState.act === 1 && anySurvivingEliteAlt(2)) rs.push("elite_abdication");
-      else if (runState.act === 2 && anySurvivingEliteAlt(1)) rs.push("elite_abdication");
+      if ((runState.act === 1 || runState.act === 2) && anySurvivingEliteAlt(1)) {
+        rs.push("elite_abdication");
+      }
     }
 
     // Rule 3 — naked shop.

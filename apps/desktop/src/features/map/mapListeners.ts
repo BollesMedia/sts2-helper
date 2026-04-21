@@ -403,6 +403,8 @@ export function setupMapEvalListener() {
           ascension: ctx.ascension,
           hpPercent: ctx.hpPercent,
           deckSize: ctx.deckSize,
+          candidatePaths: mapCompliance.enrichedPaths.length,
+          candidateEliteCounts: mapCompliance.enrichedPaths.map((p) => p.aggregates.elitesTaken),
         });
         const parsed = await listenerApi
           .dispatch(
