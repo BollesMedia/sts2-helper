@@ -42,6 +42,16 @@ interface ExtractedCard {
   tier: string;
   confidence: number;
   matchedName?: string;
+  /** Source image URL (scraped adapters only). Rendered in the preview so
+   * the admin can visually confirm matches or pick from an unmatched combobox. */
+  sourceImageUrl?: string;
+}
+
+interface ScrapedCardInfo {
+  tier: string;
+  imageUrl: string;
+  name?: string;
+  source?: "alt" | "filename" | "phash" | "none";
 }
 
 interface ExtractResult {
@@ -52,6 +62,9 @@ interface ExtractResult {
   sourceUrl?: string;
   scaleConfig?: { map: Record<string, number> } | null;
   stats?: { total: number; matched: number; unmatched: number };
+  /** Per-card metadata from scrape adapters (parallel to extraction.tiers in
+   * flattened order). Lets the preview UI show source image thumbnails. */
+  scrapedCards?: ScrapedCardInfo[];
 }
 
 type Step = "upload" | "preview" | "success";
@@ -217,17 +230,23 @@ function TierListContent() {
     }
 
     // Flatten tiers → card rows. Auto-populate matchedName for fuzzy matches
-    // so the admin only has to resolve truly unknown cards.
+    // so the admin only has to resolve truly unknown cards. For scraped lists,
+    // zip in per-card source metadata (sourceImageUrl) so the preview can
+    // render a thumbnail next to each row.
     const flat: ExtractedCard[] = [];
+    let sourceIdx = 0;
     for (const tier of result.extraction.tiers ?? []) {
       for (const card of tier.cards) {
         const matched = resolveExtractedName(card.name, result.cardIdMap, normalizedLookup);
+        const scraped = result.scrapedCards?.[sourceIdx];
         flat.push({
           name: card.name,
           tier: tier.label,
           confidence: card.confidence,
           matchedName: matched && matched !== card.name ? matched : undefined,
+          sourceImageUrl: scraped?.imageUrl,
         });
+        sourceIdx++;
       }
     }
     setCards(flat);
@@ -722,6 +741,8 @@ function PreviewStep({
 
   const saveableCount = cards.filter((c) => cardIdMap[c.matchedName ?? c.name]).length;
   const unmatchedCount = cards.length - saveableCount;
+  const totalScraped = result.scrapedCards?.length ?? cards.length;
+  const droppedFromScrape = totalScraped - cards.length;
 
   const detectedScale = extraction.detected_scale;
   const detectedCharacter = extraction.detected_character;
@@ -852,6 +873,12 @@ function PreviewStep({
               <span className="text-zinc-400">Total extracted:</span>{" "}
               {cards.length} cards
             </p>
+            {droppedFromScrape > 0 && (
+              <p className="text-orange-400">
+                <span className="text-zinc-400">Dropped from scrape:</span>{" "}
+                {droppedFromScrape}
+              </p>
+            )}
           </div>
         </div>
 
@@ -891,6 +918,15 @@ function PreviewStep({
                       className={`px-3 py-2 ${isMatched ? "hover:bg-zinc-900/50" : "bg-orange-500/5 border-l-2 border-orange-500/50"} transition-colors`}
                     >
                       <div className="flex items-center gap-2">
+                        {card.sourceImageUrl && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={card.sourceImageUrl}
+                            alt=""
+                            loading="lazy"
+                            className="h-10 w-8 shrink-0 rounded object-cover border border-zinc-800 bg-zinc-900"
+                          />
+                        )}
                         {isMatched ? (
                           <span className="text-sm text-zinc-200 truncate min-w-0 flex-1">
                             {resolvedName}
@@ -903,7 +939,7 @@ function PreviewStep({
                         ) : (
                           <div className="flex-1 flex items-center gap-2 min-w-0">
                             <span className="text-xs text-orange-300 font-mono truncate shrink-0 max-w-[45%]">
-                              {card.name}
+                              {card.name || "(unnamed)"}
                             </span>
                             <span className="text-xs text-orange-500/60 shrink-0">→</span>
                             <CardCombobox

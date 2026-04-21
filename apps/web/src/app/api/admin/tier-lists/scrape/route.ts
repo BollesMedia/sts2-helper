@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { resolveAdapter } from "@sts2/shared/tier-sources";
 import {
   fetchAndHashAll,
+  filenameHint,
   findNearest,
   matchByFilename,
   type NamedCandidate,
@@ -152,6 +153,12 @@ export async function POST(request: Request) {
   const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   for (const c of nameCandidates) normalizedNameLookup.set(normName(c.name), c);
 
+  // When all matchers miss, preserve the strongest name hint we have so the
+  // admin sees something actionable in the preview rather than an empty
+  // combobox. Priority: adapter-declared name > filename-derived hint.
+  const unmatchedName = (card: { name?: string; imageUrl: string }) =>
+    card.name && card.name.trim().length > 0 ? card.name : filenameHint(card.imageUrl);
+
   const matched: MatchedCard[] = scraped.cards.map((card, i) => {
     // Tier 0: adapter-declared alt/name — the strongest signal when present.
     if (card.name) {
@@ -192,7 +199,7 @@ export async function POST(request: Request) {
         externalId: card.externalId,
         tier: card.tier,
         imageUrl: card.imageUrl,
-        name: "",
+        name: unmatchedName(card),
         cardId: null,
         confidence: 0,
         source: "none",
@@ -206,7 +213,7 @@ export async function POST(request: Request) {
         externalId: card.externalId,
         tier: card.tier,
         imageUrl: card.imageUrl,
-        name: "",
+        name: unmatchedName(card),
         cardId: null,
         confidence: 0,
         source: "none",
