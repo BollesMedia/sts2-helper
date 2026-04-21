@@ -69,4 +69,26 @@ export interface CardRewardEvaluation {
     keyTradeoffs: { position: number; upside: string; downside: string }[];
     teachingCallouts: { pattern: string; explanation: string }[];
   };
+  /**
+   * Phase-5 scorer telemetry. Full ranking of every offered item the scorer
+   * evaluated, including the modifier breakdown. Used for debugging ("why
+   * did the scorer pick this card?") and phase-6 calibration. Nested
+   * `scoreBreakdown` uses `Record<string, number>` so adding new modifier
+   * kinds doesn't break the wire.
+   */
+  compliance?: {
+    scoredOffers?: {
+      itemId: string;
+      rank: number;
+      tier: string;
+      tierValue: number;
+      breakdown: {
+        baseTier: string;
+        modifiers: { kind: string; delta: number; reason: string }[];
+        adjustedTier: string;
+        tierValue: number;
+        topReason: string;
+      };
+    }[];
+  };
 }

@@ -956,7 +956,6 @@ export async function POST(request: Request) {
         keyTradeoffs: coaching.keyTradeoffs,
         teachingCallouts: coaching.teachingCallouts,
       },
-      // @ts-expect-error augmenting response with scoredOffers telemetry (Task 12 schema update)
       compliance: {
         scoredOffers: scored.offers.map((o) => ({
           itemId: o.itemId,
@@ -1139,7 +1138,6 @@ export async function POST(request: Request) {
         keyTradeoffs: [],
         teachingCallouts: [],
       },
-      // @ts-expect-error augmenting response with scoredOffers telemetry (Task 12 schema update)
       compliance: {
         scoredOffers: [
           ...cardScored.offers.map((o) => ({
