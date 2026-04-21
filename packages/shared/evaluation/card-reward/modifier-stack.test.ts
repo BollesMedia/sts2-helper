@@ -75,3 +75,154 @@ describe("computeModifiers — smoke", () => {
     expect(Array.isArray(result.modifiers)).toBe(true);
   });
 });
+
+describe("computeModifiers — archetype fit", () => {
+  it("adds +2 and marks keystone for the committed archetype", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "scaling", keystoneFor: "exhaust", fitsArchetypes: ["exhaust"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "exhaust", supportCount: 3, hasKeystone: false }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod?.delta).toBe(2);
+    expect(mod?.reason).toContain("exhaust");
+  });
+
+  it("adds +1 for on-archetype fit without keystone", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["exhaust"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "exhaust", supportCount: 3, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod?.delta).toBe(1);
+  });
+
+  it("subtracts 1 for off-archetype when deck is committed", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "exhaust", supportCount: 3, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod?.delta).toBe(-1);
+  });
+
+  it("does not penalize off-archetype when deck is uncommitted", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod).toBeUndefined();
+  });
+
+  it("adds +2 keystone bonus when deck is uncommitted and offer unlocks a viable archetype", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "scaling", keystoneFor: "poison", fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "poison", supportCount: 2, hasKeystone: false }], committed: null, orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod?.delta).toBe(2);
+    expect(mod?.reason.toLowerCase()).toContain("poison");
+  });
+});
+
+describe("computeModifiers — duplicate", () => {
+  it("subtracts 1 when duplicatePenalty is set", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: [], deadWithCurrentDeck: false, duplicatePenalty: true, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "duplicate");
+    expect(mod?.delta).toBe(-1);
+  });
+
+  it("does not fire when duplicatePenalty is false", () => {
+    const result = computeModifiers({
+      offer: offer(),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "duplicate");
+    expect(mod).toBeUndefined();
+  });
+});
+
+describe("computeModifiers — deck gap", () => {
+  it("adds +1 for block role when deck lacks block payoff", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "block", keystoneFor: null, fitsArchetypes: [], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        engine: { hasScaling: false, hasBlockPayoff: false, hasRemovalMomentum: 0, hasDrawPower: false },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "deckGap");
+    expect(mod?.delta).toBe(1);
+    expect(mod?.reason.toLowerCase()).toContain("block");
+  });
+
+  it("does not fire when the gap is already covered", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "block", keystoneFor: null, fitsArchetypes: [], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        engine: { hasScaling: false, hasBlockPayoff: true, hasRemovalMomentum: 0, hasDrawPower: false },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "deckGap");
+    expect(mod).toBeUndefined();
+  });
+
+  it("adds +1 for scaling role when deck lacks scaling", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "scaling", keystoneFor: null, fitsArchetypes: [], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        engine: { hasScaling: false, hasBlockPayoff: false, hasRemovalMomentum: 0, hasDrawPower: false },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "deckGap");
+    expect(mod?.delta).toBe(1);
+  });
+});
