@@ -62,82 +62,6 @@ export function buildWeightContext(
   };
 }
 
-// --- Card reward weights ---
-
-function applyCardRewardWeights(
-  evaluation: CardRewardEvaluation,
-  wctx: WeightContext,
-  itemDescriptions: Map<number, string>
-): void {
-  for (const ranking of evaluation.rankings) {
-    const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
-
-    // Unplayable/curse cards being OFFERED: penalize heavily
-    const name = ranking.itemName?.toLowerCase() ?? "";
-    const isCurse = desc.includes("unplayable") || desc.includes("curse")
-      || name.includes("curse") || name.includes("writhe") || name.includes("normality")
-      || name.includes("clumsy") || name.includes("injury") || name.includes("doubt");
-    if (isCurse) {
-      ranking.tier = "F";
-      ranking.tierValue = 1;
-      ranking.confidence = 95;
-      ranking.recommendation = "skip";
-      ranking.reasoning = (ranking.reasoning ?? "") + " [Unplayable card]";
-      continue;
-    }
-
-    // Act 1 floors 1-5: boost immediate impact cards
-    if (wctx.act === 1 && wctx.floor <= 5) {
-      const isImmediate = desc.includes("damage") || desc.includes("block") || desc.includes("draw");
-      if (isImmediate && !desc.includes("power") && !desc.includes("setup")) {
-        ranking.tier = adjustTier(ranking.tier, 1);
-        ranking.tierValue = tierToValue(ranking.tier);
-      }
-    }
-  }
-}
-
-// --- Shop weights ---
-
-function applyShopWeights(
-  evaluation: CardRewardEvaluation,
-  wctx: WeightContext,
-  itemDescriptions: Map<number, string>
-): void {
-  for (const ranking of evaluation.rankings) {
-    const name = ranking.itemName?.toLowerCase() ?? "";
-    const desc = itemDescriptions.get(ranking.itemIndex ?? -1)?.toLowerCase() ?? "";
-
-    // Card removal with unplayable/curse in deck: boost to S tier
-    if (name.includes("card removal") || name.includes("remove")) {
-      const hasUnplayable = wctx.deckCardNames.some(
-        (c) => c.includes("clumsy") || c.includes("spore") || c.includes("curse") || c.includes("normality") || c.includes("writhe")
-      );
-      if (hasUnplayable) {
-        ranking.tier = "S";
-        ranking.tierValue = 6;
-        ranking.confidence = 98;
-        ranking.reasoning = "Remove unplayable/curse card — top priority";
-      }
-    }
-
-    // NOTE: STS1-era hardcoded auto-buys for "Membership Card" and "Orange
-    // Pellets" were removed. Neither appears in the STS2 canonical relic
-    // list (slaythespire.wiki.gg STS2 Relics List) as of the Early Access
-    // build. If either reappears in a future STS2 patch, evaluation falls
-    // through to the normal LLM path, which reads the actual description.
-
-    // Potions: demote if no open potion slots (inferred from current potion count)
-    const isPotion = name.includes("potion") || name.includes("elixir") || name.includes("flask") || name.includes("brew");
-    if (isPotion && wctx.potionNames.length >= 3) {
-      ranking.tier = "F";
-      ranking.tierValue = 0;
-      ranking.confidence = 99;
-      ranking.reasoning = "No open potion slots";
-    }
-  }
-}
-
 // --- Rest site weights ---
 
 export interface RestWeightResult {
@@ -263,21 +187,23 @@ function buildRestShortCircuit(
 // --- Main entry point ---
 
 /**
- * Apply post-eval weights to card/shop evaluations.
- * Called in route.ts after parsing Claude's response.
+ * Post-eval weight dispatcher.
+ *
+ * Card_reward and shop paths no longer pass through here — the Phase 5
+ * scorer (`scoreCardOffers` / `scoreShopNonCards`) is authoritative and
+ * short-circuits before this function is reached. Rest-site and other
+ * LLM-driven paths call the `applyRest...` helpers directly rather than
+ * going through this dispatcher, so this is effectively a no-op retained
+ * for callers that still import it.
  */
 export function applyPostEvalWeights(
   evaluation: CardRewardEvaluation,
   wctx: WeightContext,
   itemDescriptions?: Map<number, string>
 ): void {
-  const descs = itemDescriptions ?? new Map();
-
-  if (wctx.evalType === "card_reward") {
-    applyCardRewardWeights(evaluation, wctx, descs);
-  } else if (wctx.evalType === "shop") {
-    applyShopWeights(evaluation, wctx, descs);
-  }
+  void evaluation;
+  void wctx;
+  void itemDescriptions;
 }
 
 /**
