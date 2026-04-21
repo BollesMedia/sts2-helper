@@ -67,12 +67,11 @@ describe("buildNarratorInput", () => {
       "w",
       [node("monster", 1), node("elite", 2), node("rest", 3), node("treasure", 4)],
       30,
-      { elitesTaken: 10, restBeforeElite: 8, treasuresTaken: 6 },
+      { elitesTaken: 10, restBeforeElite: 8 },
     );
     const input = buildNarratorInput(winner, [], emptyRunState());
     expect(input.chosenPath.summary).toMatch(/monster.*elite.*rest.*treasure/i);
     expect(input.chosenPath.elites).toBe(1);
-    expect(input.chosenPath.treasures).toBe(1);
   });
 
   it("emits an active rule for each feature clearing its threshold", () => {
@@ -83,7 +82,6 @@ describe("buildNarratorInput", () => {
       {
         elitesTaken: 10,
         restAfterElite: 5,
-        treasuresTaken: 0,
         unknownsActs1And2: 0,
         projectedHpAtBossFight: 3.2,
         hpDipBelow30PctPenalty: 0,
@@ -97,7 +95,6 @@ describe("buildNarratorInput", () => {
     expect(kinds).toContain("elitesTaken");
     expect(kinds).toContain("restAfterElite");
     expect(kinds).toContain("projectedHpAtBossFight");
-    expect(kinds).not.toContain("treasuresTaken");
     expect(kinds).not.toContain("hpDipBelow30PctPenalty");
   });
 

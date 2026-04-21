@@ -20,7 +20,6 @@ const BRANCH_RATIONALE: Record<string, { rec: string; alt: string }> = {
   elitesInAct1Bonus: { rec: "Early elite — relics compound", alt: "Foregoes early relic" },
   restBeforeElite: { rec: "Rest first, then elite", alt: "Hits the elite cold" },
   restAfterElite: { rec: "Recover after the elite", alt: "No post-elite buffer" },
-  treasuresTaken: { rec: "Take the treasure", alt: "Passes on a free relic" },
   unknownsActs1And2: { rec: "Take the event", alt: "Skips event EV" },
   unknownsAct3: { rec: "Take the event", alt: "Skips event EV" },
   projectedHpAtBossFight: { rec: "Enters the boss with more HP", alt: "Enters the boss lower" },

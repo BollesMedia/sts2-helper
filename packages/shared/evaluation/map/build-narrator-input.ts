@@ -13,7 +13,6 @@ export interface NarratorInput {
     elites: number;
     restEliteWindows: number;
     shops: number;
-    treasures: number;
     projectedHpRangeMin: number;
     projectedHpRangeMax: number;
   };
@@ -43,7 +42,6 @@ const ACTIVE_RULE_THRESHOLDS: Record<
   elitesInAct1Bonus: { kind: "elitesInAct1Bonus", applies: (v) => v >= 2 },
   restBeforeElite: { kind: "restBeforeElite", applies: (v) => v >= 8 },
   restAfterElite: { kind: "restAfterElite", applies: (v) => v >= 5 },
-  treasuresTaken: { kind: "treasuresTaken", applies: (v) => v >= 6 },
   unknownsActs1And2: { kind: "unknownsActs1And2", applies: (v) => v >= 4 },
   unknownsAct3: { kind: "unknownsAct3", applies: (v) => v >= 2 },
   projectedHpAtBossFight: { kind: "projectedHpAtBossFight", applies: (v) => v >= 2.5 },
@@ -110,7 +108,6 @@ export function buildNarratorInput(
       elites: winner.aggregates.elitesTaken,
       restEliteWindows: countRestEliteWindows(winner.nodes),
       shops: winner.aggregates.shopsTaken,
-      treasures: winner.nodes.filter((n) => n.type === "treasure").length,
       projectedHpRangeMin: Math.max(0, winner.aggregates.projectedHpEnteringPreBossRest),
       projectedHpRangeMax: runState.hp.max,
     },

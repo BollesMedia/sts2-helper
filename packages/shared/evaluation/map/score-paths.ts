@@ -2,12 +2,15 @@ import type { EnrichedPath } from "./enrich-paths";
 import type { PathNode } from "./path-patterns";
 import type { RunState } from "./run-state";
 
+// Note: no `treasuresTaken` weight. Every path in an act passes through the
+// guaranteed treasure row exactly once — treasure count is a constant across
+// candidates, so weighting it just pollutes branches/narration without
+// affecting ranking.
 export const MAP_SCORE_WEIGHTS = {
   elitesTaken: 10,
   elitesInAct1Bonus: 2,
   restBeforeElite: 8,
   restAfterElite: 5,
-  treasuresTaken: 6,
   unknownsActs1And2: 2,
   unknownsAct3: 1,
   projectedHpAtBossFight: 4,
@@ -125,10 +128,6 @@ function countUnknowns(nodes: PathNode[]): number {
   return nodes.filter((n) => n.type === "event" || n.type === "unknown").length;
 }
 
-function countTreasures(nodes: PathNode[]): number {
-  return nodes.filter((n) => n.type === "treasure").length;
-}
-
 function countBackToBackShopPairsUnderGold(
   path: EnrichedPath,
   startGold: number,
@@ -233,8 +232,6 @@ export function scorePaths(
       MAP_SCORE_WEIGHTS.restBeforeElite * countRestBeforeElite(p.nodes);
     breakdown.restAfterElite =
       MAP_SCORE_WEIGHTS.restAfterElite * countRestAfterElite(p.nodes);
-    breakdown.treasuresTaken =
-      MAP_SCORE_WEIGHTS.treasuresTaken * countTreasures(p.nodes);
 
     const unknownsTaken = countUnknowns(p.nodes);
     if (runState.act <= 2) {

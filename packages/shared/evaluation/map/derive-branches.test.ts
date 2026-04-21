@@ -69,7 +69,7 @@ describe("deriveBranches", () => {
       "w",
       [node("elite", 1, 1), node("rest", 2), node("treasure", 3, 1)],
       20,
-      { elitesTaken: 10, treasuresTaken: 6 },
+      { elitesTaken: 10, restBeforeElite: 8 },
     );
     const runnerUp = makeScored(
       "r",

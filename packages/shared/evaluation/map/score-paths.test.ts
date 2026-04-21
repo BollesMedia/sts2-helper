@@ -40,7 +40,6 @@ describe("scorePaths constants", () => {
     expect(MAP_SCORE_WEIGHTS.elitesInAct1Bonus).toBe(2);
     expect(MAP_SCORE_WEIGHTS.restBeforeElite).toBe(8);
     expect(MAP_SCORE_WEIGHTS.restAfterElite).toBe(5);
-    expect(MAP_SCORE_WEIGHTS.treasuresTaken).toBe(6);
     expect(MAP_SCORE_WEIGHTS.unknownsActs1And2).toBe(2);
     expect(MAP_SCORE_WEIGHTS.unknownsAct3).toBe(1);
     expect(MAP_SCORE_WEIGHTS.projectedHpAtBossFight).toBe(4);
@@ -258,12 +257,6 @@ describe("scorePaths — phase 2 weighted sum", () => {
     expect(mk(1)[0].scoreBreakdown.unknownsActs1And2).toBe(4);
     expect(mk(2)[0].scoreBreakdown.unknownsActs1And2).toBe(4);
     expect(mk(3)[0].scoreBreakdown.unknownsAct3).toBe(2);
-  });
-
-  it("treasures contribute +6 each", () => {
-    const p = makeEnriched("t", [node("treasure", 1)]);
-    const result = scorePaths([p], emptyRunState(), { cardRemovalCost: 75 });
-    expect(result[0].scoreBreakdown.treasuresTaken).toBe(6);
   });
 
   it("projectedHpAtBossFight uses the post-rest HP (clamped to max)", () => {
