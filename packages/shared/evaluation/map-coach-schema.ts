@@ -9,7 +9,7 @@ import { z } from "zod";
  * rejects those JSON Schema constraints (see the header block in
  * `./eval-schemas.ts` for the full list of known rejections). Shape
  * constraints that WOULD be useful live at the prompt level (see
- * `MAP_PATHING_SCAFFOLD` in `prompt-builder.ts`) and are enforced post-parse
+ * `MAP_NARRATOR_PROMPT` in `prompt-builder.ts`) and are enforced post-parse
  * by `sanitizeMapCoachOutput` below.
  */
 
@@ -106,6 +106,27 @@ export const mapCoachOutputSchema = z.object({
           detail: z.string().optional(),
         }),
       ),
+      /**
+       * Phase-4+ scorer telemetry. Full ranking of every candidate path the
+       * scorer evaluated, including breakdown-per-feature, disqualify state,
+       * and reasons. Used for debugging ("why did the scorer pick this path
+       * over the obvious one?") and as the data source for phase-5
+       * calibration. The nested types use `.passthrough()` so we can extend
+       * scoreBreakdown in place without breaking the wire.
+       */
+      scoredPaths: z
+        .array(
+          z
+            .object({
+              id: z.string(),
+              score: z.number(),
+              scoreBreakdown: z.record(z.string(), z.number()),
+              disqualified: z.boolean(),
+              disqualifyReasons: z.array(z.string()),
+            })
+            .passthrough(),
+        )
+        .optional(),
     })
     .optional(),
 });
@@ -131,4 +152,33 @@ export function sanitizeMapCoachOutput(raw: MapCoachOutputRaw): MapCoachOutputRa
     MAP_COACH_LIMITS.maxTeachingCallouts,
   );
   return { ...raw, confidence, key_branches, teaching_callouts };
+}
+
+/**
+ * LLM-facing schema for the narrator step. The scorer picks the path; the LLM
+ * produces coaching text only. The server assembles this into the
+ * `mapCoachOutputSchema` response before returning to the desktop.
+ */
+export const mapNarratorOutputSchema = z.object({
+  headline: z.string().min(1),
+  reasoning: z.string().min(1),
+  teaching_callouts: z
+    .array(
+      z.object({
+        pattern: z.string(),
+        explanation: z.string(),
+      }),
+    )
+    .describe(
+      `At most ${MAP_COACH_LIMITS.maxTeachingCallouts} entries — extras truncated post-parse.`,
+    ),
+});
+
+export type MapNarratorOutputRaw = z.infer<typeof mapNarratorOutputSchema>;
+
+export function sanitizeMapNarratorOutput(raw: MapNarratorOutputRaw): MapNarratorOutputRaw {
+  return {
+    ...raw,
+    teaching_callouts: raw.teaching_callouts.slice(0, MAP_COACH_LIMITS.maxTeachingCallouts),
+  };
 }

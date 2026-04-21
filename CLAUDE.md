@@ -14,7 +14,17 @@ If the main checkout doesn't have `.vercel/` or `.env.local` yet, the script pri
 
 ## Env var management
 
-Always use `vercel env pull .env.local` in main. Don't hand-edit `.env.local`. See `feedback_vercel_env_vars.md` in user memory.
+Run `scripts/pull-env.sh` from any worktree — pulls Vercel dev env into main and merges sensitive values from `.env.local.secrets`.
+
+```bash
+scripts/pull-env.sh                # pulls development (default)
+scripts/pull-env.sh production     # pulls production
+scripts/pull-env.sh preview        # pulls preview
+```
+
+**`.env.local.secrets`** lives in the main checkout (gitignored by the `.env*` rule). One `KEY=value` per line. This sidecar exists because Vercel "sensitive" vars (AI API keys, etc.) can't be read back via `vercel env pull` — they come down as empty strings. Rotate a sensitive key → edit the sidecar → re-run `pull-env.sh`.
+
+Don't hand-edit `.env.local` — it's overwritten on every pull. Edit `.env.local.secrets` instead.
 
 ## Package manager
 

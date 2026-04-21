@@ -1,10 +1,7 @@
 import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
 import type { EvaluationContext } from "@sts2/shared/evaluation/types";
 import type { MapNodeType } from "@sts2/shared/evaluation/map-coach-schema";
-import {
-  buildCompactContext,
-  MAP_PATHING_SCAFFOLD,
-} from "@sts2/shared/evaluation/prompt-builder";
+import { buildCompactContext } from "@sts2/shared/evaluation/prompt-builder";
 import {
   computeRunState,
   type RunState,
@@ -16,21 +13,41 @@ import {
   type EnrichedPath,
 } from "@sts2/shared/evaluation/map/enrich-paths";
 import { formatFactsBlock } from "@sts2/shared/evaluation/map/format-facts-block";
-import type {
-  RepairMapNode,
-  RepairNextOption,
-} from "@sts2/shared/evaluation/map/repair-macro-path";
 
 /**
- * Inputs for the phase-2 compliance pipeline, projected from desktop map state
- * so the server can run repair + rerank without recomputing.
+ * Loose structural shapes for the scorer request payload. These used to live
+ * in `repair-macro-path.ts` alongside the LLM-drift repair pipeline; post
+ * phase 4 the scorer only consumes `enrichedPaths` + `runState` +
+ * `cardRemovalCost`, so the types are kept here purely to shape the round-trip
+ * to `/api/evaluate` for future server-side sanity checks.
+ */
+interface ComplianceMapNode {
+  col: number;
+  row: number;
+  type: string;
+  children: [col: number, row: number][];
+}
+
+interface ComplianceNextOption {
+  col: number;
+  row: number;
+  type: string;
+}
+
+/**
+ * Inputs for the server-side scorer + narrator pipeline, projected from
+ * desktop map state. The scorer only consumes `enrichedPaths` + `runState` +
+ * `cardRemovalCost`; the remaining fields are carried for completeness (e.g.
+ * future server-side sanity checks).
  */
 export interface MapComplianceInputs {
-  nodes: RepairMapNode[];
-  nextOptions: RepairNextOption[];
+  nodes: ComplianceMapNode[];
+  nextOptions: ComplianceNextOption[];
   boss: { col: number; row: number };
   currentPosition: { col: number; row: number } | null;
   enrichedPaths: EnrichedPath[];
+  runState: RunState;
+  cardRemovalCost: number;
 }
 
 export interface NodePreferences {
@@ -63,6 +80,14 @@ export interface MapCoachEvaluation {
     reranked: boolean;
     rerankReason: string | null;
     repairReasons: { kind: string; detail?: string }[];
+    /** Phase-5 telemetry — full scorer ranking for calibration / debugging. */
+    scoredPaths?: {
+      id: string;
+      score: number;
+      scoreBreakdown: Record<string, number>;
+      disqualified: boolean;
+      disqualifyReasons: string[];
+    }[];
   };
 }
 
@@ -97,24 +122,47 @@ function mapNodeTypeToToken(type: string): CandidatePath["nodes"][number]["type"
   }
 }
 
-function walkPathNodes(
+/**
+ * DFS-enumerate every path from `start` to a leaf (boss or max-depth). STS2
+ * maps are bounded DAGs — from floor 1 the tree is ~30–80 unique paths, but
+ * from the bottom of Act 3 with ~17 floors remaining it can swell to
+ * 500–1500. `maxPaths` is a ceiling against pathological graphs; hitting it
+ * means the tail of the DFS is truncated (leftmost-biased), which can
+ * starve elite-rich paths on the right of the map. We log on cap-hit so
+ * the dev event stream shows when the candidate pool was incomplete.
+ */
+function enumerateAllPaths(
   start: MapNode,
   all: MapNode[],
   maxDepth = 20,
-): CandidatePath["nodes"] {
+  maxPaths = 2000,
+): CandidatePath["nodes"][] {
   const byKey = new Map(all.map((n) => [`${n.col},${n.row}`, n]));
-  const out: CandidatePath["nodes"] = [];
-  let cur: MapNode | undefined = start;
-  for (let d = 0; d < maxDepth && cur; d++) {
-    out.push({
-      floor: cur.row,
-      type: mapNodeTypeToToken(cur.type),
-      nodeId: `${cur.col},${cur.row}`,
-    });
-    if (cur.children.length === 0) break;
-    cur = byKey.get(`${cur.children[0][0]},${cur.children[0][1]}`);
+  const results: CandidatePath["nodes"][] = [];
+
+  function walk(node: MapNode, path: CandidatePath["nodes"]): boolean {
+    const next = [
+      ...path,
+      {
+        floor: node.row,
+        type: mapNodeTypeToToken(node.type),
+        nodeId: `${node.col},${node.row}`,
+      },
+    ];
+    if (results.length >= maxPaths) return false;
+    if (node.children.length === 0 || next.length >= maxDepth) {
+      results.push(next);
+      return true;
+    }
+    for (const [c, r] of node.children) {
+      const child = byKey.get(`${c},${r}`);
+      if (child && !walk(child, next)) return false;
+    }
+    return true;
   }
-  return out;
+
+  walk(start, []);
+  return results;
 }
 
 /**
@@ -181,15 +229,23 @@ export function buildMapPrompt(params: {
 
   const runState = computeRunState(runStateInputs);
 
-  // One candidate path per next_option, walking the primary-child branch.
+  // Enumerate every valid path from each next_option to a boss/leaf. The
+  // scorer ranks them all — the winner is the strongest *specific* plan,
+  // not just the best leftmost-child walk.
   const byKey = new Map(allNodes.map((n) => [`${n.col},${n.row}`, n]));
-  const candidates: CandidatePath[] = options.map((opt, i) => {
+  const candidates: CandidatePath[] = [];
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i];
     const start = byKey.get(`${opt.col},${opt.row}`);
-    return {
-      id: String(i + 1),
-      nodes: start ? walkPathNodes(start, allNodes) : [],
-    };
-  });
+    if (!start) continue;
+    const paths = enumerateAllPaths(start, allNodes);
+    for (let j = 0; j < paths.length; j++) {
+      candidates.push({
+        id: `${i + 1}_${j + 1}`,
+        nodes: paths[j],
+      });
+    }
+  }
 
   const treasureFloorByPath: Record<string, number> = {};
   for (const p of candidates) {
@@ -202,9 +258,7 @@ export function buildMapPrompt(params: {
 
   const prompt = `${contextStr}
 
-${factsBlock}
-
-${MAP_PATHING_SCAFFOLD}`;
+${factsBlock}`;
 
   const compliance: MapComplianceInputs = {
     nodes: allNodes.map((n) => ({
@@ -226,6 +280,8 @@ ${MAP_PATHING_SCAFFOLD}`;
         }
       : null,
     enrichedPaths: enriched,
+    runState,
+    cardRemovalCost: cardRemovalCost ?? 75,
   };
 
   return { prompt, runState, compliance };

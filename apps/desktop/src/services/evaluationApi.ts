@@ -95,6 +95,7 @@ function adaptMapCoach(raw: MapCoachOutputRaw): MapCoachEvaluation {
             kind: r.kind,
             detail: r.detail,
           })),
+          scoredPaths: raw.compliance.scoredPaths,
         }
       : undefined,
   };

@@ -1,7 +1,7 @@
 import { startAppListening } from "../../store/listenerMiddleware";
 import { gameStateReceived, selectCurrentGameState } from "../gameState/gameStateSlice";
 import { evaluationApi } from "../../services/evaluationApi";
-import { selectActiveRun, mapEvalUpdated, mapPathRetraced, runStarted, runEnded } from "../run/runSlice";
+import { selectActiveRun, mapEvalUpdated, runStarted, runEnded } from "../run/runSlice";
 import { selectMapEvalContext, selectBestPathNodesSet, selectNodePreferences } from "../run/runSelectors";
 import {
   evalStarted,
@@ -18,8 +18,9 @@ import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
 import { computeMapEvalKey, buildMapPrompt } from "../../lib/eval-inputs/map";
 import type { RunState } from "@sts2/shared/evaluation/map/run-state";
+import { scorePaths } from "@sts2/shared/evaluation/map/score-paths";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
-import { traceConstraintAwarePath } from "../../views/map/constraint-aware-tracer";
+import { computeSubgraphFingerprint, type FingerprintNode } from "../../lib/compute-subgraph-fingerprint";
 import { computeDeckMaturity, type DeckMaturityInput } from "@sts2/shared/evaluation/deck-maturity";
 import { detectArchetypes, hasScalingSources, getScalingSources } from "@sts2/shared/evaluation/archetype-detector";
 import { detectMapNodeOutcome } from "@sts2/shared/choice-detection/detect-map-node-outcome";
@@ -47,22 +48,13 @@ const EVAL_TYPE = "map" as const;
 const lastMapRunState = new Map<string, unknown>();
 
 /**
- * Per-run skip counter for the "entering new act with unhealed HP" window.
- *
- * Flow: Act N boss dies → Ancient event → Ancient pick heals HP → Act N+1
- * map appears. The game sometimes dispatches the map state update BEFORE
- * the heal is reflected in `player.hp`, so the first eval after actChange
- * can run with pre-heal HP and produce a CRITICAL-risk reading on what is
- * actually a freshly-healed run.
- *
- * Defer the eval for up to `ACT_CHANGE_GRACE_SKIPS` state updates when we
- * detect act-change + abnormally low HP. The next update with higher HP
- * fires the eval with the correct context. Failsafe: after the skip cap we
- * proceed regardless — if the player genuinely entered the act at low HP,
- * they need the eval.
+ * Last narrated winner path (node id set) per runId. Used to skip the
+ * narrator LLM call when the scorer re-fires but picks the same strategic
+ * plan — either because the player advanced along it (new winner path is
+ * a suffix of the old) or because the fork resolved to the same direction.
+ * Cleared on `runStarted` / `runEnded`.
  */
-const ACT_CHANGE_GRACE_SKIPS = 3;
-const actChangeGrace = new Map<string, { act: number; skips: number }>();
+const lastNarratedPathByRun = new Map<string, Set<string>>();
 
 /**
  * Parse a coach macro-path entry (`"col,row"`) into coordinates. Returns null
@@ -87,12 +79,10 @@ export function parseNodeId(nodeId: string): { col: number; row: number } | null
  * Map evaluation listener.
  *
  * Watches game state changes on the map. Decides whether to evaluate
- * (via shouldEvaluateMap), then owns the full eval pipeline: API call,
- * path tracing, recommended nodes, and Redux persistence.
- *
- * Tier 1 deviation (off-path, no material context change) re-traces
- * locally using stored LLM nodePreferences — no API call needed.
- * Tier 2 deviation (HP/gold/deck changed) triggers a full re-evaluation.
+ * (via shouldEvaluateMap — three structural triggers: new map, moved
+ * onto off-path node, or fork with distinct downstream subgraphs), then
+ * owns the full eval pipeline: API call, path derivation, recommended
+ * nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
   let prevMapPosition: { col: number; row: number } | null = null;
@@ -104,7 +94,7 @@ export function setupMapEvalListener() {
     predicate: (action) => runStarted.match(action) || runEnded.match(action),
     effect: () => {
       lastMapRunState.clear();
-      actChangeGrace.clear();
+      lastNarratedPathByRun.clear();
     },
   });
 
@@ -130,24 +120,28 @@ export function setupMapEvalListener() {
 
       // #77: populate the run-state cache eagerly so the map_node choice
       // write path always has a non-null snapshot to persist — even on the
-      // first move of a run, or when the eval is gated off
-      // (allOptionsAreAncient, grace-skip, single-option-on-path). Cost is a
-      // synchronous buildMapPrompt call (no network); the resulting prompt
-      // is only used by the downstream eval path, which still runs when
-      // un-gated. Downstream path re-reads the cache.
+      // first move of a run, or when the eval is gated off by
+      // `shouldEvaluateMap` (e.g. single-option row, unhealed act-start).
+      // Cost is a synchronous buildMapPrompt call (no network); the
+      // resulting prompt is only used by the downstream eval path, which
+      // still runs when un-gated. Downstream path re-reads the cache.
       const activeRunIdForEagerCache = state.run.activeRunId;
+      let eagerCompliance:
+        | { runState: RunState; compliance: ReturnType<typeof buildMapPrompt>["compliance"] }
+        | null = null;
       if (activeRunIdForEagerCache && options.length > 0) {
         try {
           const eagerDeckCards = selectActiveDeck(state);
           const eagerPlayer = selectActivePlayer(state);
           const eagerCtx = buildEvaluationContext(gameState, eagerDeckCards, eagerPlayer);
           if (eagerCtx) {
-            const { runState: eagerRunState } = buildMapPrompt({
+            const { runState: eagerRunState, compliance: eagerComplianceData } = buildMapPrompt({
               context: eagerCtx,
               state: mapState,
               cardRemovalCost: eagerPlayer?.cardRemovalCost ?? null,
             });
             lastMapRunState.set(activeRunIdForEagerCache, eagerRunState);
+            eagerCompliance = { runState: eagerRunState, compliance: eagerComplianceData };
           }
         } catch {
           // buildMapPrompt can throw on unusual state shapes; swallow so
@@ -173,20 +167,9 @@ export function setupMapEvalListener() {
           ? bestPathNodes.has(`${currentPos.col},${currentPos.row}`)
           : false;
 
-        // Compute Tier 2 context-change flags
         const currentHp = mapPlayer && mapPlayer.max_hp > 0 ? mapPlayer.hp / mapPlayer.max_hp : 1;
         const currentGold = mapPlayer?.gold ?? 0;
         const currentDeckSize = selectActiveDeck(state).length;
-
-        const hpDropExceedsThreshold = prevContext
-          ? (prevContext.hpPercent - currentHp) > 0.20
-          : false;
-        const goldCrossedThreshold = prevContext
-          ? (prevContext.gold >= 150 && currentGold < 150) || (prevContext.gold < 150 && currentGold >= 150)
-          : false;
-        const deckSizeChangedSignificantly = prevContext
-          ? Math.abs(prevContext.deckSize - currentDeckSize) >= 2
-          : false;
 
         // --- Map node choice logging ---
         if (currentPos && prevMapPosition &&
@@ -270,140 +253,63 @@ export function setupMapEvalListener() {
         }
         prevMapPosition = currentPos;
 
-        // STS2 places Ancient nodes alone in their row, so when an act starts
-        // on an Ancient the player's only next move is into the event. Skip
-        // the eval until after the event resolves and the player gets real
-        // options (#56). `.every()` is the defensive form — if the game ever
-        // ships a row with multiple ancient options, the gate still matches,
-        // and a hypothetical mixed Ancient/non-Ancient row would NOT match
-        // (the player would have a real choice worth evaluating).
-        const allOptionsAreAncient =
-          options.length > 0 && options.every((o) => o.type === "Ancient");
+        const actChanged = prevContext ? prevContext.act !== run.act : false;
+        const ancientHealResolved = !actChanged || currentHp >= 0.5;
 
-        // Check if the recommended path ahead contains a shop that's now worthless
-        const removalCost = selectActivePlayer(state)?.cardRemovalCost ?? 75;
-        let shopInPathBecameWorthless = false;
-        if (prevContext && isOnPath && currentGold < removalCost && prevContext.gold >= removalCost) {
-          // Gold dropped below removal cost — check if path ahead has a shop
-          const allNodes = mapState.map?.nodes ?? [];
-          const currentRow = currentPos?.row ?? 0;
-          const bestNodes = bestPathNodes;
-          for (const node of allNodes) {
-            if (node.row > currentRow && node.type === "Shop" && bestNodes.has(`${node.col},${node.row}`)) {
-              shopInPathBecameWorthless = true;
-              break;
-            }
-          }
-        }
+        const allNodesForFp: FingerprintNode[] = (mapState.map?.nodes ?? []).map((n) => ({
+          col: n.col,
+          row: n.row,
+          type: n.type.toLowerCase(),
+          children: n.children.map(([col, row]) => ({ col, row })),
+        }));
+        const bossRow = mapState.map.boss.row;
+        const fingerprints = options.map((o) =>
+          computeSubgraphFingerprint(allNodesForFp, { col: o.col, row: o.row }, bossRow - 1),
+        );
 
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
-          actChanged: prevContext ? prevContext.act !== run.act : false,
+          isStartOfAct: actChanged,
+          ancientHealResolved,
           currentPosition: currentPos,
           isOnRecommendedPath: isOnPath,
-          allOptionsAreAncient,
-          hpDropExceedsThreshold,
-          goldCrossedThreshold,
-          deckSizeChangedSignificantly,
-          shopInPathBecameWorthless,
+          nextOptions: options.map((o) => ({ col: o.col, row: o.row, type: o.type.toLowerCase() })),
+          nextOptionSubgraphFingerprints: fingerprints,
         };
-
-        // Defer the first post-act-change eval if HP still looks pre-heal.
-        // STS2 applies the ancient's HP heal asynchronously from the map
-        // state update, so `currentHp` on the first tick of a new act can
-        // be the pre-boss-fight remainder rather than the post-ancient
-        // heal. A few-tick grace window lets the heal land.
-        const activeRunIdForGrace = state.run.activeRunId;
-        if (input.actChanged && activeRunIdForGrace) {
-          const graceKey = activeRunIdForGrace;
-          const existing = actChangeGrace.get(graceKey);
-          const isSameActChange = existing && existing.act === run.act;
-          const skips = isSameActChange ? existing.skips : 0;
-          if (currentHp < 0.5 && skips < ACT_CHANGE_GRACE_SKIPS) {
-            actChangeGrace.set(graceKey, { act: run.act, skips: skips + 1 });
-            logDevEvent("eval", "map_act_change_grace_skip", {
-              act: run.act,
-              hpPct: currentHp,
-              skipsSoFar: skips + 1,
-            });
-            return;
-          }
-          // HP looks healed (or we've hit the skip cap) — clear and proceed.
-          if (existing) actChangeGrace.delete(graceKey);
-        }
 
         const shouldEval = shouldEvaluateMap(input);
         logDevEvent("eval", "map_should_eval", { input, shouldEval });
         if (!shouldEval) return;
 
-        // Tier 1: If deviated but no material context change, just re-trace locally
-        if (
-          currentPos &&
-          !isOnPath &&
-          storedPrefs &&
-          !hpDropExceedsThreshold &&
-          !goldCrossedThreshold &&
-          !deckSizeChangedSignificantly &&
-          !input.actChanged
-        ) {
-          const allNodes = mapState.map?.nodes ?? [];
-          const bossPos = mapState.map.boss;
-          const player = selectActivePlayer(state);
-
-          const tracerInput = {
-            nodes: allNodes,
-            bossPos,
-            nodePreferences: storedPrefs,
-            hpPercent: currentHp,
-            gold: currentGold,
-            act: run.act,
-            ascension: run.ascension,
-            maxHp: mapPlayer?.max_hp ?? 80,
-            currentRemovalCost: player?.cardRemovalCost ?? 75,
-          };
-
-          // Re-trace from current position using stored weights
-          const retracedPath = traceConstraintAwarePath({
-            startCol: currentPos.col,
-            startRow: currentPos.row,
-            ...tracerInput,
-          });
-
-          // Build recommendedNodes from all options' traces
-          const recommendedNodes = new Set<string>();
-          for (const opt of options) {
-            recommendedNodes.add(`${opt.col},${opt.row}`);
-            const optPath = traceConstraintAwarePath({
-              startCol: opt.col,
-              startRow: opt.row,
-              ...tracerInput,
-            });
-            for (const p of optPath) {
-              recommendedNodes.add(`${p.col},${p.row}`);
+        // Narrator gate. The scorer is pure JS and already ran for the
+        // eager cache above — reuse it to check whether the winner is
+        // the same strategic plan the narrator already described. If
+        // the new winner path is a subset of the last narrated path
+        // (player advanced along it, or fork resolved to the same
+        // direction), skip the LLM call entirely. Start-of-act always
+        // fires so the first eval of an act gets fresh narration.
+        if (!actChanged && eagerCompliance && activeRunIdForEagerCache) {
+          const scored = scorePaths(
+            eagerCompliance.compliance.enrichedPaths,
+            eagerCompliance.runState,
+            { cardRemovalCost: eagerCompliance.compliance.cardRemovalCost },
+          );
+          const winner = scored[0];
+          const prevNarrated = lastNarratedPathByRun.get(activeRunIdForEagerCache);
+          if (winner && prevNarrated) {
+            const newPathIds = winner.nodes
+              .map((n) => n.nodeId)
+              .filter((id): id is string => typeof id === "string");
+            const isSubset = newPathIds.length > 0 && newPathIds.every((id) => prevNarrated.has(id));
+            if (isSubset) {
+              logDevEvent("eval", "map_skip_narrator_unchanged_winner", {
+                newPathSize: newPathIds.length,
+                storedPathSize: prevNarrated.size,
+              });
+              return;
             }
           }
-          for (const p of retracedPath) {
-            recommendedNodes.add(`${p.col},${p.row}`);
-          }
-
-          const bestPathNodes2 = new Set<string>();
-          for (const p of retracedPath) {
-            bestPathNodes2.add(`${p.col},${p.row}`);
-          }
-
-          logDevEvent("eval", "map_tier1_retrace", {
-            currentPos,
-            storedPrefs,
-            retracedPath,
-            recommendedNodes: [...recommendedNodes],
-          });
-          listenerApi.dispatch(mapPathRetraced({
-            recommendedPath: retracedPath,
-            bestPathNodes: [...bestPathNodes2],
-            recommendedNodes: [...recommendedNodes],
-          }));
-          return;
         }
       }
 
@@ -497,6 +403,8 @@ export function setupMapEvalListener() {
           ascension: ctx.ascension,
           hpPercent: ctx.hpPercent,
           deckSize: ctx.deckSize,
+          candidatePaths: mapCompliance.enrichedPaths.length,
+          candidateEliteCounts: mapCompliance.enrichedPaths.map((p) => p.aggregates.elitesTaken),
         });
         const parsed = await listenerApi
           .dispatch(
@@ -511,6 +419,31 @@ export function setupMapEvalListener() {
           )
           .unwrap();
         logDevEvent("eval", "map_api_response", parsed);
+
+        // Top-N scored candidates log — when a pick looks wrong, checking this
+        // reveals whether the scorer's ranking itself is off vs. the candidate
+        // pool not containing the expected best path.
+        const scoredPaths = parsed.compliance?.scoredPaths;
+        if (scoredPaths && scoredPaths.length > 0) {
+          const top = [...scoredPaths]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map((s) => ({
+              id: s.id,
+              score: Number(s.score.toFixed(2)),
+              elites: s.scoreBreakdown.elitesTaken ?? 0,
+              restBeforeElite: s.scoreBreakdown.restBeforeElite ?? 0,
+              projectedHpAtBoss: Number((s.scoreBreakdown.projectedHpAtBossFight ?? 0).toFixed(2)),
+              hpDip30: s.scoreBreakdown.hpDipBelow30PctPenalty ?? 0,
+              hpDip15: s.scoreBreakdown.hpDipBelow15PctPenalty ?? 0,
+              dq: s.disqualified,
+              dqReasons: s.disqualifyReasons,
+            }));
+          logDevEvent("eval", "map_scored_top5", {
+            totalCandidates: scoredPaths.length,
+            top,
+          });
+        }
 
         // --- Post-API path derivation ---
         // The map coach returns a pre-computed macro path (one node per
@@ -549,14 +482,25 @@ export function setupMapEvalListener() {
           bestPathNodes.add(`${p.col},${p.row}`);
         }
 
+        // Stash the narrated path so the scorer gate can skip subsequent
+        // evals whose winner is a suffix (player advanced) or identical
+        // (fork picked the same branch). Uses the server's returned
+        // macro_path, not the local scorer, so the two ends stay in sync.
+        const activeRunIdForNarratedStore = state.run.activeRunId;
+        if (activeRunIdForNarratedStore) {
+          const narratedSet = new Set<string>();
+          for (const f of parsed.macroPath.floors) narratedSet.add(f.nodeId);
+          lastNarratedPathByRun.set(activeRunIdForNarratedStore, narratedSet);
+        }
+
         // First entry on the coach path — used for backfill + best-option lookup.
         const bestOpt = coachPath.length > 0
           ? options.find((o) => o.col === coachPath[0].col && o.row === coachPath[0].row) ?? null
           : null;
 
         // Persist path + context to Redux. `nodePreferences` is left intact
-        // from prior evals (the coach doesn't produce them; Tier 1 retrace
-        // still uses the last known set if any).
+        // from prior evals (the coach doesn't produce them; kept so
+        // buildPreEvalPayload can forward them to subsequent scorer runs).
         listenerApi.dispatch(mapEvalUpdated({
           recommendedPath: fullPath,
           recommendedNodes: [...recommendedNodes],
