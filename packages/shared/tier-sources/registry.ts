@@ -1,3 +1,4 @@
+import { mobalyticsAdapter } from "./mobalytics";
 import { nat1gamingAdapter } from "./nat1gaming";
 import { slaythetierlistAdapter } from "./slaythetierlist";
 import { tiermakerAdapter } from "./tiermaker";
@@ -7,6 +8,7 @@ const ADAPTERS: readonly TierListSourceAdapter[] = [
   tiermakerAdapter,
   nat1gamingAdapter,
   slaythetierlistAdapter,
+  mobalyticsAdapter,
 ];
 
 export function listAdapters(): readonly TierListSourceAdapter[] {
