@@ -1046,7 +1046,23 @@ function PreviewStep({
     meta.character !== "any" &&
     detectedCharacter.toLowerCase() !== meta.character;
 
-  const tierOptions = getTierOptions(meta.scale_type);
+  // Dropdown options: union of the scale's standard options (S/A/…) with any
+  // raw labels actually present in the list. Preserves source-order for
+  // descriptive scales ("Premium", "Want in most decks") so the dropdown
+  // shows the card's real tier instead of falling back to the first letter.
+  const detectedTiers: string[] = [];
+  const seenTiers = new Set<string>();
+  for (const c of cards) {
+    if (!seenTiers.has(c.tier)) {
+      seenTiers.add(c.tier);
+      detectedTiers.push(c.tier);
+    }
+  }
+  const standardOptions = getTierOptions(meta.scale_type);
+  const tierOptions = [
+    ...detectedTiers,
+    ...standardOptions.filter((o) => !seenTiers.has(o)),
+  ];
 
   const inputCls =
     "rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500";
@@ -1278,6 +1294,12 @@ function PreviewStep({
                             src={card.sourceImageUrl}
                             alt=""
                             loading="lazy"
+                            onError={(e) => {
+                              // Hide the element entirely on failure so admins
+                              // don't see a broken-image placeholder for hosts
+                              // that block hotlinking or URLs that 404.
+                              e.currentTarget.style.display = "none";
+                            }}
                             className="h-10 w-8 shrink-0 rounded object-cover border border-zinc-800 bg-zinc-900"
                           />
                         )}
