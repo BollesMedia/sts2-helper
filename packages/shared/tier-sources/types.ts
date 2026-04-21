@@ -4,6 +4,13 @@ export interface ScrapedCard {
   tier: string;
   imageUrl: string;
   externalId?: string;
+  /**
+   * Card name as declared by the source (e.g. `alt` attribute). When
+   * present, the scrape route uses this for matching *before* falling back
+   * to filename/pHash. Adapters that can't reliably extract a name should
+   * leave this undefined.
+   */
+  name?: string;
 }
 
 export interface ScrapedTierList {

@@ -140,12 +140,36 @@ export async function POST(request: Request) {
     name: string;
     cardId: string | null;
     confidence: number;
-    source: "filename" | "phash" | "none";
+    source: "alt" | "filename" | "phash" | "none";
     distance: number | null;
     error?: string;
   };
 
+  // Build a normalized name → candidate lookup for fast alt-text matches.
+  // Drops apostrophes/punctuation so "Pact's End" → "pactsend" collides
+  // with source variants like "Pacts End".
+  const normalizedNameLookup = new Map<string, NamedCandidate>();
+  const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const c of nameCandidates) normalizedNameLookup.set(normName(c.name), c);
+
   const matched: MatchedCard[] = scraped.cards.map((card, i) => {
+    // Tier 0: adapter-declared alt/name — the strongest signal when present.
+    if (card.name) {
+      const byAlt = normalizedNameLookup.get(normName(card.name));
+      if (byAlt) {
+        return {
+          externalId: card.externalId,
+          tier: card.tier,
+          imageUrl: card.imageUrl,
+          name: byAlt.name,
+          cardId: byAlt.id,
+          confidence: 1,
+          source: "alt",
+          distance: null,
+        };
+      }
+    }
+
     // Tier 1: filename substring match — deterministic when it hits.
     const byName = matchByFilename(card.imageUrl, nameCandidates);
     if (byName) {
