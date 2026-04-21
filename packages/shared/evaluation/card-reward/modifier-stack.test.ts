@@ -226,3 +226,134 @@ describe("computeModifiers — deck gap", () => {
     expect(mod?.delta).toBe(1);
   });
 });
+
+describe("computeModifiers — win rate", () => {
+  it("adds +1 when pick WR beats skip WR by >15% with n>=20", () => {
+    const result = computeModifiers({
+      offer: offer(),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: { pickWinRate: 0.55, skipWinRate: 0.35, timesPicked: 30, timesSkipped: 40 },
+    });
+    const mod = result.modifiers.find((m) => m.kind === "winRateDelta");
+    expect(mod?.delta).toBe(1);
+  });
+
+  it("subtracts 1 when skip WR beats pick WR by >15% with n>=20", () => {
+    const result = computeModifiers({
+      offer: offer(),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: { pickWinRate: 0.30, skipWinRate: 0.55, timesPicked: 40, timesSkipped: 30 },
+    });
+    const mod = result.modifiers.find((m) => m.kind === "winRateDelta");
+    expect(mod?.delta).toBe(-1);
+  });
+
+  it("does not fire when sample size is below the threshold", () => {
+    const result = computeModifiers({
+      offer: offer(),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: { pickWinRate: 0.60, skipWinRate: 0.30, timesPicked: 10, timesSkipped: 20 },
+    });
+    const mod = result.modifiers.find((m) => m.kind === "winRateDelta");
+    expect(mod).toBeUndefined();
+  });
+
+  it("does not fire when the delta is below 15%", () => {
+    const result = computeModifiers({
+      offer: offer(),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: { pickWinRate: 0.50, skipWinRate: 0.42, timesPicked: 30, timesSkipped: 30 },
+    });
+    const mod = result.modifiers.find((m) => m.kind === "winRateDelta");
+    expect(mod).toBeUndefined();
+  });
+});
+
+describe("computeModifiers — act timing", () => {
+  it("subtracts 1 for off-archetype picks in Act 3", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        act: 3,
+        archetypes: { viable: [{ name: "exhaust", supportCount: 4, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "actTiming");
+    expect(mod?.delta).toBe(-1);
+  });
+
+  it("does not fire when the offer fits the committed archetype", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["exhaust"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        act: 3,
+        archetypes: { viable: [{ name: "exhaust", supportCount: 4, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "actTiming");
+    expect(mod).toBeUndefined();
+  });
+
+  it("does not fire outside Act 3", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        act: 2,
+        archetypes: { viable: [{ name: "exhaust", supportCount: 4, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "actTiming");
+    expect(mod).toBeUndefined();
+  });
+});
+
+describe("computeModifiers — composition", () => {
+  it("stacks archetype + gap + win-rate deltas", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "scaling", keystoneFor: "exhaust", fitsArchetypes: ["exhaust"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "exhaust", supportCount: 3, hasKeystone: false }], committed: "exhaust", orphaned: [] },
+        engine: { hasScaling: false, hasBlockPayoff: false, hasRemovalMomentum: 0, hasDrawPower: false },
+      }),
+      communityTier: { consensusTier: 4, consensusTierLetter: "B", sourceCount: 3, stddev: 0.3, agreement: "strong", staleness: "fresh", mostRecentPublished: null },
+      winRate: { pickWinRate: 0.60, skipWinRate: 0.30, timesPicked: 30, timesSkipped: 20 },
+    });
+    // B(4) + archetype keystone(+2) + deck gap scaling(+1) + win rate(+1) = 8 → clamped to S(6).
+    expect(result.adjustedTier).toBe("S");
+    expect(result.modifiers.map((m) => m.kind).sort()).toEqual(["archetypeFit", "deckGap", "winRateDelta"]);
+  });
+
+  it("clamps to F when combined negative modifiers would go below 1", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: true, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        act: 3,
+        archetypes: { viable: [{ name: "exhaust", supportCount: 4, hasKeystone: true }], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: { consensusTier: 2, consensusTierLetter: "D", sourceCount: 3, stddev: 0.3, agreement: "strong", staleness: "fresh", mostRecentPublished: null },
+      winRate: { pickWinRate: 0.20, skipWinRate: 0.55, timesPicked: 30, timesSkipped: 40 },
+    });
+    // D(2) + archetype off(-1) + duplicate(-1) + win rate(-1) + act 3(-1) = -2 → clamped to F(1).
+    expect(result.adjustedTier).toBe("F");
+  });
+});

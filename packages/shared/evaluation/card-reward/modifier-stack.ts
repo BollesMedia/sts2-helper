@@ -134,6 +134,50 @@ function deckGapModifier(
   return null;
 }
 
+function winRateModifier(winRate: WinRateInput | null): Modifier | null {
+  if (!winRate) return null;
+  const pick = winRate.pickWinRate;
+  const skip = winRate.skipWinRate;
+  if (pick == null || skip == null) return null;
+  const delta = pick - skip;
+  if (
+    delta > WIN_RATE_DELTA_THRESHOLD &&
+    winRate.timesPicked >= WIN_RATE_MIN_N
+  ) {
+    return {
+      kind: "winRateDelta",
+      delta: MODIFIER_DELTAS.winRatePickStrong,
+      reason: `pick WR +${Math.round(delta * 100)}%`,
+    };
+  }
+  if (
+    -delta > WIN_RATE_DELTA_THRESHOLD &&
+    winRate.timesSkipped >= WIN_RATE_MIN_N
+  ) {
+    return {
+      kind: "winRateDelta",
+      delta: MODIFIER_DELTAS.winRateSkipStrong,
+      reason: `skip WR +${Math.round(-delta * 100)}%`,
+    };
+  }
+  return null;
+}
+
+function actTimingModifier(
+  offer: TaggedOffer,
+  deckState: DeckState,
+): Modifier | null {
+  if (deckState.act !== 3) return null;
+  const committed = deckState.archetypes.committed;
+  if (!committed) return null;
+  if (offer.tags.fitsArchetypes.includes(committed)) return null;
+  return {
+    kind: "actTiming",
+    delta: MODIFIER_DELTAS.actThreeOffArchetype,
+    reason: "Act 3 off-archetype",
+  };
+}
+
 export function computeModifiers(input: ComputeModifiersInput): ModifierBreakdown {
   const baseTier: TierLetter = input.communityTier?.consensusTierLetter ?? "C";
   const baseValue = tierToValue(baseTier);
@@ -142,6 +186,8 @@ export function computeModifiers(input: ComputeModifiersInput): ModifierBreakdow
     archetypeFitModifier(input.offer, input.deckState),
     duplicateModifier(input.offer),
     deckGapModifier(input.offer, input.deckState),
+    winRateModifier(input.winRate),
+    actTimingModifier(input.offer, input.deckState),
   ];
   const modifiers = candidates.filter((m): m is Modifier => m !== null);
 
