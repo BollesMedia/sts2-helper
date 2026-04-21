@@ -283,12 +283,22 @@ export function setupMapEvalListener() {
         if (!shouldEval) return;
 
         // Narrator gate. The scorer is pure JS and already ran for the
-        // eager cache above — reuse it to check whether the winner is
-        // the same strategic plan the narrator already described. If
-        // the new winner path is a subset of the last narrated path
-        // (player advanced along it, or fork resolved to the same
-        // direction), skip the LLM call entirely. Start-of-act always
-        // fires so the first eval of an act gets fresh narration.
+        // eager cache above — reuse it to check whether the player is
+        // still following the previously-narrated plan. If the new
+        // winner's first node (= the recommended next step) is on the
+        // previously-narrated path, treat it as "same plan, advanced
+        // one step" and skip the LLM call. Start-of-act always fires
+        // so the first eval of an act gets fresh narration.
+        //
+        // We deliberately don't require every mid-path node to match —
+        // the enumerator yields many paths from each next_option and
+        // small HP/gold/deck shifts between evals can flip the ranking
+        // between two paths with identical strategic shape but different
+        // intermediate columns. The narrator text is strategic (elite
+        // count, rest-elite density, HP at boss), so mid-path column
+        // flips don't invalidate it. The first-node check captures
+        // "player is still on track" — which is what the user experience
+        // actually depends on.
         if (!actChanged && eagerCompliance && activeRunIdForEagerCache) {
           const scored = scorePaths(
             eagerCompliance.compliance.enrichedPaths,
@@ -298,13 +308,11 @@ export function setupMapEvalListener() {
           const winner = scored[0];
           const prevNarrated = lastNarratedPathByRun.get(activeRunIdForEagerCache);
           if (winner && prevNarrated) {
-            const newPathIds = winner.nodes
-              .map((n) => n.nodeId)
-              .filter((id): id is string => typeof id === "string");
-            const isSubset = newPathIds.length > 0 && newPathIds.every((id) => prevNarrated.has(id));
-            if (isSubset) {
-              logDevEvent("eval", "map_skip_narrator_unchanged_winner", {
-                newPathSize: newPathIds.length,
+            const firstNodeId = winner.nodes[0]?.nodeId;
+            const onTrack = typeof firstNodeId === "string" && prevNarrated.has(firstNodeId);
+            if (onTrack) {
+              logDevEvent("eval", "map_skip_narrator_on_track", {
+                firstNodeId,
                 storedPathSize: prevNarrated.size,
               });
               return;
