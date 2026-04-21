@@ -8,6 +8,7 @@ import type {
   EvaluationContext,
 } from "@sts2/shared/evaluation/types";
 import { scoreCardOffers } from "@sts2/shared/evaluation/card-reward/score-offers";
+import { scoreShopNonCards } from "@sts2/shared/evaluation/shop/score-non-cards";
 import { buildCoaching } from "@sts2/shared/evaluation/card-reward/build-coaching";
 import type { WinRateInput } from "@sts2/shared/evaluation/card-reward/modifier-stack";
 import {
@@ -1077,13 +1078,187 @@ export async function POST(request: Request) {
     return NextResponse.json(evaluation);
   }
 
-  const isExclusive = body.exclusive !== false; // default true for card_reward
-  const cardSchema = buildCardRewardSchema(items, type === "shop");
+  // Shop scorer short-circuit — splits items into cards vs non-cards, runs
+  // the card scorer for Attack/Skill/Power items and the non-card ranker for
+  // removals/relics/potions, then merges into a unified ranking list.
+  // Bypasses the LLM entirely. Task 10.
+  if (type === "shop") {
+    const cardItems = items.filter(
+      (i) => i.type === "Attack" || i.type === "Skill" || i.type === "Power",
+    );
+    const nonCardItems = items.filter(
+      (i) => !(i.type === "Attack" || i.type === "Skill" || i.type === "Power"),
+    );
 
-  const goldBudget = isShop && body.goldBudget != null ? `\nGOLD BUDGET: ${body.goldBudget}g — only recommend items you can afford. All items listed below are affordable.\n` : "";
+    const shopCommunityTierMap = await getCommunityTierSignals(
+      supabase,
+      cardItems.map((i) => i.id),
+      context.character,
+      gameVersion,
+    );
+
+    const winRatesById = new Map<string, WinRateInput>();
+    for (const w of winRates ?? []) {
+      winRatesById.set(w.item_id, {
+        pickWinRate: w.pick_win_rate,
+        skipWinRate: w.skip_win_rate,
+        timesPicked: w.times_picked ?? 0,
+        timesSkipped: w.times_skipped ?? 0,
+      });
+    }
+
+    const itemIdsByIndex = new Map<number, string>();
+    cardItems.forEach((it, i) => itemIdsByIndex.set(i + 1, it.id));
+
+    // Rebuild tagged offers for card items only. deckState was built from
+    // the enrichment pipeline (hoisted by Task 9). If it's missing (shop
+    // without the card_reward enrichment path firing), compute it on the
+    // spot.
+    const shopDeckState = deckState ?? computeDeckState({
+      deck: (context.deckCards ?? []) as unknown as Parameters<typeof computeDeckState>[0]["deck"],
+      relics: (context.relics ?? []) as unknown as Parameters<typeof computeDeckState>[0]["relics"],
+      act: (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3,
+      floor: context.floor,
+      ascension: context.ascension,
+      hp: { current: 0, max: 0 },
+    });
+
+    const cardTaggedOffers = cardItems.map((it, i) => ({
+      index: i + 1,
+      name: it.name,
+      rarity: it.rarity ?? "",
+      type: it.type ?? "",
+      cost: it.cost ?? null,
+      description: it.description ?? "",
+      tags: tagCard(
+        { name: it.name },
+        shopDeckState,
+        cardItems.filter((s) => s.id !== it.id).map((s) => ({ name: s.name })),
+        (context.deckCards ?? []).map((c) => ({ name: c.name })),
+      ),
+    }));
+
+    const cardScored = scoreCardOffers({
+      offers: cardTaggedOffers,
+      deckState: shopDeckState,
+      communityTierById: shopCommunityTierMap,
+      winRatesById,
+      itemIdsByIndex,
+    });
+
+    const goldBudget = body.goldBudget ?? context.gold;
+    const potionCount = context.potionNames.length;
+    const shopAct = (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3;
+
+    const nonCardScored = scoreShopNonCards({
+      items: nonCardItems.map((it, i) => ({
+        itemId: it.id,
+        itemName: it.name,
+        itemIndex: cardItems.length + i + 1,
+        cost: it.cost ?? 0,
+        description: it.description ?? "",
+      })),
+      act: shopAct,
+      goldBudget,
+      potionCount,
+    });
+
+    type MergedEntry = {
+      itemId: string;
+      itemName: string;
+      itemIndex: number;
+      tier: TierLetter;
+      tierValue: number;
+      reasoning: string;
+    };
+    const merged: MergedEntry[] = [
+      ...cardScored.offers.map((o) => ({
+        itemId: o.itemId,
+        itemName: o.itemName,
+        itemIndex: o.itemIndex,
+        tier: o.tier,
+        tierValue: o.tierValue,
+        reasoning: o.reasoning,
+      })),
+      ...nonCardScored.map((n) => ({
+        itemId: n.itemId,
+        itemName: n.itemName,
+        itemIndex: n.itemIndex,
+        tier: n.tier,
+        tierValue: n.tierValue,
+        reasoning: n.reasoning,
+      })),
+    ];
+    merged.sort((a, b) => (b.tierValue - a.tierValue) || (a.itemIndex - b.itemIndex));
+
+    const rankings: CardEvaluation[] = merged.map((m, i) => ({
+      itemId: m.itemId,
+      itemName: m.itemName,
+      itemIndex: m.itemIndex,
+      rank: i + 1,
+      tier: m.tier,
+      tierValue: m.tierValue,
+      synergyScore: 50,
+      confidence: 90,
+      recommendation:
+        i === 0 && m.tierValue >= 4
+          ? "strong_pick"
+          : m.tierValue >= 4
+            ? "good_pick"
+            : "skip",
+      reasoning: m.reasoning,
+      source: "claude",
+    }));
+
+    const allBelowB = rankings.every((r) => r.tierValue < 4);
+
+    const evaluation: CardRewardEvaluation = {
+      rankings,
+      skipRecommended: allBelowB,
+      skipReasoning: allBelowB ? "No shop item clears B-tier" : null,
+      coaching: {
+        reasoning: {
+          deckState: `${context.deckSize}-card deck, ${shopDeckState.archetypes.committed ?? "uncommitted"}`,
+          commitment: `Act ${shopAct}; ${shopDeckState.archetypes.committed ?? "archetypes still open"}`,
+        },
+        headline:
+          rankings[0] && rankings[0].tierValue >= 4
+            ? `Buy ${rankings[0].itemName} — ${rankings[0].reasoning}`
+            : "Save gold — nothing clears B-tier",
+        confidence: 0.9,
+        keyTradeoffs: [],
+        teachingCallouts: [],
+      },
+      // @ts-expect-error augmenting response with scoredOffers telemetry (Task 12 schema update)
+      compliance: {
+        scoredOffers: [
+          ...cardScored.offers.map((o) => ({
+            itemId: o.itemId,
+            rank: o.rank,
+            tier: o.tier,
+            tierValue: o.tierValue,
+            breakdown: o.breakdown,
+          })),
+        ],
+      },
+    };
+
+    return NextResponse.json(evaluation);
+  }
+
+  // Task 10 made the shop path short-circuit above, so `type` narrows to
+  // "map" | "card_reward" here. The legacy LLM code below still references
+  // `type === "shop"` / `isShop` for the shop branch that no longer fires —
+  // Task 13 removes this scaffold entirely. Widen through `unknown` so the
+  // unreachable shop comparisons still type-check without rewriting dead code.
+  const legacyType = type as unknown as "card_reward" | "shop";
+  const isExclusive = body.exclusive !== false; // default true for card_reward
+  const cardSchema = buildCardRewardSchema(items, legacyType === "shop");
+
+  const goldBudget = legacyType === "shop" && body.goldBudget != null ? `\nGOLD BUDGET: ${body.goldBudget}g — only recommend items you can afford. All items listed below are affordable.\n` : "";
 
   // Pre-computed budget summary for shop evals — placed AFTER items for Haiku recency bias
-  const budgetSummary = isShop && body.goldBudget != null
+  const budgetSummary = legacyType === "shop" && body.goldBudget != null
     ? `\nBUDGET SUMMARY: ${body.goldBudget}g available. Exact costs: ${items.map((i) => `${i.name}=${i.cost}g`).join(", ")}. Use ONLY these exact costs in your spending_plan. Do NOT invent discounted prices.`
     : "";
 
