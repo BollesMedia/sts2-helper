@@ -1,9 +1,5 @@
+import { parse as parseHtml } from "node-html-parser";
 import type { ScrapedCard, ScrapedTierList, TierListSourceAdapter } from "./types";
-
-const TIER_ROW_RE = /<div\s+class="tier-row"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g;
-const LABEL_RE = /<span\s+class="label"[^>]*>([\s\S]*?)<\/span>/;
-const CHARACTER_RE =
-  /<div\s+class="character"[^>]*\bid="([^"]+)"[^>]*>[\s\S]*?<img[^>]*\bsrc="([^"]+)"/g;
 
 const SEVEN_LETTER_MAP: Record<string, number> = {
   S: 6,
@@ -31,7 +27,9 @@ export const tiermakerAdapter: TierListSourceAdapter = {
   parse(html) {
     const warnings: string[] = [];
     const cards: ScrapedCard[] = [];
-    const tierRows = html.match(TIER_ROW_RE) ?? [];
+
+    const root = parseHtml(html);
+    const tierRows = root.querySelectorAll(".tier-row");
 
     if (tierRows.length === 0) {
       warnings.push(
@@ -42,20 +40,21 @@ export const tiermakerAdapter: TierListSourceAdapter = {
     const rawLabels = new Set<string>();
 
     for (const row of tierRows) {
-      const labelMatch = row.match(LABEL_RE);
-      if (!labelMatch) continue;
-      const tier = labelMatch[1].replace(/<[^>]+>/g, "").trim();
+      const labelEl = row.querySelector(".label-holder .label");
+      const tier = labelEl?.text.trim();
       if (!tier) continue;
       rawLabels.add(tier.toUpperCase());
 
-      CHARACTER_RE.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = CHARACTER_RE.exec(row)) !== null) {
-        cards.push({
-          tier,
-          externalId: m[1],
-          imageUrl: decodeHtmlEntities(m[2]),
-        });
+      // Tiermaker renders each tile as `.character` with a child `<img>`.
+      // Read from the img's src — background-image is a presentational
+      // duplicate that's harder to extract portably.
+      const tiles = row.querySelectorAll(".tier .character");
+      for (const tile of tiles) {
+        const img = tile.querySelector("img");
+        const src = img?.getAttribute("src");
+        if (!src) continue;
+        const externalId = tile.getAttribute("id") ?? undefined;
+        cards.push({ tier, externalId, imageUrl: src });
       }
     }
 
@@ -75,12 +74,3 @@ export const tiermakerAdapter: TierListSourceAdapter = {
     };
   },
 };
-
-function decodeHtmlEntities(s: string): string {
-  return s
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;/g, "'");
-}

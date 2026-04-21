@@ -118,9 +118,19 @@ export async function POST(request: Request) {
   // Fetch + hash every scraped card image in parallel. The filename matcher
   // catches ~everything for tiermaker's doubled-name convention; hashes are
   // a fallback for adapters whose filenames aren't reliable.
+  // Adapter owns the host allowlist: only URLs matching the same site that
+  // handled the scrape are eligible. Tightening this from the route would
+  // couple us to adapter internals; the adapter sets it via canHandle's host.
+  // Extract the scrape URL's host as the allowlist entry.
+  const { hostname: scrapeHost } = new URL(url);
   const hashResults = await fetchAndHashAll(
     scraped.cards.map((c) => c.imageUrl),
     8,
+    {
+      allowedHosts: [scrapeHost],
+      maxBytes: 5 * 1024 * 1024, // 5 MB per card image — generous but bounded
+      timeoutMs: 10_000,
+    },
   );
 
   type MatchedCard = {

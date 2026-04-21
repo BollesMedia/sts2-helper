@@ -1,6 +1,5 @@
 import { computeDhash } from "./dhash";
-
-const DEFAULT_TIMEOUT_MS = 10_000;
+import { safeFetchImage, SafeFetchError, type SafeFetchOptions } from "./safe-fetch";
 
 export interface FetchHashResult {
   imageUrl: string;
@@ -12,28 +11,26 @@ export interface FetchHashResult {
  * Fetch an image URL and compute its dHash. Returns `hash: null` with an
  * error message when the fetch or decode fails, so callers can surface
  * per-card failures without aborting the whole batch.
+ *
+ * Uses safeFetchImage to block SSRF-style targets (private IPs, non-http
+ * schemes, lying Content-Length, non-image responses).
  */
 export async function fetchAndHash(
   imageUrl: string,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  opts: SafeFetchOptions = {},
 ): Promise<FetchHashResult> {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(imageUrl, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { imageUrl, hash: null, error: `HTTP ${res.status}` };
-    }
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    const bytes = await safeFetchImage(imageUrl, opts);
     const hash = await computeDhash(bytes);
     return { imageUrl, hash };
   } catch (err) {
-    return {
-      imageUrl,
-      hash: null,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    const reason =
+      err instanceof SafeFetchError
+        ? `${err.code}: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    return { imageUrl, hash: null, error: reason };
   }
 }
 
@@ -41,14 +38,16 @@ export async function fetchAndHash(
 export async function fetchAndHashAll(
   urls: readonly string[],
   concurrency: number = 8,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  opts: SafeFetchOptions = {},
 ): Promise<FetchHashResult[]> {
   const out: FetchHashResult[] = new Array(urls.length);
   let cursor = 0;
+  // cursor++ is safe across workers because JS is single-threaded: the
+  // post-increment completes before any other microtask runs.
   async function worker() {
     while (cursor < urls.length) {
       const i = cursor++;
-      out[i] = await fetchAndHash(urls[i], timeoutMs);
+      out[i] = await fetchAndHash(urls[i], opts);
     }
   }
   const workers = Array.from({ length: Math.min(concurrency, urls.length) }, worker);

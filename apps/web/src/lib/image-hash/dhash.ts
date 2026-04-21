@@ -34,16 +34,20 @@ export async function computeDhash(buffer: Buffer | Uint8Array): Promise<string>
   return hi.toString(16).padStart(8, "0") + lo.toString(16).padStart(8, "0");
 }
 
+const HASH_HEX_RE = /^[0-9a-f]{16}$/;
+
 export function hammingDistance(a: string, b: string): number {
-  if (a.length !== b.length) {
-    throw new Error(`hash length mismatch: ${a.length} vs ${b.length}`);
+  if (!HASH_HEX_RE.test(a) || !HASH_HEX_RE.test(b)) {
+    throw new Error(`hash must be 16 lowercase hex chars: got "${a}" and "${b}"`);
   }
-  // Split into two 32-bit halves so we can XOR without BigInt.
-  const aHi = parseInt(a.slice(0, 8), 16);
-  const aLo = parseInt(a.slice(8, 16), 16);
-  const bHi = parseInt(b.slice(0, 8), 16);
-  const bLo = parseInt(b.slice(8, 16), 16);
-  return popcount32(aHi ^ bHi) + popcount32(aLo ^ bLo);
+  // Split into two 32-bit halves so we can XOR without BigInt. Variable names
+  // reflect position in the hex string: `first` = chars 0-7 (high 32 bits of
+  // the 64-bit hash), `second` = chars 8-15 (low 32 bits).
+  const aFirst = parseInt(a.slice(0, 8), 16);
+  const aSecond = parseInt(a.slice(8, 16), 16);
+  const bFirst = parseInt(b.slice(0, 8), 16);
+  const bSecond = parseInt(b.slice(8, 16), 16);
+  return popcount32(aFirst ^ bFirst) + popcount32(aSecond ^ bSecond);
 }
 
 function popcount32(n: number): number {
@@ -66,7 +70,9 @@ export interface NearestMatch<T> {
 
 /**
  * Find the candidate whose hash has the smallest Hamming distance to `target`.
- * Returns null when no candidate is within `maxDistance` bits.
+ * Returns null when no candidate is within `maxDistance` bits. On distance
+ * ties, the candidate with the lexicographically smaller `id` wins — makes
+ * the result stable across Supabase query runs (which have no ORDER BY).
  */
 export function findNearest<T extends HashCandidate>(
   target: string,
@@ -77,8 +83,14 @@ export function findNearest<T extends HashCandidate>(
   for (const c of candidates) {
     const d = hammingDistance(target, c.hash);
     if (d > maxDistance) continue;
-    if (!best || d < best.distance) best = { candidate: c, distance: d };
-    if (best.distance === 0) break;
+    if (!best) {
+      best = { candidate: c, distance: d };
+    } else if (d < best.distance) {
+      best = { candidate: c, distance: d };
+    } else if (d === best.distance && c.id < best.candidate.id) {
+      best = { candidate: c, distance: d };
+    }
+    if (best.distance === 0 && c.id === best.candidate.id) break;
   }
   return best;
 }

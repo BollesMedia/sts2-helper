@@ -28,10 +28,20 @@ function stemOf(imageUrl: string): string {
 
 /**
  * Find the candidate whose normalized name appears as a substring of the
- * image's filename stem. When multiple names match, the longest wins —
- * "backstab" beats "back", "calculatedgamble" beats "gamble". Names shorter
- * than 3 characters are ignored to avoid false positives on common suffixes.
+ * image's filename stem. Longest match wins (so "backstab" beats "back"),
+ * with ties broken lexicographically on `id` for stability across runs.
+ *
+ * Guards against weak matches:
+ *   - names shorter than 4 characters are ignored — common suffixes like
+ *     "dash" would otherwise false-match any filename containing "dash".
+ *   - the match must span at least half the stem. This aligns with
+ *     tiermaker's doubled-name convention ("adrenalineadrenaline" → 50%)
+ *     and rejects unrelated substrings ("strike" inside a 20-char stem
+ *     that mostly isn't about Strike).
  */
+const MIN_NAME_LENGTH = 4;
+const MIN_COVERAGE = 0.45;
+
 export function matchByFilename(
   imageUrl: string,
   candidates: readonly NamedCandidate[],
@@ -40,13 +50,20 @@ export function matchByFilename(
   if (!stem) return null;
 
   let best: FilenameMatch | null = null;
-  let bestLen = 0;
   for (const c of candidates) {
     const n = normalize(c.name);
-    if (n.length < 3 || n.length <= bestLen) continue;
-    if (stem.includes(n)) {
+    if (n.length < MIN_NAME_LENGTH) continue;
+    if (n.length / stem.length < MIN_COVERAGE) continue;
+    if (!stem.includes(n)) continue;
+    if (!best) {
       best = { candidate: c, matchedNorm: n };
-      bestLen = n.length;
+      continue;
+    }
+    const bestLen = best.matchedNorm.length;
+    if (n.length > bestLen) {
+      best = { candidate: c, matchedNorm: n };
+    } else if (n.length === bestLen && c.id < best.candidate.id) {
+      best = { candidate: c, matchedNorm: n };
     }
   }
   return best;

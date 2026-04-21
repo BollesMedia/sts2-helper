@@ -8,47 +8,56 @@ import {
 } from "@sts2/shared/evaluation/tier-normalize";
 import type { Json } from "@sts2/shared/types/database.types";
 
-const confirmSchema = z.object({
-  imageUrl: z.string().url().nullable(),
-  ingestionMethod: z
-    .enum(["vision_llm", "manual_confirm", "scraped"])
-    .default("vision_llm"),
-  source: z.object({
-    id: z.string(),
-    author: z.string(),
-    source_type: z.enum([
-      "image",
-      "spreadsheet",
-      "website",
-      "reddit",
-      "youtube",
-    ]),
-    source_url: z.string().url().nullable().optional(),
-    trust_weight: z.number().min(0).max(2).default(1.0),
-    scale_type: z.enum([
-      "letter_6",
-      "letter_5",
-      "numeric_10",
-      "numeric_5",
-      "binary",
-    ]),
-    scale_config: z.record(z.string(), z.unknown()).nullable().optional(),
-    notes: z.string().nullable().optional(),
-  }),
-  list: z.object({
-    game_version: z.string().nullable(),
-    published_at: z.string(),
-    character: z.string().nullable(),
-  }),
-  entries: z.array(
-    z.object({
-      card_id: z.string(),
-      raw_tier: z.string(),
-      note: z.string().nullable().optional(),
-      extraction_confidence: z.number().min(0).max(1).nullable().optional(),
+const confirmSchema = z
+  .object({
+    imageUrl: z.string().url().nullable(),
+    ingestionMethod: z
+      .enum(["vision_llm", "manual_confirm", "scraped"])
+      .default("vision_llm"),
+    source: z.object({
+      id: z.string(),
+      author: z.string(),
+      source_type: z.enum([
+        "image",
+        "spreadsheet",
+        "website",
+        "reddit",
+        "youtube",
+      ]),
+      source_url: z.string().url().nullable().optional(),
+      trust_weight: z.number().min(0).max(2).default(1.0),
+      scale_type: z.enum([
+        "letter_6",
+        "letter_5",
+        "numeric_10",
+        "numeric_5",
+        "binary",
+      ]),
+      scale_config: z.record(z.string(), z.unknown()).nullable().optional(),
+      notes: z.string().nullable().optional(),
     }),
-  ),
-});
+    list: z.object({
+      game_version: z.string().nullable(),
+      published_at: z.string(),
+      character: z.string().nullable(),
+    }),
+    entries: z.array(
+      z.object({
+        card_id: z.string(),
+        raw_tier: z.string(),
+        note: z.string().nullable().optional(),
+        extraction_confidence: z.number().min(0).max(1).nullable().optional(),
+      }),
+    ),
+  })
+  // vision_llm and manual_confirm always have a Supabase-Storage imageUrl;
+  // scraped lists don't (source lives at source.source_url instead). This
+  // refinement guards against a draft-tampering case where an admin could
+  // edit localStorage to submit mismatched metadata.
+  .refine(
+    (d) => (d.ingestionMethod === "scraped" ? true : d.imageUrl !== null),
+    { message: "imageUrl is required for non-scraped ingestion methods" },
+  );
 
 export async function POST(request: Request) {
   const auth = await requireAdmin();
