@@ -2,10 +2,17 @@ import { NextResponse } from "next/server";
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { EvaluationContext } from "@sts2/shared/evaluation/types";
+import type {
+  CardEvaluation,
+  CardRewardEvaluation,
+  EvaluationContext,
+} from "@sts2/shared/evaluation/types";
+import { scoreCardOffers } from "@sts2/shared/evaluation/card-reward/score-offers";
+import { scoreShopNonCards } from "@sts2/shared/evaluation/shop/score-non-cards";
+import { buildCoaching } from "@sts2/shared/evaluation/card-reward/build-coaching";
+import type { WinRateInput } from "@sts2/shared/evaluation/card-reward/modifier-stack";
 import {
   buildSystemPrompt,
-  buildCompactContext,
   compactStrategy,
   compactBossReference,
   MAP_NARRATOR_PROMPT,
@@ -13,7 +20,6 @@ import {
 } from "@sts2/shared/evaluation/prompt-builder";
 import {
   bossBriefingSchema,
-  buildCardRewardSchema,
   genericEvalSchema,
   simpleEvalSchema,
 } from "@sts2/shared/evaluation/eval-schemas";
@@ -32,19 +38,13 @@ import { buildNarratorInput } from "@sts2/shared/evaluation/map/build-narrator-i
 import type { NarratorInput } from "@sts2/shared/evaluation/map/build-narrator-input";
 import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 import { EVAL_MODELS } from "@sts2/shared/evaluation/models";
-import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
-import { sanitizeRankings } from "@sts2/shared/evaluation/sanitize-rankings";
 import { computeDeckState } from "@sts2/shared/evaluation/card-reward/deck-state";
 import { tagCard } from "@sts2/shared/evaluation/card-reward/card-tags";
 import { formatCardFacts } from "@sts2/shared/evaluation/card-reward/format-card-facts";
-import { sanitizeCardRewardCoachOutput } from "@sts2/shared/evaluation/card-reward-coach-schema";
-import { CARD_REWARD_SCAFFOLD } from "@sts2/shared/evaluation/prompt-builder";
-import { getStatisticalEvaluation } from "@sts2/shared/evaluation/statistical-evaluator";
 import { getCommunityTierSignals } from "@sts2/shared/evaluation/community-tier";
-import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
-import { tierToValue, type TierLetter } from "@sts2/shared/evaluation/tier-utils";
-import { applyPostEvalWeights, buildWeightContext, adjustTier as adjustTierByDelta, reconcileSkipRecommended } from "@sts2/shared/evaluation/post-eval-weights";
+import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
+import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { logUsage } from "@/lib/usage-logger";
 import { requireAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
@@ -796,27 +796,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No items to evaluate" }, { status: 400 });
   }
 
-  // Fetch statistical data for each item to augment Claude's evaluation
-  const cachedResults = await Promise.all(
-    items.map(async (item) => {
-      const stat = await getStatisticalEvaluation(supabase, item.id, context, context.ascension);
-      return { itemId: item.id, itemName: item.name, stat };
-    })
-  );
-
-  // Build historical context string to inject into Claude's prompt
-  const statsWithData = cachedResults.filter((r) => r.stat !== null);
-  let historicalContext = "";
-  if (statsWithData.length > 0) {
-    const lines = statsWithData.map((r) => {
-      const s = r.stat!;
-      const tierLetter = ["", "F", "D", "C", "B", "A", "S"][s.tierValue] ?? "?";
-      return `${r.itemName}: historically ${tierLetter}-tier (${s.confidence}% confidence, ${s.recommendation})`;
-    });
-    historicalContext = `\n[Historical data from ${statsWithData.length > 1 ? "prior runs" : "prior run"}]\n${lines.join("\n")}\nUse this as context but evaluate based on the CURRENT deck state.`;
-  }
-
-  // Query win rates once — reused for both prompt injection and post-eval weight adjustment
+  // Win rates — fed into the scorer's modifier stack via `winRatesById`.
   const ascTier = context.ascension <= 4 ? "low" : context.ascension <= 9 ? "mid" : "high";
   let winRates: WinRateRow[] | null = null;
   try {
@@ -832,97 +812,25 @@ export async function POST(request: Request) {
     // View may not exist yet
   }
 
-  let winRateContext = "";
-  if (winRates && winRates.length > 0) {
-    const wrLines = winRates
-      .filter((w) => (w.times_picked ?? 0) >= 5)
-      .map((w) => {
-        const item = items.find((i) => i.id === w.item_id);
-        const pickWr = w.pick_win_rate != null ? `${Math.round(w.pick_win_rate * 100)}%` : "?";
-        const skipWr = w.skip_win_rate != null ? `${Math.round(w.skip_win_rate * 100)}%` : "?";
-        return `${item?.name ?? w.item_id}: pick WR ${pickWr} (n=${w.times_picked}), skip WR ${skipWr} (n=${w.times_skipped})`;
-      });
-    if (wrLines.length > 0) {
-      winRateContext = `\n[Win rate data]\n${wrLines.join("\n")}`;
-    }
-  }
-
-  // Community tier list consensus — prior from pro player / community sources
-  let communityTierContext = "";
+  // Community tier list consensus — prior for the card_reward scorer.
+  let communityTierMap: Awaited<ReturnType<typeof getCommunityTierSignals>> = new Map();
   try {
-    const signals = await getCommunityTierSignals(
+    communityTierMap = await getCommunityTierSignals(
       supabase,
       items.map((i) => i.id),
       context.character,
       gameVersion,
     );
-    if (signals.size > 0) {
-      const ctLines = items
-        .filter((i) => signals.has(i.id))
-        .map((i) => {
-          const s = signals.get(i.id)!;
-          const agreementTag =
-            s.agreement === "strong" ? " [consensus]"
-            : s.agreement === "split" ? ` [sources disagree: stddev ${s.stddev.toFixed(2)}]`
-            : "";
-          const stalenessTag = s.staleness === "aging" ? " [aging]" : "";
-          return `${i.name}: community ${s.consensusTierLetter}-tier (${s.sourceCount} source${s.sourceCount === 1 ? "" : "s"}${agreementTag})${stalenessTag}`;
-        });
-      if (ctLines.length > 0) {
-        communityTierContext = `\n[Community tier lists]\n${ctLines.join("\n")}\nTreat as a prior; trust your analysis of the current deck over it.`;
-      }
-    }
   } catch (err) {
     console.warn("[Evaluate] Community tier signal fetch failed:", err);
     // Non-critical — continue without the signal
   }
 
-  // Build compact prompt — history + narrative + strategy + compact context + items LAST (Haiku recency bias)
-  let contextStr = "";
-  if (runHistory) {
-    contextStr += `${runHistory}\n\n`;
-  }
-  if (body.runNarrative) {
-    contextStr += `${body.runNarrative}\n\n`;
-  }
-  const strategy = compactStrategy(characterStrategy);
-  if (strategy) {
-    contextStr += `=== BUILD GUIDE ===\n${strategy}\n\n`;
-  }
-  contextStr += buildCompactContext(context);
-  // Boss reference: compressed for card/shop evals
-  const bossCompact = compactBossReference(bosses);
-  if (bossCompact) {
-    contextStr += `\n${bossCompact}`;
-  }
-
-  // Inject historical data before items (gives Claude context without overriding)
-  if (historicalContext) contextStr += historicalContext;
-  if (winRateContext) contextStr += winRateContext;
-  if (communityTierContext) contextStr += communityTierContext;
-
-  // Items go LAST for Haiku's recency bias
-  // Flag duplicates and cost inline so Claude can't miss them
-  const isShop = type === "shop";
-  const costUnit = isShop ? "g" : " energy";
-  const deckCardNames = new Set((context.deckCards ?? []).map((c) => c.name.toLowerCase()));
-  const itemsStr = items
-    .map(
-      (item, i) => {
-        const isDuplicate = deckCardNames.has(item.name.toLowerCase());
-        const dupWarning = isDuplicate ? " [2nd copy — good if core engine piece, bad if mediocre]" : "";
-        const saleTag = (item as Record<string, unknown>).on_sale ? " [SALE 50% OFF]" : "";
-        const kwTag = item.keywords?.length ? ` [${item.keywords.join(",")}]` : "";
-        return `${i + 1}. ${item.name}${item.cost != null ? ` (${item.cost}${costUnit}` : ""}${item.type ? `, ${item.type}` : ""}${item.rarity ? `, ${item.rarity}` : ""}${item.cost != null ? ")" : ""}${kwTag}${saleTag} — ${item.description}${dupWarning}`;
-      }
-    )
-    .join("\n");
-
-  // Card reward coach enrichment. Skip for shops (phase 5) — only fires
-  // when type === "card_reward". On any failure, fall through with empty
-  // factsBlock/scaffold so legacy prompt behavior is preserved.
-  let factsBlock = "";
-  let scaffold = "";
+  // Card reward enrichment — produces `deckState` and `taggedOffers` for
+  // the scorer short-circuit below. Only fires for card_reward; shop
+  // rebuilds deckState inline from context.
+  let deckState: ReturnType<typeof computeDeckState> | null = null;
+  let taggedOffers: Parameters<typeof formatCardFacts>[1] | null = null;
   if (type === "card_reward" && body.context) {
     try {
       // EvaluationContext doesn't declare hp / upcoming fields, but callers
@@ -946,7 +854,7 @@ export async function POST(request: Request) {
           : 0
       );
 
-      const deckState = computeDeckState({
+      const localDeckState = computeDeckState({
         deck: deckCards as unknown as Parameters<typeof computeDeckState>[0]["deck"],
         relics: relics as unknown as Parameters<typeof computeDeckState>[0]["relics"],
         act,
@@ -959,7 +867,7 @@ export async function POST(request: Request) {
       });
 
       const siblings = items.map((it) => ({ name: it.name }));
-      const taggedOffers = items.map((it, i) => ({
+      const localTaggedOffers = items.map((it, i) => ({
         index: i + 1,
         name: it.name,
         rarity: it.rarity ?? "",
@@ -968,259 +876,345 @@ export async function POST(request: Request) {
         description: it.description ?? "",
         tags: tagCard(
           { name: it.name },
-          deckState,
+          localDeckState,
           siblings.filter((s) => s.name !== it.name),
           deckCards.map((c) => ({ name: c.name })),
         ),
       }));
 
-      factsBlock = "\n" + formatCardFacts(deckState, taggedOffers) + "\n";
-      scaffold = "\n" + CARD_REWARD_SCAFFOLD + "\n";
+      deckState = localDeckState;
+      taggedOffers = localTaggedOffers;
     } catch (err) {
       console.error("[Evaluate] card reward enrichment failed, continuing without:", err);
-      // Falls through with empty factsBlock/scaffold — legacy prompt behavior.
+      // Leaves deckState/taggedOffers null — scorer short-circuit below
+      // will be skipped and the request returns a 500 from the
+      // unreachable-fallthrough handler.
     }
   }
 
-  const isExclusive = body.exclusive !== false; // default true for card_reward
-  const cardSchema = buildCardRewardSchema(items, type === "shop");
+  // Scorer + templated coaching short-circuit — bypasses the LLM entirely
+  // for card_reward. If enrichment failed (deckState/taggedOffers null),
+  // the request returns a 500 from the unreachable-fallthrough at the
+  // bottom of this handler.
+  if (type === "card_reward" && deckState && taggedOffers) {
+    const winRatesById = new Map<string, WinRateInput>();
+    for (const w of winRates ?? []) {
+      winRatesById.set(w.item_id, {
+        pickWinRate: w.pick_win_rate,
+        skipWinRate: w.skip_win_rate,
+        timesPicked: w.times_picked ?? 0,
+        timesSkipped: w.times_skipped ?? 0,
+      });
+    }
 
-  const goldBudget = isShop && body.goldBudget != null ? `\nGOLD BUDGET: ${body.goldBudget}g — only recommend items you can afford. All items listed below are affordable.\n` : "";
+    const itemIdsByIndex = new Map<number, string>();
+    items.forEach((it, i) => itemIdsByIndex.set(i + 1, it.id));
 
-  // Pre-computed budget summary for shop evals — placed AFTER items for Haiku recency bias
-  const budgetSummary = isShop && body.goldBudget != null
-    ? `\nBUDGET SUMMARY: ${body.goldBudget}g available. Exact costs: ${items.map((i) => `${i.name}=${i.cost}g`).join(", ")}. Use ONLY these exact costs in your spending_plan. Do NOT invent discounted prices.`
-    : "";
-
-  const userPrompt = `${contextStr}
-${goldBudget}${factsBlock}${scaffold}
-CRITICAL: This is Slay the Spire 2. Many cards have DIFFERENT effects than STS1. Evaluate ONLY by the description shown after the dash (—). Do NOT assume what a card does from its name.
-
-${type === "card_reward" ? "Offered cards" : "Shop items (affordable only)"}:
-${itemsStr}
-${isExclusive ? "\nEXCLUSIVE choice — pick ONE or skip ALL. If none deserve a deck slot, set skip_recommended: true and mark all as skip." : "\nYou may select MULTIPLE items. Evaluate each independently."}
-${budgetSummary}
-
-Return exactly ${items.length} rankings using position numbers (1, 2, 3...) matching the order above.`;
-
-  try {
-    // With the card-reward coaching block (reasoning, headline, up to 3
-    // tradeoffs, up to 3 callouts) layered on top of the per-card rankings,
-    // a 3-card reward can easily exceed 1024 output tokens. Bump the
-    // baseline so Haiku doesn't truncate its own structured output.
-    const result = await generateText({
-      model: anthropic(EVAL_MODELS.default),
-      maxOutputTokens: items.length > 5 ? 4096 : 2048,
-      system: systemPrompt,
-      prompt: userPrompt,
-      maxRetries: 3,
-      output: Output.object({ schema: cardSchema }),
+    const scored = scoreCardOffers({
+      offers: taggedOffers,
+      deckState,
+      communityTierById: communityTierMap,
+      winRatesById,
+      itemIdsByIndex,
     });
 
-    logUsage(supabase, {
-      userId: body.userId ?? null,
-      evalType: evalType,
-      model: EVAL_MODELS.default,
-      inputTokens: result.usage.inputTokens ?? 0,
-      outputTokens: result.usage.outputTokens ?? 0,
-    }).catch(console.error);
-
-    console.log("[Evaluate] Card/shop output:", JSON.stringify(result.output));
-
-    // Sanitize rankings before the camelCase adapter. See #54 for the drift
-    // patterns this handles (position 0 summary entries, out-of-range
-    // placeholders, out-of-order, duplicates).
-    const cleanedRankings = sanitizeRankings({
-      rankings: result.output.rankings,
-      indexKey: "position",
-      expectedCount: items.length,
+    const act = (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3;
+    const coaching = buildCoaching(scored, {
+      act,
+      floor: context.floor,
+      deckSize: context.deckSize,
+      committed: deckState.archetypes.committed,
     });
-    if (cleanedRankings.length !== items.length) {
-      console.error(
-        `[Evaluate] Card/shop ranking count mismatch: expected ${items.length}, got ${cleanedRankings.length} valid (from ${result.output.rankings.length} returned). Raw:`,
-        JSON.stringify(result.output.rankings),
-      );
-      return NextResponse.json(
-        {
-          error: "Ranking count mismatch",
-          detail: `Expected ${items.length} rankings, got ${cleanedRankings.length} valid after sanitization`,
-        },
-        { status: 502 },
-      );
-    }
-    result.output.rankings = cleanedRankings;
 
-    // Sanitize coaching block if present (caps tradeoffs/callouts, clamps confidence).
-    if (result.output.coaching) {
-      result.output.coaching = sanitizeCardRewardCoachOutput(result.output.coaching);
-    }
+    const rankings: CardEvaluation[] = scored.offers.map((o) => ({
+      itemId: o.itemId,
+      itemName: o.itemName,
+      itemIndex: o.itemIndex,
+      rank: o.rank,
+      tier: o.tier,
+      tierValue: o.tierValue,
+      synergyScore: 50,
+      confidence: Math.round(coaching.confidence * 100),
+      recommendation:
+        o.rank === 1 && !scored.skipRecommended
+          ? "strong_pick"
+          : scored.skipRecommended
+            ? "skip"
+            : "situational",
+      reasoning: o.reasoning,
+      source: "claude",
+    }));
 
-    const evaluation = toCardRewardEvaluation(result.output, items);
-    console.log("[Evaluate] Final rankings count:", evaluation.rankings.length);
+    const evaluation: CardRewardEvaluation = {
+      rankings,
+      skipRecommended: scored.skipRecommended,
+      skipReasoning: scored.skipReason,
+      coaching: {
+        reasoning: coaching.reasoning,
+        headline: coaching.headline,
+        confidence: coaching.confidence,
+        keyTradeoffs: coaching.keyTradeoffs,
+        teachingCallouts: coaching.teachingCallouts,
+      },
+      compliance: {
+        scoredOffers: scored.offers.map((o) => ({
+          itemId: o.itemId,
+          rank: o.rank,
+          tier: o.tier,
+          tierValue: o.tierValue,
+          breakdown: o.breakdown,
+        })),
+      },
+    };
 
-    // Save original tier values before weight adjustments
-    const originalTiers = new Map(
-      evaluation.rankings.map((r) => [r.itemIndex, r.tierValue])
-    );
-
-    // Apply heuristic weight adjustments
-    const itemDescs = new Map(items.map((item, i) => [i, item.description]));
-    const wctx = buildWeightContext(evalType, context);
-    applyPostEvalWeights(evaluation, wctx, itemDescs);
-
-    // Apply data-driven weights from card_win_rates (already fetched above)
-    if ((evalType === "card_reward" || evalType === "shop") && winRates && winRates.length > 0) {
-      const winRateMap = new Map(winRates.map((w) => [w.item_id, w]));
-      for (const ranking of evaluation.rankings) {
-        const wr = winRateMap.get(ranking.itemId);
-        if (!wr || (wr.times_picked ?? 0) < 10) continue; // need min sample
-
-        const pickWr = wr.pick_win_rate ?? 0.5;
-        const skipWr = wr.skip_win_rate ?? 0.5;
-
-        // If picking this card has significantly higher win rate than skipping
-        if (pickWr > skipWr + 0.15 && (wr.times_picked ?? 0) >= 20) {
-          ranking.tier = adjustTierByDelta(ranking.tier as TierLetter, 1);
-          ranking.tierValue = tierToValue(ranking.tier as TierLetter);
-          ranking.reasoning = (ranking.reasoning ?? "") + ` [+data: ${Math.round(pickWr * 100)}% pick WR]`;
-        }
-
-        // If skipping has significantly higher win rate than picking
-        if (skipWr > pickWr + 0.15 && (wr.times_skipped ?? 0) >= 20) {
-          ranking.tier = adjustTierByDelta(ranking.tier as TierLetter, -1);
-          ranking.tierValue = tierToValue(ranking.tier as TierLetter);
-          ranking.reasoning = (ranking.reasoning ?? "") + ` [-data: ${Math.round(skipWr * 100)}% skip WR]`;
-        }
-      }
-    }
-
-    // Reconcile skipRecommended with actual tiers — Claude can return
-    // contradictory data (A-tier card + skip_recommended: true)
-    reconcileSkipRecommended(evaluation);
-
-    // Log evaluations async (don't block response)
+    // Persist each ranking for analytics — fire-and-forget.
     Promise.all(
-      evaluation.rankings.map((ranking) => {
-        const origTier = originalTiers.get(ranking.itemIndex) ?? ranking.tierValue;
-        const adjustments = origTier !== ranking.tierValue
-          ? [{ from: origTier, to: ranking.tierValue }]
-          : null;
-        return logEvaluation(
-          supabase, context, ranking, runId, gameVersion, body.userId,
-          evalType, origTier, adjustments ?? undefined
-        );
-      })
+      evaluation.rankings.map((ranking) =>
+        logEvaluation(
+          supabase,
+          context,
+          ranking,
+          runId,
+          gameVersion,
+          body.userId ?? null,
+          evalType,
+          ranking.tierValue,
+          undefined,
+        ),
+      ),
     ).catch(console.error);
 
     return NextResponse.json(evaluation);
-  } catch (error) {
-    // Strict-fail: zod validation failure (e.g. Haiku returns fewer rankings
-    // than items, or returns a stringified-blob shape) → 502 with detail.
-    // Replaces the previous fallback fill at the now-deleted route.ts:573-592.
-    if (NoObjectGeneratedError.isInstance(error)) {
-      // Attempt to repair trailing commas in LLM-generated JSON
-      if (error.text) {
-        const repaired = repairJson(error.text);
-        if (repaired !== error.text) {
-          try {
-            const parsed = cardSchema.parse(JSON.parse(repaired));
-            console.log("[Evaluate] Card/shop JSON repaired (trailing comma)");
-            if (error.usage) {
-              logUsage(supabase, {
-                userId: body.userId ?? null,
-                evalType: evalType,
-                model: EVAL_MODELS.default,
-                inputTokens: error.usage.inputTokens ?? 0,
-                outputTokens: error.usage.outputTokens ?? 0,
-              }).catch(console.error);
-            }
-            // Continue with normal post-processing
-            const evaluation = toCardRewardEvaluation(parsed, items);
-            return NextResponse.json(evaluation);
-          } catch {
-            // Repair didn't help — fall through to original error handling
-          }
-        }
-      }
+  }
 
-      if (error.usage) {
-        logUsage(supabase, {
-          userId: body.userId ?? null,
-          evalType: evalType,
-          model: EVAL_MODELS.default,
-          inputTokens: error.usage.inputTokens ?? 0,
-          outputTokens: error.usage.outputTokens ?? 0,
-        }).catch(console.error);
-      }
-      const detail = error.cause instanceof Error ? error.cause.message : error.message;
-      console.error("[Evaluate] Card/shop schema validation failed:", detail, "raw text:", error.text);
+  function mapItemTypeToKind(
+    t: string | undefined,
+  ): "card_removal" | "relic" | "potion" | undefined {
+    if (!t) return undefined;
+    const lower = t.toLowerCase();
+    if (lower === "card_removal" || lower === "card removal" || lower.includes("remove"))
+      return "card_removal";
+    if (lower === "relic") return "relic";
+    if (lower === "potion") return "potion";
+    return undefined;
+  }
+
+  // Shop scorer short-circuit — splits items into cards vs non-cards, runs
+  // the card scorer for Attack/Skill/Power items and the non-card ranker for
+  // removals/relics/potions, then merges into a unified ranking list.
+  // Bypasses the LLM entirely. Task 10.
+  if (type === "shop") {
+    const cardItems = items.filter(
+      (i) => i.type === "Attack" || i.type === "Skill" || i.type === "Power",
+    );
+    const nonCardItems = items.filter(
+      (i) => !(i.type === "Attack" || i.type === "Skill" || i.type === "Power"),
+    );
+
+    const shopCommunityTierMap = await getCommunityTierSignals(
+      supabase,
+      cardItems.map((i) => i.id),
+      context.character,
+      gameVersion,
+    );
+
+    const winRatesById = new Map<string, WinRateInput>();
+    for (const w of winRates ?? []) {
+      winRatesById.set(w.item_id, {
+        pickWinRate: w.pick_win_rate,
+        skipWinRate: w.skip_win_rate,
+        timesPicked: w.times_picked ?? 0,
+        timesSkipped: w.times_skipped ?? 0,
+      });
+    }
+
+    const itemIdsByIndex = new Map<number, string>();
+    cardItems.forEach((it, i) => itemIdsByIndex.set(i + 1, it.id));
+
+    // Rebuild tagged offers for card items only. deckState was built from
+    // the enrichment pipeline (hoisted by Task 9). If it's missing (shop
+    // without the card_reward enrichment path firing), compute it on the
+    // spot.
+    let shopDeckState: ReturnType<typeof computeDeckState>;
+    let cardTaggedOffers: Array<{
+      index: number;
+      name: string;
+      rarity: string;
+      type: string;
+      cost: number | null;
+      description: string;
+      tags: ReturnType<typeof tagCard>;
+    }>;
+    try {
+      shopDeckState = deckState ?? computeDeckState({
+        deck: (context.deckCards ?? []) as unknown as Parameters<typeof computeDeckState>[0]["deck"],
+        relics: (context.relics ?? []) as unknown as Parameters<typeof computeDeckState>[0]["relics"],
+        act: (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3,
+        floor: context.floor,
+        ascension: context.ascension,
+        hp: { current: 0, max: 0 },
+      });
+
+      cardTaggedOffers = cardItems.map((it, i) => ({
+        index: i + 1,
+        name: it.name,
+        rarity: it.rarity ?? "",
+        type: it.type ?? "",
+        cost: it.cost ?? null,
+        description: it.description ?? "",
+        tags: tagCard(
+          { name: it.name },
+          shopDeckState,
+          cardItems.filter((s) => s.id !== it.id).map((s) => ({ name: s.name })),
+          (context.deckCards ?? []).map((c) => ({ name: c.name })),
+        ),
+      }));
+    } catch (err) {
+      console.error("[Evaluate] Shop enrichment failed:", err);
       return NextResponse.json(
-        { error: "Schema validation failed", detail },
-        { status: 502 }
+        { error: "Shop enrichment failed", detail: err instanceof Error ? err.message : String(err) },
+        { status: 500 },
       );
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    // Log the full error chain so we can tell truncation from rate-limit from
-    // model halt. "No output generated" is uninformative on its own; the
-    // cause + finish reason + raw text are what we need.
-    const causeChain: string[] = [];
-    {
-      let cur: unknown = error;
-      for (let i = 0; i < 4 && cur instanceof Error && cur.cause !== undefined; i++) {
-        const next: unknown = cur.cause;
-        if (next instanceof Error) {
-          causeChain.push(`cause[${i}]: ${next.message}`);
-          cur = next;
-        } else {
-          causeChain.push(`cause[${i}]: ${String(next)}`);
-          break;
-        }
-      }
-    }
-    const noOutputExtras: string[] = [];
-    if (NoObjectGeneratedError.isInstance(error)) {
-      if (error.finishReason) noOutputExtras.push(`finishReason=${error.finishReason}`);
-      if (error.usage) {
-        noOutputExtras.push(
-          `usage in=${error.usage.inputTokens ?? "?"}/out=${error.usage.outputTokens ?? "?"}`,
-        );
-      }
-      if (error.text) noOutputExtras.push(`text[first 200]=${error.text.slice(0, 200)}`);
-    }
-    console.error(
-      "Evaluation failed:",
-      message,
-      ...(noOutputExtras.length ? ["|", ...noOutputExtras] : []),
-      ...(causeChain.length ? ["|", ...causeChain] : []),
-    );
+    const cardScored = scoreCardOffers({
+      offers: cardTaggedOffers,
+      deckState: shopDeckState,
+      communityTierById: shopCommunityTierMap,
+      winRatesById,
+      itemIdsByIndex,
+    });
 
-    // Walk the error chain — AI SDK wraps Anthropic 429s inside
-    // NoObjectGeneratedError / APICallError, so the outer message often says
-    // "No output generated" while the cause carries the rate-limit signal.
-    const isRateLimit = (() => {
-      let cur: unknown = error;
-      for (let i = 0; i < 4 && cur; i++) {
-        if (cur instanceof Error) {
-          const m = cur.message ?? "";
-          if (m.includes("429") || /rate[\s_-]?limit/i.test(m)) return true;
-          // @ts-expect-error optional statusCode on API errors
-          if (cur.statusCode === 429) return true;
-          cur = cur.cause;
-        } else {
-          break;
-        }
-      }
-      return false;
-    })();
-    const status = isRateLimit ? 429 : 500;
-    const detail = isRateLimit
-      ? "Rate limited — please wait a moment and retry"
-      : "Evaluation service error";
+    const goldBudget = body.goldBudget ?? context.gold;
+    const potionCount = context.potionNames.length;
+    const shopAct = (context.act >= 1 && context.act <= 3 ? context.act : 1) as 1 | 2 | 3;
 
-    return NextResponse.json(
-      { error: "Evaluation failed", detail },
-      { status }
-    );
+    const nonCardScored = scoreShopNonCards({
+      items: nonCardItems.map((it, i) => ({
+        itemId: it.id,
+        itemName: it.name,
+        itemIndex: cardItems.length + i + 1,
+        cost: it.cost ?? 0,
+        description: it.description ?? "",
+        kind: mapItemTypeToKind(it.type),
+      })),
+      act: shopAct,
+      goldBudget,
+      potionCount,
+    });
+
+    type MergedEntry = {
+      itemId: string;
+      itemName: string;
+      itemIndex: number;
+      tier: TierLetter;
+      tierValue: number;
+      reasoning: string;
+    };
+    const merged: MergedEntry[] = [
+      ...cardScored.offers.map((o) => ({
+        itemId: o.itemId,
+        itemName: o.itemName,
+        itemIndex: o.itemIndex,
+        tier: o.tier,
+        tierValue: o.tierValue,
+        reasoning: o.reasoning,
+      })),
+      ...nonCardScored.map((n) => ({
+        itemId: n.itemId,
+        itemName: n.itemName,
+        itemIndex: n.itemIndex,
+        tier: n.tier,
+        tierValue: n.tierValue,
+        reasoning: n.reasoning,
+      })),
+    ];
+    merged.sort((a, b) => (b.tierValue - a.tierValue) || (a.itemIndex - b.itemIndex));
+
+    const rankings: CardEvaluation[] = merged.map((m, i) => ({
+      itemId: m.itemId,
+      itemName: m.itemName,
+      itemIndex: m.itemIndex,
+      rank: i + 1,
+      tier: m.tier,
+      tierValue: m.tierValue,
+      synergyScore: 50,
+      confidence: 90,
+      recommendation:
+        i === 0 && m.tierValue >= 4
+          ? "strong_pick"
+          : m.tierValue >= 4
+            ? "good_pick"
+            : "skip",
+      reasoning: m.reasoning,
+      source: "claude",
+    }));
+
+    const allBelowB = rankings.every((r) => r.tierValue < 4);
+
+    const evaluation: CardRewardEvaluation = {
+      rankings,
+      skipRecommended: allBelowB,
+      skipReasoning: allBelowB ? "No shop item clears B-tier" : null,
+      coaching: {
+        reasoning: {
+          deckState: `${context.deckSize}-card deck, ${shopDeckState.archetypes.committed ?? "uncommitted"}`,
+          commitment: `Act ${shopAct}; ${shopDeckState.archetypes.committed ?? "archetypes still open"}`,
+        },
+        headline:
+          rankings[0] && rankings[0].tierValue >= 4
+            ? `Buy ${rankings[0].itemName} — ${rankings[0].reasoning}`
+            : "Save gold — nothing clears B-tier",
+        confidence: 0.9,
+        keyTradeoffs: [],
+        teachingCallouts: [],
+      },
+      compliance: {
+        scoredOffers: [
+          ...cardScored.offers.map((o) => ({
+            itemId: o.itemId,
+            rank: o.rank,
+            tier: o.tier,
+            tierValue: o.tierValue,
+            breakdown: o.breakdown,
+          })),
+        ],
+      },
+    };
+
+    // Persist each ranking for analytics — fire-and-forget.
+    Promise.all(
+      evaluation.rankings.map((ranking) =>
+        logEvaluation(
+          supabase,
+          context,
+          ranking,
+          runId,
+          gameVersion,
+          body.userId ?? null,
+          evalType,
+          ranking.tierValue,
+          undefined,
+        ),
+      ),
+    ).catch(console.error);
+
+    return NextResponse.json(evaluation);
   }
+
+  // Task 9/10/11: card_reward and shop paths short-circuit above via the
+  // Phase 5 scorer. The only eval types that reach this point are the
+  // LLM-driven map/event/rest/etc paths, which return inside the
+  // `type === "map" && body.mapPrompt` branch. If `type` is "card_reward"
+  // without a matching short-circuit (enrichment failure) or any
+  // unexpected shape, there's nothing left to do — bail with a 500.
+  console.error(
+    "[Evaluate] Unreachable card/shop fallthrough:",
+    "type=", type,
+    "enrichmentMissing=", type === "card_reward" && !(deckState && taggedOffers),
+  );
+  return NextResponse.json(
+    { error: "Evaluation pipeline misconfigured — no handler matched" },
+    { status: 500 }
+  );
 }
