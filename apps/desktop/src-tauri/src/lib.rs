@@ -121,6 +121,7 @@ pub fn run() {
     // natively via AppDelegate; mobile doesn't apply.
     #[cfg(all(desktop, any(target_os = "windows", target_os = "linux")))]
     {
+        use tauri::Manager;
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // Focus the existing window on second-launch attempts.
             if let Some(window) = app.webview_windows().values().next() {
