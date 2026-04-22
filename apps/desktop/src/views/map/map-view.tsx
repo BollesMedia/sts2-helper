@@ -161,14 +161,6 @@ export function MapView({ state }: MapViewProps) {
               Voting {votes.filter((v) => v.voted).length}/{votes.length}
             </span>
           )}
-          {isLoading && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-spire-base/50 backdrop-blur-[2px] rounded-lg pointer-events-none">
-              <div className="flex items-center gap-2 bg-spire-surface border border-spire-border rounded-lg px-4 py-2 shadow-lg pointer-events-auto">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-sm text-spire-text-secondary">Evaluating paths...</span>
-              </div>
-            </div>
-          )}
 
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -304,8 +296,22 @@ export function MapView({ state }: MapViewProps) {
         </div>
       </div>
 
-      {/* Sidebar — Coach output */}
-      <div className="flex-1 min-w-[20rem] flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden">
+      {/* Sidebar — Coach output. The loading overlay lives here (not over the
+          map) so the new recommended path — already updated from the
+          deterministic scorer before the LLM call starts — stays visible
+          while the narration refreshes. */}
+      <div className="flex-1 min-w-[20rem] flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden relative">
+        {isLoading && (
+          <div className="sticky top-0 left-0 right-0 bottom-0 z-20 flex items-start justify-center pt-2 pointer-events-none">
+            <div className="flex items-center gap-2 bg-spire-surface/95 backdrop-blur-[2px] border border-spire-border rounded-lg px-3 py-1.5 shadow-lg pointer-events-auto">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs text-spire-text-secondary">Narrating path…</span>
+            </div>
+          </div>
+        )}
+        {isLoading && (
+          <div className="absolute inset-0 z-10 bg-spire-base/40 backdrop-blur-[1px] rounded-lg pointer-events-none" />
+        )}
         {evaluation && evalMatchesCurrentOptions && (
           <>
             {/* Headline + confidence */}
