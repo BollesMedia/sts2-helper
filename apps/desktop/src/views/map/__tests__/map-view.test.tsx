@@ -280,7 +280,7 @@ describe("MapView", () => {
       });
       renderWithStore(<MapView state={state} />, { preloadedState: preloaded });
 
-      expect(screen.getByText("Evaluating paths...")).toBeTruthy();
+      expect(screen.getByText("Narrating path…")).toBeTruthy();
     });
   });
 
