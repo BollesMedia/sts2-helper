@@ -15,7 +15,19 @@ function base(overrides: Partial<Parameters<typeof shouldEvaluateMap>[0]> = {}) 
   };
 }
 
-describe("shouldEvaluateMap — three triggers", () => {
+function twoTypeFork(overrides: Partial<Parameters<typeof shouldEvaluateMap>[0]> = {}) {
+  return base({
+    optionCount: 2,
+    nextOptions: [
+      { col: 0, row: 2, type: "monster" },
+      { col: 1, row: 2, type: "elite" },
+    ],
+    nextOptionSubgraphFingerprints: ["a", "b"],
+    ...overrides,
+  });
+}
+
+describe("shouldEvaluateMap — triggers", () => {
   it("returns false when there are no options", () => {
     expect(shouldEvaluateMap(base({ optionCount: 0, nextOptions: [], nextOptionSubgraphFingerprints: [] }))).toBe(false);
   });
@@ -36,23 +48,18 @@ describe("shouldEvaluateMap — three triggers", () => {
     expect(shouldEvaluateMap(base({ isStartOfAct: true, ancientHealResolved: true }))).toBe(true);
   });
 
-  it("triggers when the player is off the recommended path", () => {
-    expect(shouldEvaluateMap(base({ isOnRecommendedPath: false }))).toBe(true);
+  it("does NOT trigger off-path when the next row is forced (single option)", () => {
+    // Previously condition fired here and produced a useless re-plan because
+    // the next move is determined; issue #115 defers to the next fork.
+    expect(shouldEvaluateMap(base({ isOnRecommendedPath: false }))).toBe(false);
+  });
+
+  it("triggers off-path when the next row is a meaningful fork", () => {
+    expect(shouldEvaluateMap(twoTypeFork({ isOnRecommendedPath: false }))).toBe(true);
   });
 
   it("triggers on a fork where options differ in type", () => {
-    expect(
-      shouldEvaluateMap(
-        base({
-          optionCount: 2,
-          nextOptions: [
-            { col: 0, row: 2, type: "monster" },
-            { col: 1, row: 2, type: "elite" },
-          ],
-          nextOptionSubgraphFingerprints: ["a", "b"],
-        }),
-      ),
-    ).toBe(true);
+    expect(shouldEvaluateMap(twoTypeFork())).toBe(true);
   });
 
   it("triggers on a same-type fork when downstream subgraphs differ", () => {
@@ -85,7 +92,7 @@ describe("shouldEvaluateMap — three triggers", () => {
     ).toBe(false);
   });
 
-  it("no-op when none of the triggers fire", () => {
+  it("no-op when none of the triggers fire (single forced option, on-path)", () => {
     expect(shouldEvaluateMap(base())).toBe(false);
   });
 });

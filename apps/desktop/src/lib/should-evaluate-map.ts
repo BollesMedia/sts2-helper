@@ -20,14 +20,16 @@ function hasMeaningfulFork(input: ShouldEvaluateMapInput): boolean {
 /**
  * Decide whether a fresh map evaluation should fire.
  *
- * Three triggers:
- * 1. Start of act (post-ancient). First map-state of a new act; Acts 2/3
- *    wait one tick if the ancient heal hasn't resolved yet.
- * 2. Player off-path. Current node isn't on the recommended path.
+ * Triggers, in order:
+ * 1. Initial eval. No prior context exists → always evaluate so we have
+ *    a recommendation to compare against on subsequent polls.
+ * 2. Start of act. First map-state of a new act; Acts 2/3 wait one tick
+ *    if the ancient heal hasn't resolved yet.
  * 3. Meaningful fork. Multiple `next_options` that differ in type or in
- *    downstream subgraph fingerprint.
- *
- * Plus an implicit "initial eval" case: no prior context → trigger.
+ *    downstream subgraph fingerprint. Off-path status is factored into
+ *    the eval prompt but is NOT itself a trigger — re-planning at a
+ *    single-option row wastes tokens because the next move is forced;
+ *    the next fork is where a fresh recommendation actually matters.
  */
 export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   if (input.optionCount <= 0) return false;
@@ -39,9 +41,8 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     return true;
   }
 
-  if (input.currentPosition && !input.isOnRecommendedPath) return true;
-
-  if (hasMeaningfulFork(input)) return true;
-
-  return false;
+  // All remaining cases — including "player is off the recommended path" —
+  // require a meaningful fork. Forced rows produce forced plans; deferring
+  // to the next fork gives the eval a decision to actually reason about.
+  return hasMeaningfulFork(input);
 }
