@@ -545,13 +545,14 @@ const fetcher = async (url: string): Promise<{ lists: IngestedRow[] }> => {
 };
 
 function IngestedListsTable() {
-  const { data, error, isLoading } = useSWR<{ lists: IngestedRow[] }>(
+  const { data, error, isLoading, mutate } = useSWR<{ lists: IngestedRow[] }>(
     "/api/admin/tier-lists",
     fetcher,
     { revalidateOnFocus: false },
   );
   const [showInactive, setShowInactive] = useState(false);
   const [authorFilter, setAuthorFilter] = useState<string>("");
+  const [editing, setEditing] = useState<IngestedRow | null>(null);
 
   const lists = data?.lists ?? [];
   // Unique authors, case-insensitive-sorted, from the currently-loaded data.
@@ -634,6 +635,7 @@ function IngestedListsTable() {
                 <Th className="text-right">Trust</Th>
                 <Th>Ingested</Th>
                 <Th>Method</Th>
+                <Th className="text-right"></Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900">
@@ -677,13 +679,318 @@ function IngestedListsTable() {
                       <span className="ml-1 text-[10px] text-zinc-600 uppercase">superseded</span>
                     )}
                   </Td>
+                  <Td className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setEditing(row)}
+                      className="text-[11px] text-zinc-400 hover:text-emerald-400 hover:underline underline-offset-2"
+                    >
+                      Edit
+                    </button>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      {editing && (
+        <EditListModal
+          row={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            mutate();
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+// ── Edit modal ───────────────────────────────────────────────────────────────
+
+interface EditFormState {
+  // Source-level fields (apply to ALL snapshots from this source)
+  author: string;
+  source_type: SourceType;
+  source_url: string;
+  trust_weight: number;
+  scale_type: ScaleType;
+  notes: string;
+  // List-level fields (apply only to this snapshot)
+  is_active: boolean;
+  character: string;
+  game_version: string;
+  published_at: string;
+}
+
+function EditListModal({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: IngestedRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<EditFormState>({
+    author: row.source.author,
+    source_type: row.source.source_type,
+    source_url: row.source.source_url ?? "",
+    trust_weight: row.source.trust_weight,
+    // Source-level scale_type isn't on the IngestedRow shape from the list
+    // endpoint; the PATCH route will leave it untouched if not sent. Default
+    // the form to letter_6 so the select renders something sane.
+    scale_type: "letter_6",
+    notes: "",
+    is_active: row.is_active,
+    character: row.character ?? "any",
+    game_version: row.game_version ?? "",
+    published_at: row.published_at,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
+
+  const set = <K extends keyof EditFormState>(k: K, v: EditFormState[K]) =>
+    setForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    setSubmitting(true);
+    setError(null);
+    setRefreshWarning(null);
+
+    // Build the PATCH body from changed fields. Sending the full set is fine
+    // since the API treats absent keys as no-ops; comparing against `row`
+    // would just save bytes — not worth the bookkeeping.
+    const body = {
+      source: {
+        author: form.author.trim(),
+        source_type: form.source_type,
+        source_url: form.source_url.trim() ? form.source_url.trim() : null,
+        trust_weight: form.trust_weight,
+        // scale_type intentionally omitted — we don't surface it in the form
+        // because the IngestedRow shape doesn't include the source's current
+        // value. Editing scale requires a follow-up server endpoint.
+      },
+      list: {
+        is_active: form.is_active,
+        character: form.character === "any" ? null : form.character,
+        game_version: form.game_version.trim() || null,
+        published_at: form.published_at,
+      },
+    };
+
+    const res = await fetch(`/api/admin/tier-lists/${row.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    setSubmitting(false);
+
+    if (!res.ok) {
+      const detail =
+        typeof data?.detail === "object" && data.detail !== null
+          ? Object.entries(data.detail)
+              .filter(([k]) => k !== "_errors")
+              .map(([k, v]) => {
+                const errs = (v as { _errors?: string[] })?._errors;
+                return errs && errs.length ? `${k}: ${errs.join(", ")}` : null;
+              })
+              .filter(Boolean)
+              .join("; ")
+          : null;
+      setError(detail || data.error || `Save failed (${res.status})`);
+      return;
+    }
+
+    if (data.refreshWarning) {
+      setRefreshWarning(data.refreshWarning);
+      // Stay open so the admin sees the warning; let them confirm + close.
+      return;
+    }
+    onSaved();
+  };
+
+  const inputCls =
+    "w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500";
+  const labelCls = "text-[11px] text-zinc-500 uppercase tracking-wider";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl">
+        <div className="sticky top-0 flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-100">Edit Tier List</h3>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              {row.source.author} · {row.character ?? "any"} ·{" "}
+              {row.source.source_type}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="text-zinc-500 hover:text-zinc-200 transition-colors disabled:opacity-50"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-4 space-y-5">
+          {error && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+              {error}
+            </div>
+          )}
+          {refreshWarning && (
+            <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+              Saved, but consensus view didn&apos;t refresh: {refreshWarning}
+            </div>
+          )}
+
+          {/* Source — applies to every snapshot from this source */}
+          <section className="space-y-3">
+            <div>
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
+                Source
+              </h4>
+              <p className="text-[11px] text-zinc-600 mt-0.5">
+                Changes here affect every snapshot this source has uploaded.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Trust weight (0–2)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={form.trust_weight}
+                  onChange={(e) => set("trust_weight", parseFloat(e.target.value))}
+                  className={`mt-1 ${inputCls}`}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Source type</label>
+                <select
+                  value={form.source_type}
+                  onChange={(e) =>
+                    set("source_type", e.target.value as SourceType)
+                  }
+                  className={`mt-1 ${inputCls}`}
+                >
+                  <option value="image">Image</option>
+                  <option value="spreadsheet">Spreadsheet</option>
+                  <option value="website">Website</option>
+                  <option value="reddit">Reddit</option>
+                  <option value="youtube">YouTube</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Author</label>
+              <input
+                type="text"
+                value={form.author}
+                onChange={(e) => set("author", e.target.value)}
+                className={`mt-1 ${inputCls}`}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Source URL</label>
+              <input
+                type="url"
+                value={form.source_url}
+                onChange={(e) => set("source_url", e.target.value)}
+                placeholder="https://…"
+                className={`mt-1 ${inputCls}`}
+              />
+            </div>
+          </section>
+
+          {/* Snapshot — only this row */}
+          <section className="space-y-3">
+            <div>
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
+                Snapshot
+              </h4>
+              <p className="text-[11px] text-zinc-600 mt-0.5">
+                Per-list metadata. Other snapshots from this source aren&apos;t affected.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Character</label>
+                <select
+                  value={form.character}
+                  onChange={(e) => set("character", e.target.value)}
+                  className={`mt-1 ${inputCls}`}
+                >
+                  <option value="any">(any)</option>
+                  <option value="ironclad">Ironclad</option>
+                  <option value="silent">Silent</option>
+                  <option value="defect">Defect</option>
+                  <option value="regent">Regent</option>
+                  <option value="necrobinder">Necrobinder</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Game version</label>
+                <input
+                  type="text"
+                  value={form.game_version}
+                  onChange={(e) => set("game_version", e.target.value)}
+                  placeholder="e.g. 0.3.5"
+                  className={`mt-1 ${inputCls}`}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Published</label>
+                <input
+                  type="date"
+                  value={form.published_at}
+                  onChange={(e) => set("published_at", e.target.value)}
+                  className={`mt-1 ${inputCls}`}
+                />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => set("is_active", e.target.checked)}
+                className="rounded border-zinc-700 bg-zinc-900"
+              />
+              Active (counts toward consensus)
+            </label>
+          </section>
+        </div>
+
+        <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-zinc-800 bg-zinc-950 px-4 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={submitting}
+            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -691,7 +998,7 @@ function Th({
   children,
   className = "",
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }) {
   return (
