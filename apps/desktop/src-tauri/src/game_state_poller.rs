@@ -56,6 +56,26 @@ pub enum FetchOutcome {
     Network(String),
 }
 
+/// Read an HTTP error response body, capped at 16 KB and decoded lossily as
+/// UTF-8. Returns a descriptive placeholder on read failure rather than
+/// silently dropping the body. The cap protects against a misbehaving server
+/// returning an unbounded payload; real MCP error bodies are < 1 KB JSON.
+const MAX_ERROR_BODY_BYTES: usize = 16 * 1024;
+
+async fn read_error_body(resp: reqwest::Response) -> String {
+    match resp.bytes().await {
+        Ok(bytes) => {
+            let slice = if bytes.len() > MAX_ERROR_BODY_BYTES {
+                &bytes[..MAX_ERROR_BODY_BYTES]
+            } else {
+                &bytes[..]
+            };
+            String::from_utf8_lossy(slice).into_owned()
+        }
+        Err(e) => format!("(failed to read response body: {e})"),
+    }
+}
+
 /// Fetch once against `base_url`, honoring a single 409 mode-swap retry.
 /// Extracted so tests can point at a wiremock server without global state.
 pub(crate) async fn fetch_once_against(
@@ -79,10 +99,13 @@ pub(crate) async fn fetch_once_against(
             Err(e) => return FetchOutcome::Network(e.to_string()),
         };
         if !retry.status().is_success() {
-            return FetchOutcome::HttpError {
-                status: retry.status().as_u16(),
-                message: format!("STS2MCP responded with {}", retry.status().as_u16()),
-            };
+            let status = retry.status().as_u16();
+            // Capture the response body so the JS side can pattern-match it
+            // (e.g., to detect MissingMethodException → "MCP mod incompatible
+            // with current STS2 version" UX). Bounded to ~16KB to avoid
+            // unbounded memory growth on a misbehaving server.
+            let body = read_error_body(retry).await;
+            return FetchOutcome::HttpError { status, message: body };
         }
         return match retry.json::<serde_json::Value>().await {
             Ok(body) => FetchOutcome::Ok { mode, body },
@@ -91,10 +114,9 @@ pub(crate) async fn fetch_once_against(
     }
 
     if !first.status().is_success() {
-        return FetchOutcome::HttpError {
-            status: first.status().as_u16(),
-            message: format!("STS2MCP responded with {}", first.status().as_u16()),
-        };
+        let status = first.status().as_u16();
+        let body = read_error_body(first).await;
+        return FetchOutcome::HttpError { status, message: body };
     }
 
     match first.json::<serde_json::Value>().await {
@@ -319,6 +341,34 @@ mod tests {
         let out = fetch_once(&client, &server.uri(), Mode::Singleplayer).await;
         match out {
             FetchOutcome::HttpError { status, .. } => assert_eq!(status, 500),
+            other => panic!("expected HttpError, got {other:?}"),
+        }
+    }
+
+    /// HttpError.message must carry the actual response body so the JS layer
+    /// can pattern-match it (e.g. detect `MissingMethodException` and switch
+    /// the connection banner to "MCP mod incompatible with current STS2
+    /// version" instead of the generic "make sure the game is running").
+    #[tokio::test]
+    async fn fetch_once_carries_response_body_in_http_error_message() {
+        let server = MockServer::start().await;
+        let body = r#"{"error":"Failed to read game state: Method not found: 'Boolean MegaCrit.Sts2.Core.Combat.CombatManager.get_IsPlayPhase()'.","exception_type":"System.MissingMethodException"}"#;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/singleplayer"))
+            .respond_with(ResponseTemplate::new(500).set_body_string(body))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let out = fetch_once(&client, &server.uri(), Mode::Singleplayer).await;
+        match out {
+            FetchOutcome::HttpError { status, message } => {
+                assert_eq!(status, 500);
+                assert!(
+                    message.contains("MissingMethodException"),
+                    "expected body to be captured in message, got: {message}"
+                );
+            }
             other => panic!("expected HttpError, got {other:?}"),
         }
     }

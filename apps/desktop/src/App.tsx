@@ -96,7 +96,7 @@ export function App() {
 
 function AuthenticatedApp() {
   const { user, signOut } = useAuth();
-  const { gameState, connectionStatus } = useGameState();
+  const { gameState, connectionStatus, disconnectReason } = useGameState();
   const dispatch = useAppDispatch();
 
   const player = useAppSelector(selectActivePlayer);
@@ -134,6 +134,7 @@ function AuthenticatedApp() {
     return (
       <ConnectionBanner
         status={connectionStatus}
+        disconnectReason={disconnectReason}
         userEmail={user?.email}
         onSignOut={signOut}
       />
