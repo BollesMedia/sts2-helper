@@ -6,6 +6,19 @@ import { useAppSelector } from "../store/hooks";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
+/**
+ * Why we're disconnected — drives banner copy so users get an actionable
+ * message instead of the generic "make sure the game is running".
+ *
+ * - `mod_incompatible`: MCP returned 5xx with a body matching a .NET runtime
+ *   exception pattern (e.g. `MissingMethodException` after a STS2 game update
+ *   removes a getter the mod calls). Always combat-only in practice because
+ *   map/menu extractors don't touch the affected APIs.
+ * - `unreachable`: Rust poller couldn't reach the mod (game off, port blocked).
+ * - `unknown`: Rejected for a reason we don't recognize — generic copy.
+ */
+export type DisconnectReason = "mod_incompatible" | "unreachable" | "unknown";
+
 const selectGameStateResult = gameStateApi.endpoints.getGameState.select();
 
 function isNotReady(error: unknown): boolean {
@@ -15,6 +28,34 @@ function isNotReady(error: unknown): boolean {
     "status" in error &&
     (error as { status: unknown }).status === "NOT_READY"
   );
+}
+
+const MOD_INCOMPATIBLE_PATTERN = /MissingMethodException|Method not found/i;
+
+/**
+ * The Rust poller stringifies HTTP status codes via `.to_string()` before
+ * handing them off via Tauri ([game_state_poller.rs:207](../src-tauri/src/game_state_poller.rs)),
+ * so in production we receive `"500"` rather than `500`. We accept either
+ * shape so JS unit tests can use the natural number form too.
+ */
+function is5xx(status: unknown): boolean {
+  if (typeof status === "number") return status >= 500 && status < 600;
+  if (typeof status === "string") return /^5\d\d$/.test(status);
+  return false;
+}
+
+export function classifyDisconnect(error: unknown): DisconnectReason {
+  if (typeof error !== "object" || error === null) return "unknown";
+  const e = error as { status?: unknown; data?: unknown };
+  if (
+    is5xx(e.status) &&
+    typeof e.data === "string" &&
+    MOD_INCOMPATIBLE_PATTERN.test(e.data)
+  ) {
+    return "mod_incompatible";
+  }
+  if (e.status === "FETCH_ERROR") return "unreachable";
+  return "unknown";
 }
 
 /**
@@ -43,9 +84,13 @@ export function useGameState() {
     disconnectReported.current = false;
   }
 
+  const disconnectReason: DisconnectReason | null =
+    connectionStatus === "disconnected" ? classifyDisconnect(error) : null;
+
   return {
     gameState: data ?? null,
     connectionStatus,
+    disconnectReason,
     error: notReady ? null : (error ?? null),
     gameMode: (data?.game_mode ?? "singleplayer") as
       | "singleplayer"

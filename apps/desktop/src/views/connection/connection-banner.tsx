@@ -1,6 +1,9 @@
 "use client";
 
-import type { ConnectionStatus } from "../../hooks/useGameState";
+import type {
+  ConnectionStatus,
+  DisconnectReason,
+} from "../../hooks/useGameState";
 import { cn } from "@sts2/shared/lib/cn";
 
 const STATUS_CONFIG: Record<
@@ -25,8 +28,18 @@ const STATUS_CONFIG: Record<
   },
 };
 
+const DISCONNECT_REASON_DESCRIPTION: Record<DisconnectReason, string> = {
+  mod_incompatible:
+    "MCP mod is incompatible with the current Slay the Spire 2 version. Wait for an updated mod release, or roll the game back via Steam → STS2 → Properties → Betas.",
+  unreachable:
+    "Cannot reach STS2MCP mod. Make sure the game is running with the mod enabled.",
+  unknown:
+    "Cannot reach STS2MCP mod. Make sure the game is running with the mod enabled.",
+};
+
 interface ConnectionBannerProps {
   status: ConnectionStatus;
+  disconnectReason?: DisconnectReason | null;
   userEmail?: string | null;
   onSignOut?: () => void;
   navLinks?: { href: string; label: string }[];
@@ -34,11 +47,16 @@ interface ConnectionBannerProps {
 
 export function ConnectionBanner({
   status,
+  disconnectReason,
   userEmail,
   onSignOut,
   navLinks,
 }: ConnectionBannerProps) {
   const config = STATUS_CONFIG[status];
+  const description =
+    status === "disconnected" && disconnectReason
+      ? DISCONNECT_REASON_DESCRIPTION[disconnectReason]
+      : config.description;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -81,7 +99,7 @@ export function ConnectionBanner({
             </span>
           </div>
           <p className="max-w-sm text-sm text-spire-text-tertiary leading-relaxed">
-            {config.description}
+            {description}
           </p>
           <p className="max-w-sm text-xs text-spire-text-muted leading-relaxed">
             Launch Slay the Spire 2 with the STS2MCP mod enabled, then this
