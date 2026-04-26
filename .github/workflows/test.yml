@@ -27,11 +27,8 @@ jobs:
 
       - run: pnpm test
 
-      - run: pnpm --filter @sts2/web build
-        env:
-          # Build-time placeholders — real values are pulled from Vercel at
-          # deploy time, but next build still validates these are present.
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
-          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
-          ANTHROPIC_API_KEY: ci-placeholder
+      # Type-check the web app explicitly. We don't run `next build` in CI
+      # because static page generation hits live services (Supabase, Spire
+      # Codex) at build time — Vercel builds preview deployments with real
+      # secrets, so build coverage is preserved there.
+      - run: pnpm --filter @sts2/web exec tsc --noEmit
