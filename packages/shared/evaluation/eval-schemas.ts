@@ -158,10 +158,10 @@ export type CardRewardRankingRaw = z.infer<typeof cardRewardRankingSchema>;
  */
 const cardRewardCoachingShape = z.object({
   reasoning: z.object({
-    deck_state: z.string(),
-    commitment: z.string(),
+    deck_state: z.string().min(1),
+    commitment: z.string().min(1),
   }),
-  headline: z.string(),
+  headline: z.string().min(1),
   confidence: z.number(),
   key_tradeoffs: z.array(
     z.object({

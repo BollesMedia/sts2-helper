@@ -228,8 +228,13 @@ export function computeModifiers(input: ComputeModifiersInput): ModifierBreakdow
   const adjustedValue = Math.max(1, Math.min(6, baseValue + totalDelta));
   const adjustedTier = valueToTier(adjustedValue);
 
+  // `>=` so later entries in the candidates array win on absolute-delta ties.
+  // The `deadCard` modifier (-2) is positioned LAST in `candidates` so a
+  // dead committed-keystone card (+2 keystone, -2 deadCard) reports
+  // "dead with current deck" as topReason — the more actionable signal —
+  // rather than the keystone bonus that's about to be wasted.
   const top = modifiers.reduce<Modifier | null>(
-    (best, m) => (best === null || Math.abs(m.delta) > Math.abs(best.delta) ? m : best),
+    (best, m) => (best === null || Math.abs(m.delta) >= Math.abs(best.delta) ? m : best),
     null,
   );
   const topReason = top?.reason ?? "base tier";

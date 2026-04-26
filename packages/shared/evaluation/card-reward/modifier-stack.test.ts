@@ -268,6 +268,31 @@ describe("computeModifiers — dead card", () => {
 
     expect(dead.tierValue).toBeLessThan(neutral.tierValue);
   });
+
+  it("wins the topReason tie-break against the keystone bonus when both apply", () => {
+    // A power_payoff committed-keystone with no scaling support in the deck:
+    // both `keystoneOverride` (+2) and `deadCard` (-2) hold, equal absolute
+    // delta. The user-actionable signal is the dead card — surfacing
+    // "keystone for X" would mask that the bonus is wasted.
+    const result = computeModifiers({
+      offer: offer({
+        tags: {
+          role: "power_payoff",
+          keystoneFor: "exhaust",
+          fitsArchetypes: ["exhaust"],
+          deadWithCurrentDeck: true,
+          duplicatePenalty: false,
+          upgradeLevel: 0,
+        },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    expect(result.topReason).toBe("dead with current deck");
+  });
 });
 
 describe("computeModifiers — duplicate", () => {
