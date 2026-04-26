@@ -3,7 +3,6 @@
 import { cn } from "@sts2/shared/lib/cn";
 import type { EventState } from "@sts2/shared/types/game-state";
 import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
-import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { CardSkeleton } from "../../components/loading-skeleton";
 import { EvalError } from "../../components/eval-error";
 import { PickBanner, EvalRow, Reasoning, evalBorderClass, findTopPick } from "../../components/eval-card";

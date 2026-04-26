@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/api-auth";
+import { withAuth } from "@/lib/api-auth";
 
-export async function POST(request: Request) {
-  // Require auth — don't allow anonymous inserts
-  const auth = await requireAuth();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAuth(async (request, { userId }) => {
   const body = await request.json();
   const { source, level, message, context, app_version, platform } = body;
 
@@ -24,7 +20,7 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
 
   await supabase.from("error_logs").insert({
-    user_id: auth.userId,
+    user_id: userId,
     source: String(source).slice(0, 50),
     level: String(level ?? "error").slice(0, 10),
     message: String(message).slice(0, 5000),
@@ -34,4 +30,4 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ ok: true });
-}
+});

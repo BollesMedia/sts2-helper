@@ -5,6 +5,28 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Database } from "@sts2/shared/types/database.types";
 
+export type AuthContext = { userId: string };
+
+export type RouteHandler<TArgs extends unknown[], TRes> = (
+  req: Request,
+  auth: AuthContext,
+  ...args: TArgs
+) => Promise<TRes>;
+
+/**
+ * Wrap a route handler so it only runs when the request is authenticated.
+ * On failure the wrapped handler returns the 401 NextResponse directly.
+ */
+export function withAuth<TArgs extends unknown[], TRes>(
+  handler: RouteHandler<TArgs, TRes>,
+): (req: Request, ...args: TArgs) => Promise<TRes | NextResponse> {
+  return async (req, ...args) => {
+    const auth = await requireAuth();
+    if ("error" in auth) return auth.error;
+    return handler(req, { userId: auth.userId }, ...args);
+  };
+}
+
 /**
  * Validates auth from either:
  * 1. Bearer token in Authorization header (desktop app)

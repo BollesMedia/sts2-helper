@@ -1,4 +1,4 @@
-import type { MapState, MapNode, MapNextOption, MultiplayerFields } from "@sts2/shared/types/game-state";
+import type { MapState, MapNode, MultiplayerFields } from "@sts2/shared/types/game-state";
 import type { MapCoachEvaluation } from "../../lib/eval-inputs/map";
 import type { MapEvalState, RunData } from "../../features/run/runSlice";
 import type { EvalEntry } from "../../features/evaluation/evaluationSlice";

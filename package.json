@@ -7,6 +7,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
+    "test": "turbo test",
     "db:migrate": "supabase db push",
     "db:migrate:dry": "supabase db push --dry-run",
     "db:gen-types": "pnpm --filter @sts2/web gen-types"

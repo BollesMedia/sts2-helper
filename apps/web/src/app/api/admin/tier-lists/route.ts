@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/api-admin-auth";
+import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -11,10 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server";
  * rows are rendered greyed out so the admin can audit supersession without
  * losing history.
  */
-export async function GET() {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
-
+export const GET = withAdmin(async () => {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("tier_lists")
@@ -45,4 +42,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ lists: data ?? [] });
-}
+});

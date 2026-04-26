@@ -8,7 +8,6 @@ import {
   getPlayer,
   hasRun,
   type GameState,
-  type BattlePlayer,
 } from "@sts2/shared/types/game-state";
 import {
   initializeNarrative,
@@ -24,7 +23,7 @@ import { clearAllPendingChoices } from "@sts2/shared/choice-detection/pending-ch
 import { shouldResumeRun } from "./should-resume-run";
 import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 import { invoke } from "@tauri-apps/api/core";
-import type { MapEvalState, RunData } from "./runSlice";
+import type { RunData } from "./runSlice";
 
 function generateRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -77,7 +76,7 @@ export function setupRunAnalyticsListener() {
   let prevStateType: string | null = null;
   let runActive = false;
   let lastWasBoss = false;
-  let lastPlayerHp = 0;
+  let _lastPlayerHp = 0;
   let lastEnemiesAllDead = false;
   let lastCombatEnemyName: string | null = null;
   let lastFloor = 0;
@@ -162,7 +161,7 @@ export function setupRunAnalyticsListener() {
       // Combat tracking
       if (isCombatState(gameState) && gameState.battle) {
         const p = getPlayer(gameState);
-        if (p) lastPlayerHp = p.hp;
+        if (p) _lastPlayerHp = p.hp;
         lastEnemiesAllDead = gameState.battle.enemies.every(
           (e) => e.hp <= 0
         );
@@ -367,7 +366,7 @@ export function setupRunAnalyticsListener() {
           runActive = true;
           lastFloor = existingRun.floor;
           lastAct = existingRun.act;
-          lastPlayerHp = existingRun.player?.hp ?? 0;
+          _lastPlayerHp = existingRun.player?.hp ?? 0;
           lastDeckNames = existingRun.deck.map((c) => c.name);
           lastRelicNames = existingRun.player?.relics?.map((r) => r.name) ?? [];
           initializeNarrative(existingRunId, character, ascension);
@@ -426,7 +425,7 @@ export function setupRunAnalyticsListener() {
           lastWasBoss = false;
           lastFloor = 0;
           lastAct = 1;
-          lastPlayerHp = 0;
+          _lastPlayerHp = 0;
           lastEnemiesAllDead = false;
           lastDeckNames = [];
           lastRelicNames = [];

@@ -21,7 +21,6 @@ import {
   buildCardRewardRequest,
 } from "../../lib/eval-inputs/card-reward";
 import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
-import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
 
 const EVAL_TYPE = "card_reward" as const;

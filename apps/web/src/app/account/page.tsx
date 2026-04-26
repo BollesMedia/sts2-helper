@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
@@ -39,12 +40,12 @@ function AccountContent({
       <header className="border-b border-zinc-800 px-6 py-3">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center gap-4">
-            <a
+            <Link
               href="/"
               className="text-sm font-semibold text-zinc-100 tracking-tight hover:text-zinc-300 transition-colors"
             >
               STS2 Replay
-            </a>
+            </Link>
             <div className="h-4 w-px bg-zinc-800" />
             <span className="text-sm font-medium text-zinc-300">Account</span>
           </div>

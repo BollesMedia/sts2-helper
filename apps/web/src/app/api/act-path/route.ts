@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/api-auth";
+import { withAuth } from "@/lib/api-auth";
 
 const actPathSchema = z.object({
   runId: z.string(),
@@ -27,10 +27,7 @@ const actPathSchema = z.object({
   contextAtStart: z.unknown().nullable().optional(),
 });
 
-export async function POST(request: Request) {
-  const auth = await requireAuth();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAuth(async (request, { userId }) => {
   const body = await request.json();
   const result = actPathSchema.safeParse(body);
   if (!result.success) {
@@ -54,7 +51,7 @@ export async function POST(request: Request) {
       deviation_count: d.deviationCount,
       deviation_nodes: d.deviationNodes as import("@sts2/shared/types/database.types").Json,
       context_at_start: (d.contextAtStart ?? null) as import("@sts2/shared/types/database.types").Json,
-      user_id: auth.userId,
+      user_id: userId,
     }, {
       onConflict: "run_id,act",
     });
@@ -65,4 +62,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ success: true });
-}
+});

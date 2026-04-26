@@ -1,0 +1,34 @@
+name: Lint, test, build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      # Type-check the web app explicitly. We don't run `next build` in CI
+      # because static page generation hits live services (Supabase, Spire
+      # Codex) at build time — Vercel builds preview deployments with real
+      # secrets, so build coverage is preserved there.
+      - run: pnpm --filter @sts2/web exec tsc --noEmit

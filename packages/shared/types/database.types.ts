@@ -12,72 +12,47 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       act_paths: {
         Row: {
-          id: string
-          run_id: string
           act: number
-          recommended_path: Json
           actual_path: Json
-          node_preferences: Json | null
+          context_at_start: Json | null
+          created_at: string
           deviation_count: number
           deviation_nodes: Json
-          context_at_start: Json | null
+          id: string
+          node_preferences: Json | null
+          recommended_path: Json
+          run_id: string
           user_id: string | null
-          created_at: string
         }
         Insert: {
-          id?: string
-          run_id: string
           act: number
-          recommended_path?: Json
           actual_path?: Json
-          node_preferences?: Json | null
+          context_at_start?: Json | null
+          created_at?: string
           deviation_count?: number
           deviation_nodes?: Json
-          context_at_start?: Json | null
+          id?: string
+          node_preferences?: Json | null
+          recommended_path?: Json
+          run_id: string
           user_id?: string | null
-          created_at?: string
         }
         Update: {
-          id?: string
-          run_id?: string
           act?: number
-          recommended_path?: Json
           actual_path?: Json
-          node_preferences?: Json | null
+          context_at_start?: Json | null
+          created_at?: string
           deviation_count?: number
           deviation_nodes?: Json
-          context_at_start?: Json | null
+          id?: string
+          node_preferences?: Json | null
+          recommended_path?: Json
+          run_id?: string
           user_id?: string | null
-          created_at?: string
         }
         Relationships: [
           {
@@ -86,6 +61,44 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "runs"
             referencedColumns: ["run_id"]
+          },
+        ]
+      }
+      afflictions: {
+        Row: {
+          description: string
+          extra_card_text: string | null
+          game_version: string | null
+          id: string
+          is_stackable: boolean
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          description: string
+          extra_card_text?: string | null
+          game_version?: string | null
+          id: string
+          is_stackable?: boolean
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          description?: string
+          extra_card_text?: string | null
+          game_version?: string | null
+          id?: string
+          is_stackable?: boolean
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "afflictions_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
           },
         ]
       }
@@ -103,12 +116,16 @@ export type Database = {
           image_url: string | null
           keywords: string[] | null
           name: string
+          phash: string | null
           rarity: string
+          render_url: string | null
           star_cost: number | null
           tags: string[] | null
           target: string | null
           type: string
           updated_at: string | null
+          upgrade: Json | null
+          upgrade_description: string | null
         }
         Insert: {
           block?: number | null
@@ -123,12 +140,16 @@ export type Database = {
           image_url?: string | null
           keywords?: string[] | null
           name: string
+          phash?: string | null
           rarity: string
+          render_url?: string | null
           star_cost?: number | null
           tags?: string[] | null
           target?: string | null
           type: string
           updated_at?: string | null
+          upgrade?: Json | null
+          upgrade_description?: string | null
         }
         Update: {
           block?: number | null
@@ -143,12 +164,16 @@ export type Database = {
           image_url?: string | null
           keywords?: string[] | null
           name?: string
+          phash?: string | null
           rarity?: string
+          render_url?: string | null
           star_cost?: number | null
           tags?: string[] | null
           target?: string | null
           type?: string
           updated_at?: string | null
+          upgrade?: Json | null
+          upgrade_description?: string | null
         }
         Relationships: [
           {
@@ -311,6 +336,103 @@ export type Database = {
           },
         ]
       }
+      enchantments: {
+        Row: {
+          applicable_to: string | null
+          card_type: string | null
+          description: string
+          description_raw: string | null
+          extra_card_text: string | null
+          game_version: string | null
+          id: string
+          image_url: string | null
+          is_stackable: boolean
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          applicable_to?: string | null
+          card_type?: string | null
+          description: string
+          description_raw?: string | null
+          extra_card_text?: string | null
+          game_version?: string | null
+          id: string
+          image_url?: string | null
+          is_stackable?: boolean
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          applicable_to?: string | null
+          card_type?: string | null
+          description?: string
+          description_raw?: string | null
+          extra_card_text?: string | null
+          game_version?: string | null
+          id?: string
+          image_url?: string | null
+          is_stackable?: boolean
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enchantments_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
+      encounters: {
+        Row: {
+          act: string | null
+          game_version: string | null
+          id: string
+          is_weak: boolean
+          loss_text: string | null
+          monsters: Json | null
+          name: string
+          room_type: string
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          act?: string | null
+          game_version?: string | null
+          id: string
+          is_weak?: boolean
+          loss_text?: string | null
+          monsters?: Json | null
+          name: string
+          room_type: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          act?: string | null
+          game_version?: string | null
+          id?: string
+          is_weak?: boolean
+          loss_text?: string | null
+          monsters?: Json | null
+          name?: string
+          room_type?: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "encounters_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
       error_logs: {
         Row: {
           app_version: string | null
@@ -457,6 +579,65 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          act: string | null
+          description: string | null
+          dialogue: Json | null
+          epithet: string | null
+          game_version: string | null
+          id: string
+          image_url: string | null
+          name: string
+          options: Json | null
+          pages: Json | null
+          preconditions: Json | null
+          relics: string[] | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          act?: string | null
+          description?: string | null
+          dialogue?: Json | null
+          epithet?: string | null
+          game_version?: string | null
+          id: string
+          image_url?: string | null
+          name: string
+          options?: Json | null
+          pages?: Json | null
+          preconditions?: Json | null
+          relics?: string[] | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          act?: string | null
+          description?: string | null
+          dialogue?: Json | null
+          epithet?: string | null
+          game_version?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          options?: Json | null
+          pages?: Json | null
+          preconditions?: Json | null
+          relics?: string[] | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
       game_versions: {
         Row: {
           id: string
@@ -560,6 +741,44 @@ export type Database = {
           },
         ]
       }
+      orbs: {
+        Row: {
+          description: string
+          description_raw: string | null
+          game_version: string | null
+          id: string
+          image_url: string | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          description: string
+          description_raw?: string | null
+          game_version?: string | null
+          id: string
+          image_url?: string | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          description?: string
+          description_raw?: string | null
+          game_version?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orbs_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
       potions: {
         Row: {
           description: string
@@ -600,6 +819,71 @@ export type Database = {
             referencedColumns: ["version"]
           },
         ]
+      }
+      powers: {
+        Row: {
+          allow_negative: boolean | null
+          description: string
+          description_raw: string | null
+          game_version: string | null
+          id: string
+          image_url: string | null
+          name: string
+          stack_type: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          allow_negative?: boolean | null
+          description: string
+          description_raw?: string | null
+          game_version?: string | null
+          id: string
+          image_url?: string | null
+          name: string
+          stack_type?: string | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          allow_negative?: boolean | null
+          description?: string
+          description_raw?: string | null
+          game_version?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          stack_type?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "powers_game_version_fkey"
+            columns: ["game_version"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: string
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          role?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: string
+        }
+        Relationships: []
       }
       relics: {
         Row: {
@@ -660,6 +944,7 @@ export type Database = {
           narrative: Json | null
           notes: string | null
           run_id: string
+          run_id_source: string | null
           started_at: string | null
           user_id: string | null
           victory: boolean | null
@@ -681,6 +966,7 @@ export type Database = {
           narrative?: Json | null
           notes?: string | null
           run_id: string
+          run_id_source?: string | null
           started_at?: string | null
           user_id?: string | null
           victory?: boolean | null
@@ -702,81 +988,10 @@ export type Database = {
           narrative?: Json | null
           notes?: string | null
           run_id?: string
+          run_id_source?: string | null
           started_at?: string | null
           user_id?: string | null
           victory?: boolean | null
-        }
-        Relationships: []
-      }
-      usage_logs: {
-        Row: {
-          cost_estimate: number | null
-          created_at: string | null
-          eval_type: string
-          id: string
-          input_tokens: number | null
-          model: string
-          output_tokens: number | null
-          user_id: string | null
-        }
-        Insert: {
-          cost_estimate?: number | null
-          created_at?: string | null
-          eval_type: string
-          id?: string
-          input_tokens?: number | null
-          model: string
-          output_tokens?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          cost_estimate?: number | null
-          created_at?: string | null
-          eval_type?: string
-          id?: string
-          input_tokens?: number | null
-          model?: string
-          output_tokens?: number | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      weight_rules: {
-        Row: {
-          action: Json
-          condition: Json
-          created_at: string | null
-          enabled: boolean | null
-          eval_type: string
-          id: string
-          priority: number | null
-          sample_size: number | null
-          source: string | null
-          win_rate_delta: number | null
-        }
-        Insert: {
-          action: Json
-          condition: Json
-          created_at?: string | null
-          enabled?: boolean | null
-          eval_type: string
-          id: string
-          priority?: number | null
-          sample_size?: number | null
-          source?: string | null
-          win_rate_delta?: number | null
-        }
-        Update: {
-          action?: Json
-          condition?: Json
-          created_at?: string | null
-          enabled?: boolean | null
-          eval_type?: string
-          id?: string
-          priority?: number | null
-          sample_size?: number | null
-          source?: string | null
-          win_rate_delta?: number | null
         }
         Relationships: []
       }
@@ -813,17 +1028,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "tier_list_entries_tier_list_id_fkey"
-            columns: ["tier_list_id"]
-            isOneToOne: false
-            referencedRelation: "tier_lists"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "tier_list_entries_card_id_fkey"
             columns: ["card_id"]
             isOneToOne: false
             referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tier_list_entries_tier_list_id_fkey"
+            columns: ["tier_list_id"]
+            isOneToOne: false
+            referencedRelation: "tier_lists"
             referencedColumns: ["id"]
           },
         ]
@@ -906,315 +1121,95 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "tier_lists_source_id_fkey"
-            columns: ["source_id"]
-            isOneToOne: false
-            referencedRelation: "tier_list_sources"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "tier_lists_game_version_fkey"
             columns: ["game_version"]
             isOneToOne: false
             referencedRelation: "game_versions"
             referencedColumns: ["version"]
           },
-        ]
-      }
-      afflictions: {
-        Row: {
-          description: string
-          extra_card_text: string | null
-          game_version: string | null
-          id: string
-          is_stackable: boolean
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          description: string
-          extra_card_text?: string | null
-          game_version?: string | null
-          id: string
-          is_stackable?: boolean
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          description?: string
-          extra_card_text?: string | null
-          game_version?: string | null
-          id?: string
-          is_stackable?: boolean
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: [
           {
-            foreignKeyName: "afflictions_game_version_fkey"
-            columns: ["game_version"]
+            foreignKeyName: "tier_lists_source_id_fkey"
+            columns: ["source_id"]
             isOneToOne: false
-            referencedRelation: "game_versions"
-            referencedColumns: ["version"]
+            referencedRelation: "tier_list_sources"
+            referencedColumns: ["id"]
           },
         ]
       }
-      enchantments: {
+      usage_logs: {
         Row: {
-          applicable_to: string | null
-          card_type: string | null
-          description: string
-          description_raw: string | null
-          extra_card_text: string | null
-          game_version: string | null
+          cost_estimate: number | null
+          created_at: string | null
+          eval_type: string
           id: string
-          image_url: string | null
-          is_stackable: boolean
-          name: string
-          updated_at: string | null
+          input_tokens: number | null
+          model: string
+          output_tokens: number | null
+          user_id: string | null
         }
         Insert: {
-          applicable_to?: string | null
-          card_type?: string | null
-          description: string
-          description_raw?: string | null
-          extra_card_text?: string | null
-          game_version?: string | null
-          id: string
-          image_url?: string | null
-          is_stackable?: boolean
-          name: string
-          updated_at?: string | null
+          cost_estimate?: number | null
+          created_at?: string | null
+          eval_type: string
+          id?: string
+          input_tokens?: number | null
+          model: string
+          output_tokens?: number | null
+          user_id?: string | null
         }
         Update: {
-          applicable_to?: string | null
-          card_type?: string | null
-          description?: string
-          description_raw?: string | null
-          extra_card_text?: string | null
-          game_version?: string | null
+          cost_estimate?: number | null
+          created_at?: string | null
+          eval_type?: string
           id?: string
-          image_url?: string | null
-          is_stackable?: boolean
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "enchantments_game_version_fkey"
-            columns: ["game_version"]
-            isOneToOne: false
-            referencedRelation: "game_versions"
-            referencedColumns: ["version"]
-          },
-        ]
-      }
-      encounters: {
-        Row: {
-          act: string | null
-          game_version: string | null
-          id: string
-          is_weak: boolean
-          loss_text: string | null
-          monsters: Json | null
-          name: string
-          room_type: string
-          tags: string[] | null
-          updated_at: string | null
-        }
-        Insert: {
-          act?: string | null
-          game_version?: string | null
-          id: string
-          is_weak?: boolean
-          loss_text?: string | null
-          monsters?: Json | null
-          name: string
-          room_type: string
-          tags?: string[] | null
-          updated_at?: string | null
-        }
-        Update: {
-          act?: string | null
-          game_version?: string | null
-          id?: string
-          is_weak?: boolean
-          loss_text?: string | null
-          monsters?: Json | null
-          name?: string
-          room_type?: string
-          tags?: string[] | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "encounters_game_version_fkey"
-            columns: ["game_version"]
-            isOneToOne: false
-            referencedRelation: "game_versions"
-            referencedColumns: ["version"]
-          },
-        ]
-      }
-      events: {
-        Row: {
-          act: string | null
-          description: string | null
-          dialogue: Json | null
-          epithet: string | null
-          game_version: string | null
-          id: string
-          image_url: string | null
-          name: string
-          options: Json | null
-          pages: Json | null
-          preconditions: Json | null
-          relics: string[] | null
-          type: string
-          updated_at: string | null
-        }
-        Insert: {
-          act?: string | null
-          description?: string | null
-          dialogue?: Json | null
-          epithet?: string | null
-          game_version?: string | null
-          id: string
-          image_url?: string | null
-          name: string
-          options?: Json | null
-          pages?: Json | null
-          preconditions?: Json | null
-          relics?: string[] | null
-          type: string
-          updated_at?: string | null
-        }
-        Update: {
-          act?: string | null
-          description?: string | null
-          dialogue?: Json | null
-          epithet?: string | null
-          game_version?: string | null
-          id?: string
-          image_url?: string | null
-          name?: string
-          options?: Json | null
-          pages?: Json | null
-          preconditions?: Json | null
-          relics?: string[] | null
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "events_game_version_fkey"
-            columns: ["game_version"]
-            isOneToOne: false
-            referencedRelation: "game_versions"
-            referencedColumns: ["version"]
-          },
-        ]
-      }
-      orbs: {
-        Row: {
-          description: string
-          description_raw: string | null
-          game_version: string | null
-          id: string
-          image_url: string | null
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          description: string
-          description_raw?: string | null
-          game_version?: string | null
-          id: string
-          image_url?: string | null
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          description?: string
-          description_raw?: string | null
-          game_version?: string | null
-          id?: string
-          image_url?: string | null
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "orbs_game_version_fkey"
-            columns: ["game_version"]
-            isOneToOne: false
-            referencedRelation: "game_versions"
-            referencedColumns: ["version"]
-          },
-        ]
-      }
-      powers: {
-        Row: {
-          allow_negative: boolean | null
-          description: string
-          description_raw: string | null
-          game_version: string | null
-          id: string
-          image_url: string | null
-          name: string
-          stack_type: string | null
-          type: string
-          updated_at: string | null
-        }
-        Insert: {
-          allow_negative?: boolean | null
-          description: string
-          description_raw?: string | null
-          game_version?: string | null
-          id: string
-          image_url?: string | null
-          name: string
-          stack_type?: string | null
-          type: string
-          updated_at?: string | null
-        }
-        Update: {
-          allow_negative?: boolean | null
-          description?: string
-          description_raw?: string | null
-          game_version?: string | null
-          id?: string
-          image_url?: string | null
-          name?: string
-          stack_type?: string | null
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "powers_game_version_fkey"
-            columns: ["game_version"]
-            isOneToOne: false
-            referencedRelation: "game_versions"
-            referencedColumns: ["version"]
-          },
-        ]
-      }
-    }
-    Views: {
-      community_tier_consensus: {
-        Row: {
-          card_id: string | null
-          character_scope: string | null
-          game_versions: string[] | null
-          most_recent_published: string | null
-          oldest_published: string | null
-          source_count: number | null
-          tier_stddev: number | null
-          weighted_tier: number | null
+          input_tokens?: number | null
+          model?: string
+          output_tokens?: number | null
+          user_id?: string | null
         }
         Relationships: []
       }
+      weight_rules: {
+        Row: {
+          action: Json
+          condition: Json
+          created_at: string | null
+          enabled: boolean | null
+          eval_type: string
+          id: string
+          priority: number | null
+          sample_size: number | null
+          source: string | null
+          win_rate_delta: number | null
+        }
+        Insert: {
+          action: Json
+          condition: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          eval_type: string
+          id: string
+          priority?: number | null
+          sample_size?: number | null
+          source?: string | null
+          win_rate_delta?: number | null
+        }
+        Update: {
+          action?: Json
+          condition?: Json
+          created_at?: string | null
+          enabled?: boolean | null
+          eval_type?: string
+          id?: string
+          priority?: number | null
+          sample_size?: number | null
+          source?: string | null
+          win_rate_delta?: number | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {
       card_win_rates: {
         Row: {
           act: number | null
@@ -1230,6 +1225,27 @@ export type Database = {
           times_skipped: number | null
         }
         Relationships: []
+      }
+      community_tier_consensus: {
+        Row: {
+          card_id: string | null
+          character_scope: string | null
+          game_versions: string[] | null
+          most_recent_published: string | null
+          oldest_published: string | null
+          source_count: number | null
+          tier_stddev: number | null
+          weighted_tier: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_list_entries_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       eval_accuracy: {
         Row: {
@@ -1283,17 +1299,15 @@ export type Database = {
           character: string | null
           choice_type: string | null
           diverged: number | null
-          diverged_win_rate: number | null
           follow_rate: number | null
           followed: number | null
-          followed_win_rate: number | null
-          total_choices: number | null
+          total: number | null
         }
         Relationships: []
       }
     }
     Functions: {
-      [_ in never]: never
+      refresh_community_tier_consensus: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
@@ -1422,9 +1436,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

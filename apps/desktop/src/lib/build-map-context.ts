@@ -1,4 +1,4 @@
-import type { MapState, MapNode, MapNextOption } from "@sts2/shared/types/game-state";
+import type { MapState } from "@sts2/shared/types/game-state";
 import type { MapContext } from "../features/run/runSlice";
 import { floorsToNextBossFloor } from "./act-boss-floors";
 

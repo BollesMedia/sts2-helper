@@ -1,15 +1,10 @@
 import { createServiceClient } from "./supabase/server";
-import { requireAuth } from "./api-auth";
+import { requireAuth, type RouteHandler } from "./api-auth";
 import { NextResponse } from "next/server";
 
 /**
  * Validates auth AND checks the user has role='admin' in profiles table.
  * Returns { userId } on success, or { error } with appropriate status response.
- *
- * NOTE: The `profiles` table is not yet reflected in the generated database
- * types (migration 018 post-dates the last type gen run). Using `any` cast
- * on the client to bypass the type-level table restriction until types are
- * regenerated.
  */
 export async function requireAdmin(): Promise<
   { userId: string } | { error: NextResponse }
@@ -17,8 +12,7 @@ export async function requireAdmin(): Promise<
   const auth = await requireAuth();
   if ("error" in auth) return auth;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createServiceClient() as any;
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("profiles")
     .select("role")
@@ -35,4 +29,19 @@ export async function requireAdmin(): Promise<
   }
 
   return { userId: auth.userId };
+}
+
+/**
+ * Wrap a route handler so it only runs when the request is authenticated AND
+ * the user has role='admin'. On failure the wrapped handler returns the 401
+ * or 403 NextResponse directly.
+ */
+export function withAdmin<TArgs extends unknown[], TRes>(
+  handler: RouteHandler<TArgs, TRes>,
+): (req: Request, ...args: TArgs) => Promise<TRes | NextResponse> {
+  return async (req, ...args) => {
+    const auth = await requireAdmin();
+    if ("error" in auth) return auth.error;
+    return handler(req, { userId: auth.userId }, ...args);
+  };
 }

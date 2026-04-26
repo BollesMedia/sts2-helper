@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/api-admin-auth";
+import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { resolveAdapter } from "@sts2/shared/tier-sources";
 import {
@@ -59,10 +59,7 @@ interface CardWithHash {
   hash: string;
 }
 
-export async function POST(request: Request) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAdmin(async (request) => {
   const body = await request.json();
   const parsed = scrapeSchema.safeParse(body);
   if (!parsed.success) {
@@ -94,10 +91,7 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // `cards.phash` was added in migration 028 and is not yet reflected in the
-  // generated database types. Cast to any until `db:gen-types` is re-run.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: cardsData, error: cardsError } = await (supabase as any)
+  const { data: cardsData, error: cardsError } = await supabase
     .from("cards")
     .select("id, name, color, phash");
   if (cardsError) {
@@ -288,4 +282,4 @@ export async function POST(request: Request) {
       unmatched: matched.filter((m) => !m.cardId).length,
     },
   });
-}
+});

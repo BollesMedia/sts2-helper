@@ -43,7 +43,7 @@ function prefKey(nodeType: string): keyof NodePreferences | null {
 /** Get the HP cost for a node type as a fraction of max HP */
 function hpCost(nodeType: string, act: number, ascension: number): number {
   const actKey = `act${act}` as keyof typeof HP_COST_ESTIMATES.monster;
-  let cost = 0;
+  let cost: number;
 
   if (nodeType === "Monster") {
     cost = HP_COST_ESTIMATES.monster[actKey] ?? HP_COST_ESTIMATES.monster.act1;
@@ -250,7 +250,7 @@ export function traceConstraintAwarePath(input: ConstraintTracerInput): PathCoor
     row: number,
     simHp: number,
     consecutiveMonsters: number,
-    prevType: string | null,
+    _prevType: string | null,
   ) {
     const key = `${col},${row}`;
     const node = nodeMap.get(key);

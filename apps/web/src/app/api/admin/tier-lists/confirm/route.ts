@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/api-admin-auth";
+import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   normalizeTier,
@@ -59,10 +59,7 @@ const confirmSchema = z
     { message: "imageUrl is required for non-scraped ingestion methods" },
   );
 
-export async function POST(request: Request) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAdmin(async (request) => {
   const body = await request.json();
   const parsed = confirmSchema.safeParse(body);
   if (!parsed.success) {
@@ -233,11 +230,7 @@ export async function POST(request: Request) {
   // submissions can collide. Surface the error to the client so the UI can
   // prompt a retry rather than silently serving stale consensus.
   //
-  // NOTE: refresh_community_tier_consensus is defined in migration 024 but not
-  // yet reflected in the generated types. Cast to any to bypass the type-level
-  // restriction until types are regenerated.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: refreshError } = await (supabase as any).rpc(
+  const { error: refreshError } = await supabase.rpc(
     "refresh_community_tier_consensus",
   );
   let refreshWarning: string | null = null;
@@ -255,4 +248,4 @@ export async function POST(request: Request) {
     entry_count: entryRows.length,
     refreshWarning,
   });
-}
+});
