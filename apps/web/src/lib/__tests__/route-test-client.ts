@@ -8,7 +8,16 @@
  * See `apps/web/src/app/api/evaluate/route.test.ts` for the map-coach usage.
  */
 
-export type RouteHandler = (req: Request) => Promise<Response>;
+/**
+ * Route handlers in this app come in two shapes:
+ *  - `(req)` for static routes (`/api/run`, `/api/evaluate`, ...)
+ *  - `(req, ctx)` for dynamic routes where `ctx.params` is a `Promise` of
+ *    the path params (Next 16 App Router shape — see
+ *    `apps/web/src/app/api/admin/tier-lists/[id]/route.ts` for an example).
+ *
+ * The `unknown[]` rest captures both. Callers don't need to type-narrow.
+ */
+export type RouteHandler = (req: Request, ...rest: unknown[]) => Promise<Response>;
 
 export interface CallRouteOptions {
   method?: string;
@@ -16,6 +25,12 @@ export interface CallRouteOptions {
   bearerToken?: string;
   url?: string;
   headers?: Record<string, string>;
+  /**
+   * Path params for dynamic routes. Passed to the handler as the second
+   * positional arg wrapped in a `{ params: Promise }` ctx object — matching
+   * Next 16's App Router shape. Omit for static routes.
+   */
+  params?: Record<string, string | string[]>;
 }
 
 export interface CallRouteResult<T> {
@@ -52,7 +67,10 @@ export async function callRoute<T = unknown>(
   }
 
   const req = new Request(opts.url ?? DEFAULT_URL, init);
-  const res = await handler(req);
+  const ctx = opts.params
+    ? { params: Promise.resolve(opts.params) }
+    : undefined;
+  const res = ctx ? await handler(req, ctx) : await handler(req);
   const json = (await res.json()) as T;
   return { status: res.status, json };
 }

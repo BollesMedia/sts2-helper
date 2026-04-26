@@ -22,12 +22,17 @@ import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 
 // ─── Module mocks (hoisted) ─────────────────────────────────────────────
 
-// Bypass auth entirely. `withAuth` becomes a passthrough so the inner handler
-// runs as if a valid session were present. Keeping `RouteHandler`/`AuthContext`
-// re-exports preserves type-import compatibility for any consumer of this
-// module that survives the partial mock.
+// Bypass auth entirely. `withAuth` injects the resolved auth context as the
+// handler's second positional arg in production (see
+// `apps/web/src/lib/api-auth.ts`). The passthrough mirrors that signature so
+// route handlers that destructure `userId` from the second arg (e.g.
+// /api/run, /api/choice) don't crash when this mock is reused for them. Rest
+// args (Next 16 dynamic-route ctx) are forwarded so `[id]` routes work too.
 vi.mock("@/lib/api-auth", () => ({
-  withAuth: <T extends (...args: unknown[]) => unknown>(handler: T) => handler,
+  withAuth:
+    <THandler extends (...args: unknown[]) => unknown>(handler: THandler) =>
+    (req: Request, ...rest: unknown[]) =>
+      handler(req, { userId: "test-user" }, ...rest),
   requireAuth: vi.fn(async () => ({ userId: "test-user" })),
 }));
 
