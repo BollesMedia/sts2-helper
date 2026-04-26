@@ -25,6 +25,12 @@ export interface EvaluationContext {
   curseNames: string[];
   relics: { name: string; description: string }[];
   potionNames: string[];
+  /**
+   * Total potion-slot cap for the run. STS2 baseline is 2; expansion relics
+   * raise it. Used by shop scorer to decide when potions are F-tier (full)
+   * vs B-tier (open). Defaults to 2 when the mod hasn't reported it.
+   */
+  potionSlotCap: number;
   upgradeCount: number;
   deckMaturity: number;
   relicCount: number;

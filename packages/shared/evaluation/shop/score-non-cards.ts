@@ -10,6 +10,13 @@ export interface ShopNonCardItem {
   cost: number;
   description: string;
   kind?: ShopItemKind;
+  /**
+   * Whether the item is on sale. Used as a tie-break boost in sort order so
+   * a discounted item with the same tier as a full-price one rises above
+   * it. Does not change the tier itself — sales are a small signal, not a
+   * major one. Defaults to false.
+   */
+  onSale?: boolean;
 }
 
 export interface ScoredShopNonCardItem extends ShopNonCardItem {
@@ -25,6 +32,12 @@ export interface ScoreShopNonCardsInput {
   act: 1 | 2 | 3;
   goldBudget: number;
   potionCount: number;
+  /**
+   * Total potion-slot cap. Defaults to STS2 baseline of 2 if not provided.
+   * Expansion relics raise this; respecting it prevents tiering potions at
+   * B when the player can't actually pick them up.
+   */
+  potionSlotCap?: number;
 }
 
 function classifyItem(item: ShopNonCardItem): ShopItemKind {
@@ -45,6 +58,7 @@ function baseTier(
   kind: ShopItemKind,
   act: 1 | 2 | 3,
   potionCount: number,
+  potionSlotCap: number,
 ): TierLetter {
   switch (kind) {
     case "card_removal":
@@ -52,7 +66,7 @@ function baseTier(
     case "relic":
       return act === 1 ? "A" : "S";
     case "potion":
-      return potionCount >= 3 ? "F" : "B";
+      return potionCount >= potionSlotCap ? "F" : "B";
     case "other":
       return "C";
   }
@@ -75,6 +89,7 @@ function kindReason(
   kind: ShopItemKind,
   act: 1 | 2 | 3,
   potionCount: number,
+  potionSlotCap: number,
 ): string {
   switch (kind) {
     case "card_removal":
@@ -82,7 +97,9 @@ function kindReason(
     case "relic":
       return act === 1 ? "permanent power early" : "relic in peak window";
     case "potion":
-      return potionCount >= 3 ? "no open potion slot" : "situational tool";
+      return potionCount >= potionSlotCap
+        ? "no open potion slot"
+        : "situational tool";
     case "other":
       return "";
   }
@@ -91,16 +108,20 @@ function kindReason(
 export function scoreShopNonCards(
   input: ScoreShopNonCardsInput,
 ): ScoredShopNonCardItem[] {
+  const potionSlotCap = input.potionSlotCap ?? 2;
+
   const scored = input.items.map<ScoredShopNonCardItem>((item) => {
     const kind = classifyItem(item);
     const affordable = item.cost <= input.goldBudget;
     const tier: TierLetter = affordable
-      ? baseTier(kind, input.act, input.potionCount)
+      ? baseTier(kind, input.act, input.potionCount, potionSlotCap)
       : "F";
     const tv = tierToValue(tier);
-    const reasoning = affordable
-      ? `${tier}-tier · ${kindReason(kind, input.act, input.potionCount)}`
+    const baseReasoning = affordable
+      ? `${tier}-tier · ${kindReason(kind, input.act, input.potionCount, potionSlotCap)}`
       : "F-tier · not affordable";
+    const reasoning =
+      affordable && item.onSale ? `${baseReasoning} · on sale` : baseReasoning;
     return {
       ...item,
       kind,
@@ -115,6 +136,9 @@ export function scoreShopNonCards(
     if (a.tierValue !== b.tierValue) return b.tierValue - a.tierValue;
     const kd = kindRank(a.kind) - kindRank(b.kind);
     if (kd !== 0) return kd;
+    // Tie-break by sale: discounted items rank above same-tier full-price.
+    const sd = (b.onSale ? 1 : 0) - (a.onSale ? 1 : 0);
+    if (sd !== 0) return sd;
     return a.itemIndex - b.itemIndex;
   });
 

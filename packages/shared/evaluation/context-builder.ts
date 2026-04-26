@@ -58,6 +58,10 @@ export function buildEvaluationContext(
         maxEnergy: "max_energy" in statePlayer ? (statePlayer.max_energy ?? 3) : 3,
         relics,
         potions,
+        potionSlotCap:
+          "potion_slots" in statePlayer
+            ? (statePlayer.potion_slots ?? null)
+            : null,
         cardRemovalCost: null,
       };
       console.warn("[EvalContext] Using game state player as fallback (tracked player unavailable)");
@@ -70,6 +74,7 @@ export function buildEvaluationContext(
         maxEnergy: 3,
         relics: [],
         potions: [],
+        potionSlotCap: null,
         cardRemovalCost: null,
       };
     }
@@ -111,6 +116,7 @@ export function buildEvaluationContext(
     curseNames: curseCards.map((c) => c.name),
     relics: player.relics.map((r) => ({ name: r.name, description: r.description })),
     potionNames: player.potions.map((p) => p.name),
+    potionSlotCap: player.potionSlotCap ?? 2,
     upgradeCount,
     relicCount,
     deckMaturity: 0,

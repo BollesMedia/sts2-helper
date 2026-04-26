@@ -100,6 +100,12 @@ export function setupShopEvalListener() {
             itemName: r.itemName,
             tier: r.tier,
             recommendation: r.recommendation,
+            // #108: persist the phase-5 scorer breakdown into the choice
+            // log so phase-6 calibration can learn modifier weights.
+            breakdown:
+              data.compliance?.scoredOffers?.find(
+                (o: { itemId: string }) => o.itemId === r.itemId,
+              )?.breakdown ?? null,
           })),
           evalType: "shop",
           raw: data, // #98

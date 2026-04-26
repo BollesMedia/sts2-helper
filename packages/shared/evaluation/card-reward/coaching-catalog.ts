@@ -39,6 +39,11 @@ export const COACHING_CATALOG: Record<CatalogKind, CatalogEntry> = {
     upside: "Unlocks the archetype's scaling",
     downside: "Leaves the archetype without its keystone",
   },
+  deadCard: {
+    teaching: "A card whose payoff is unreachable in the current deck (e.g. a strength scaler with no strength gain) sits dead in hand for the rest of the run.",
+    upside: "Payoff condition is reachable here",
+    downside: "Dead with the current deck — no payoff path",
+  },
   baseTier: {
     teaching: "Community tier is a prior. It is not the full story once the deck takes shape.",
     upside: "Community consensus rates this well",

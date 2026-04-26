@@ -297,6 +297,7 @@ interface EvaluateRequest {
     type?: string;
     rarity?: string;
     keywords?: string[];
+    on_sale?: boolean;
   }[];
   mapPrompt?: string;
   runNarrative?: string | null;
@@ -1094,10 +1095,12 @@ export const POST = withAuth(async (request) => {
         cost: it.cost ?? 0,
         description: it.description ?? "",
         kind: mapItemTypeToKind(it.type),
+        onSale: it.on_sale ?? false,
       })),
       act: shopAct,
       goldBudget,
       potionCount,
+      potionSlotCap: context.potionSlotCap,
     });
 
     type MergedEntry = {

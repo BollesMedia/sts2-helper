@@ -4,44 +4,23 @@
  * Phase 4.5 integration smoke test (sts2-helper#46).
  *
  * Covers the AI SDK + zod + adapter boundary that the route handler depends
- * on. This is NOT a full route handler test — mocking the entire Supabase
- * surface, auth, and context builders is out of scope. Instead, it verifies
- * the runtime contract:
+ * on for the **map coach** path. The card_reward / shop LLM path was
+ * retired in #106; remaining tests in this file cover map coach only.
  *
- *   generateText + Output.object + zod schema + MockLanguageModelV3
- *     → validated output
- *     → toCardRewardEvaluation adapter
- *     → canonical CardRewardEvaluation shape
- *
- * and the strict-fail side for schema-level constraints:
- *
- *   malformed mock output (wrong types, missing required fields)
- *     → NoObjectGeneratedError
- *
- * Ranking COUNT enforcement moved out of the schema in #54 (the
- * schema-level `.refine()` rejected Claude's drift-added summary/placeholder
- * entries as hard 502s even when the real rankings were all present).
- * Count enforcement now lives in the route handler via `sanitizeRankings`,
- * which has its own unit test at
- * `packages/shared/evaluation/sanitize-rankings.test.ts`.
- *
- * Map coach (#70) uses `mapCoachOutputSchema` + `sanitizeMapCoachOutput`
- * in the same boundary; cap + clamp enforcement lives on the sanitizer, the
- * schema side stays constraint-free so Anthropic's structured-output endpoint
- * doesn't reject the emitted JSON Schema.
+ * Map coach (#70) uses `mapCoachOutputSchema` + `sanitizeMapCoachOutput`;
+ * cap + clamp enforcement lives on the sanitizer, the schema side stays
+ * constraint-free so Anthropic's structured-output endpoint doesn't reject
+ * the emitted JSON Schema.
  */
 import { describe, it, expect } from "vitest";
 import { generateText, NoObjectGeneratedError, Output } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
-import { buildCardRewardSchema } from "@sts2/shared/evaluation/eval-schemas";
-import { sanitizeCardRewardCoachOutput } from "@sts2/shared/evaluation/card-reward-coach-schema";
 import {
   mapCoachOutputSchema,
   sanitizeMapCoachOutput,
   MAP_COACH_LIMITS,
   type MapCoachOutputRaw,
 } from "@sts2/shared/evaluation/map-coach-schema";
-import { toCardRewardEvaluation } from "@sts2/shared/evaluation/parse-tool-response";
 
 // Minimal usage object matching LanguageModelV3Usage shape. The AI SDK
 // middleware flattens this to `{ inputTokens: number, outputTokens: number }`
@@ -68,189 +47,7 @@ function mockModelWithText(text: string): MockLanguageModelV3 {
 }
 
 describe("AI SDK + zod integration (Phase 4.5 smoke)", () => {
-  const items = [
-    { id: "OFFERING", name: "Offering" },
-    { id: "STRIKE", name: "Strike" },
-    { id: "DEFEND", name: "Defend" },
-  ];
 
-  describe("card_reward / shop path", () => {
-    it("validates a happy-path mock response and produces the canonical evaluation", async () => {
-      const mockOutput = {
-        rankings: [
-          { position: 1, tier: "S", confidence: 95, reasoning: "Best card" },
-          { position: 2, tier: "B", confidence: 70, reasoning: "Filler" },
-          { position: 3, tier: "C", confidence: 50, reasoning: "Mediocre" },
-        ],
-        skip_recommended: false,
-      };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildCardRewardSchema(items, false);
-
-      const result = await generateText({
-        model,
-        prompt: "evaluate these cards",
-        output: Output.object({ schema }),
-      });
-
-      const evaluation = toCardRewardEvaluation(result.output, items);
-      expect(evaluation.rankings).toHaveLength(3);
-      expect(evaluation.rankings[0]).toMatchObject({
-        itemId: "OFFERING",
-        itemName: "Offering",
-        itemIndex: 0,
-        tier: "S",
-        tierValue: 6,
-      });
-      expect(evaluation.skipRecommended).toBe(false);
-    });
-
-    it("accepts 2 of 3 rankings at the schema layer (count enforcement lives in the route handler post-#54)", async () => {
-      // Pre-#54 the schema's `.refine()` rejected this. Post-#54 the schema
-      // accepts any length (required so Claude's drift-added summary and
-      // placeholder entries don't hard-502 the real rankings), and
-      // `sanitizeRankings` in the route handler enforces the count after
-      // filtering bogus entries. Unit coverage of that enforcement lives at
-      // `packages/shared/evaluation/sanitize-rankings.test.ts`.
-      const mockOutput = {
-        rankings: [
-          { position: 1, tier: "A", confidence: 80, reasoning: "ok" },
-          { position: 2, tier: "B", confidence: 70, reasoning: "ok" },
-        ],
-        skip_recommended: false,
-      };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildCardRewardSchema(items, false);
-
-      const result = await generateText({
-        model,
-        prompt: "evaluate these cards",
-        output: Output.object({ schema }),
-      });
-      expect(result.output.rankings).toHaveLength(2);
-    });
-
-    it("throws NoObjectGeneratedError when a required field is missing", async () => {
-      const mockOutput = {
-        rankings: [
-          // Missing `tier` field
-          { position: 1, confidence: 80, reasoning: "ok" },
-          { position: 2, tier: "B", confidence: 70, reasoning: "ok" },
-          { position: 3, tier: "C", confidence: 50, reasoning: "ok" },
-        ],
-        skip_recommended: false,
-      };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildCardRewardSchema(items, false);
-
-      await expect(
-        generateText({
-          model,
-          prompt: "evaluate these cards",
-          output: Output.object({ schema }),
-        }),
-      ).rejects.toSatisfy(NoObjectGeneratedError.isInstance);
-    });
-  });
-
-  // Task 8: verify the optional `coaching` block on card_reward responses
-  // round-trips through the same AI SDK + zod + adapter boundary the route
-  // handler uses. Mirrors the existing map-coach boundary tests above.
-  describe("card_reward coaching pipeline", () => {
-    const items = [
-      { id: "OFFERING", name: "Offering" },
-      { id: "INFLAME", name: "Inflame" },
-      { id: "DEFEND", name: "Defend" },
-    ];
-
-    const validCoaching = {
-      reasoning: {
-        deck_state: "10-card starter, no archetype committed, Act 1 floor 3.",
-        commitment: "Pick a keystone this reward — card acquisition over HP.",
-      },
-      headline: "Take Inflame — only keystone offered; starts the strength engine.",
-      confidence: 0.78,
-      key_tradeoffs: [
-        { position: 1, upside: "Cheap card draw, thins deck.", downside: "Loses HP on play." },
-        { position: 2, upside: "Keystone for Strength archetype.", downside: "Dead until scaling cards appear." },
-        { position: 3, upside: "Safe, always playable.", downside: "Dead weight — 4 Defends already in deck." },
-      ],
-      teaching_callouts: [
-        { pattern: "keystone_commit", explanation: "A deck with no archetype keystone has no ceiling." },
-        { pattern: "duplicate_defend", explanation: "2+ Defends past floor 3 is overcommitted to block." },
-      ],
-    };
-
-    it("passes coaching block through to response when LLM returns it", async () => {
-      const mockOutput = {
-        rankings: [
-          { position: 1, tier: "C", confidence: 50, reasoning: "Situational." },
-          { position: 2, tier: "S", confidence: 90, reasoning: "Keystone pick." },
-          { position: 3, tier: "F", confidence: 20, reasoning: "Dead weight." },
-        ],
-        skip_recommended: false,
-        coaching: validCoaching,
-      };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildCardRewardSchema(items, false);
-
-      const result = await generateText({
-        model,
-        prompt: "evaluate these cards",
-        output: Output.object({ schema }),
-      });
-
-      expect(result.output.coaching).toBeDefined();
-      // Sanitize runs in route.ts — exercise it here so the boundary matches.
-      const sanitized = sanitizeCardRewardCoachOutput(result.output.coaching!);
-      const evaluation = toCardRewardEvaluation(
-        { ...result.output, coaching: sanitized },
-        items,
-      );
-
-      expect(evaluation.coaching).toBeDefined();
-      expect(evaluation.coaching!.headline).toContain("Inflame");
-      expect(evaluation.coaching!.reasoning.deckState).toContain("starter");
-      expect(evaluation.coaching!.reasoning.commitment).toContain("keystone");
-      expect(evaluation.coaching!.keyTradeoffs.length).toBeLessThanOrEqual(3);
-      expect(evaluation.coaching!.keyTradeoffs[0]).toEqual({
-        position: 1,
-        upside: "Cheap card draw, thins deck.",
-        downside: "Loses HP on play.",
-      });
-      expect(evaluation.coaching!.teachingCallouts.length).toBeLessThanOrEqual(3);
-      expect(evaluation.coaching!.confidence).toBeGreaterThanOrEqual(0);
-      expect(evaluation.coaching!.confidence).toBeLessThanOrEqual(1);
-      // Rankings still flow through unchanged.
-      expect(evaluation.rankings).toHaveLength(3);
-    });
-
-    it("passes through without coaching when LLM omits it (backwards compat)", async () => {
-      const mockOutput = {
-        rankings: [
-          { position: 1, tier: "B", confidence: 60, reasoning: "Fine." },
-          { position: 2, tier: "A", confidence: 80, reasoning: "Good." },
-          { position: 3, tier: "C", confidence: 40, reasoning: "Meh." },
-        ],
-        skip_recommended: false,
-      };
-      const model = mockModelWithText(JSON.stringify(mockOutput));
-      const schema = buildCardRewardSchema(items, false);
-
-      const result = await generateText({
-        model,
-        prompt: "evaluate these cards",
-        output: Output.object({ schema }),
-      });
-
-      expect(result.output.coaching).toBeUndefined();
-      const evaluation = toCardRewardEvaluation(result.output, items);
-      expect(evaluation.coaching).toBeUndefined();
-      // Rankings + skip fields still populate.
-      expect(evaluation.rankings).toHaveLength(3);
-      expect(evaluation.skipRecommended).toBe(false);
-    });
-  });
 
   describe("map coach path (#70 — mapCoachOutputSchema + sanitizer)", () => {
     const validMapCoach = {

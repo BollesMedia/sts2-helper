@@ -98,6 +98,7 @@ export function setupGameStateUpdateListener() {
           maxEnergy: energy,
           relics,
           potions,
+          potionSlotCap: "potion_slots" in p ? (p.potion_slots ?? null) : null,
           cardRemovalCost:
             state.run.runs[activeRunId]?.player?.cardRemovalCost ?? null,
         };

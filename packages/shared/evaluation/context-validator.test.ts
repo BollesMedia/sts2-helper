@@ -26,6 +26,7 @@ function makeValidContext(overrides: Partial<EvaluationContext> = {}): Evaluatio
     curseNames: [],
     relics: [{ name: "Burning Blood", description: "Heal 6 HP at end of combat" }],
     potionNames: [],
+    potionSlotCap: 2,
     upgradeCount: 3,
     deckMaturity: 0.5,
     relicCount: 1,
