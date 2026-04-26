@@ -32,12 +32,23 @@ function isNotReady(error: unknown): boolean {
 
 const MOD_INCOMPATIBLE_PATTERN = /MissingMethodException|Method not found/i;
 
+/**
+ * The Rust poller stringifies HTTP status codes via `.to_string()` before
+ * handing them off via Tauri ([game_state_poller.rs:207](../src-tauri/src/game_state_poller.rs)),
+ * so in production we receive `"500"` rather than `500`. We accept either
+ * shape so JS unit tests can use the natural number form too.
+ */
+function is5xx(status: unknown): boolean {
+  if (typeof status === "number") return status >= 500 && status < 600;
+  if (typeof status === "string") return /^5\d\d$/.test(status);
+  return false;
+}
+
 export function classifyDisconnect(error: unknown): DisconnectReason {
   if (typeof error !== "object" || error === null) return "unknown";
   const e = error as { status?: unknown; data?: unknown };
   if (
-    typeof e.status === "number" &&
-    e.status >= 500 &&
+    is5xx(e.status) &&
     typeof e.data === "string" &&
     MOD_INCOMPATIBLE_PATTERN.test(e.data)
   ) {
