@@ -4,7 +4,7 @@ import { HpBar } from "../../components/hp-bar";
 import { PlayerHand } from "../../components/player-hand";
 import { BossBriefing } from "../combat/boss-briefing";
 import { cn } from "@sts2/shared/lib/cn";
-import type { CombatState, BattlePlayer, GameState } from "@sts2/shared/types/game-state";
+import type { CombatState, BattlePlayer } from "@sts2/shared/types/game-state";
 import { getPlayer } from "@sts2/shared/types/game-state";
 import { useAppSelector } from "../../store/hooks";
 import { selectActiveDeck } from "../../features/run/runSelectors";

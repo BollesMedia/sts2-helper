@@ -2,7 +2,6 @@ import { cn } from "@sts2/shared/lib/cn";
 import { PickBanner, EvalRow, Reasoning, evalBorderClass } from "../../components/eval-card";
 import type { CardEvaluation } from "@sts2/shared/evaluation/types";
 import type { DetailedCard } from "@sts2/shared/types/game-state";
-import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 
 interface CardRatingProps {
   card: DetailedCard;

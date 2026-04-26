@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateText, Output } from "ai";
 import { google } from "@ai-sdk/google";
-import { requireAdmin } from "@/lib/api-admin-auth";
+import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   tierExtractionSchema,
@@ -24,10 +24,7 @@ const ALLOWED_MIME_TO_EXT: Record<string, string> = {
 };
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024; // 25 MB — matches next.config proxyClientMaxBodySize
 
-export async function POST(request: Request) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAdmin(async (request) => {
   const formData = await request.formData();
   const file = formData.get("image");
   if (!(file instanceof File)) {
@@ -149,4 +146,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
+});

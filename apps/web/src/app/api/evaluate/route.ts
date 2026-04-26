@@ -46,7 +46,7 @@ import type { TierLetter } from "@sts2/shared/evaluation/tier-utils";
 import { getRunHistoryContext } from "@/evaluation/run-history-context";
 import { logEvaluation } from "@sts2/shared/evaluation/evaluation-logger";
 import { logUsage } from "@/lib/usage-logger";
-import { requireAuth } from "@/lib/api-auth";
+import { withAuth } from "@/lib/api-auth";
 import { getCharacterStrategy } from "@/evaluation/strategy/character-strategies";
 
 // ─── Trailing-comma repair for LLM-generated JSON ───
@@ -328,10 +328,7 @@ interface EvaluateRequest {
   };
 }
 
-export async function POST(request: Request) {
-  const auth = await requireAuth();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAuth(async (request) => {
   const body: EvaluateRequest = await request.json();
   const { type, context, items, runId, gameVersion } = body;
 
@@ -1217,4 +1214,4 @@ export async function POST(request: Request) {
     { error: "Evaluation pipeline misconfigured — no handler matched" },
     { status: 500 }
   );
-}
+});

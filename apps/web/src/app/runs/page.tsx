@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@sts2/shared/supabase/client";
@@ -81,12 +82,12 @@ function RunsPageContent() {
       <header className="border-b border-zinc-800 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <a
+            <Link
               href="/"
               className="text-sm font-semibold text-zinc-100 tracking-tight hover:text-zinc-300 transition-colors"
             >
               STS2
-            </a>
+            </Link>
             <div className="h-4 w-px bg-zinc-800" />
             <span className="text-sm font-medium text-zinc-300">
               Run History

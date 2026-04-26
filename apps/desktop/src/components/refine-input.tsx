@@ -19,8 +19,6 @@ export function RefineInput({
   originalContext,
   originalResponse,
 }: RefineInputProps) {
-  // Dev-only tool for tuning prompts — hidden in production
-  if (process.env.NODE_ENV !== "development") return null;
   const [messages, setMessages] = useState<RefineMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +65,9 @@ Respond to the user's follow-up. Be concise (2-3 sentences). Respond as JSON:
       inputRef.current?.focus();
     }
   }, [input, isLoading, messages, originalContext, originalResponse]);
+
+  // Dev-only tool for tuning prompts — hidden in production
+  if (process.env.NODE_ENV !== "development") return null;
 
   return (
     <div className="space-y-3">

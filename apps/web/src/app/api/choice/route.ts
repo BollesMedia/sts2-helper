@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/api-auth";
+import { withAuth } from "@/lib/api-auth";
 
 export const choiceSchema = z.object({
   runId: z.string().nullable().optional(),
@@ -21,10 +21,7 @@ export const choiceSchema = z.object({
   runStateSnapshot: z.unknown().nullable().optional(),
 });
 
-export async function POST(request: Request) {
-  const auth = await requireAuth();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAuth(async (request, { userId }) => {
   const body = await request.json();
   const result = choiceSchema.safeParse(body);
   if (!result.success) {
@@ -45,7 +42,7 @@ export async function POST(request: Request) {
     sequence: d.sequence ?? 0,
     offered_item_ids: d.offeredItemIds,
     chosen_item_id: d.chosenItemId ?? null,
-    user_id: auth.userId,
+    user_id: userId,
     recommended_item_id: d.recommendedItemId ?? null,
     recommended_tier: d.recommendedTier ?? null,
     was_followed: d.wasFollowed ?? null,
@@ -67,4 +64,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ success: true });
-}
+});

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/api-admin-auth";
+import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Json } from "@sts2/shared/types/database.types";
 
@@ -40,12 +40,11 @@ const patchSchema = z.object({
     .optional(),
 });
 
-export async function PATCH(
-  request: Request,
+export const PATCH = withAdmin(async (
+  request,
+  _auth,
   { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
+) => {
 
   const { id } = await params;
   const body = await request.json();
@@ -115,8 +114,7 @@ export async function PATCH(
 
   // Refresh the consensus MV. Best-effort — surface a warning but don't fail
   // the patch (data is already correct in the source rows).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: refreshError } = await (supabase as any).rpc(
+  const { error: refreshError } = await supabase.rpc(
     "refresh_community_tier_consensus",
   );
   let refreshWarning: string | null = null;
@@ -129,4 +127,4 @@ export async function PATCH(
   }
 
   return NextResponse.json({ success: true, refreshWarning });
-}
+});

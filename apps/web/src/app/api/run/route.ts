@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/api-auth";
+import { withAuth } from "@/lib/api-auth";
 
 const startSchema = z.object({
   action: z.literal("start"),
@@ -29,10 +29,7 @@ const endSchema = z.object({
   runIdSource: z.enum(["save_file", "client_fallback"]).nullable().optional(),
 });
 
-export async function POST(request: Request) {
-  const auth = await requireAuth();
-  if ("error" in auth) return auth.error;
-
+export const POST = withAuth(async (request, { userId }) => {
   const body = await request.json();
   const supabase = createServiceClient();
 
@@ -59,7 +56,7 @@ export async function POST(request: Request) {
           ascension_level: d.ascension ?? 0,
           game_version: d.gameVersion ?? null,
           game_mode: d.gameMode ?? "singleplayer",
-          user_id: auth.userId,
+          user_id: userId,
           run_id_source: d.runIdSource ?? null,
         },
         { onConflict: "run_id" },
@@ -112,4 +109,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-}
+});

@@ -11,7 +11,6 @@ import {
   hasRun,
   getPlayer,
   type GameState,
-  type CombatCard,
 } from "@sts2/shared/types/game-state";
 import { getUserId } from "@sts2/shared/lib/get-user-id";
 import { detectCardRewardOutcome } from "@sts2/shared/choice-detection/detect-card-reward-outcome";

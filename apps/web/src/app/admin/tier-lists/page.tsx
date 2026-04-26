@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useRef, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { useAuth } from "@/features/auth/auth-provider";
@@ -453,12 +454,12 @@ function TierListContent() {
       <header className="border-b border-zinc-800 px-6 py-3">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center gap-4">
-            <a
+            <Link
               href="/"
               className="text-sm font-semibold text-zinc-100 tracking-tight hover:text-zinc-300 transition-colors"
             >
               STS2 Replay
-            </a>
+            </Link>
             <div className="h-4 w-px bg-zinc-800" />
             <span className="text-sm font-medium text-zinc-300">Admin</span>
             <div className="h-4 w-px bg-zinc-800" />
@@ -1807,6 +1808,7 @@ function CardCombobox({
 
   // Sync external value changes (e.g. "Unmatch" button)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setQuery(value || "");
   }, [value]);
 

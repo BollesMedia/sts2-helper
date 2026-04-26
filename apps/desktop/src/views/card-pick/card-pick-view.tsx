@@ -1,6 +1,5 @@
 "use client";
 
-import { cn } from "@sts2/shared/lib/cn";
 import type { CardRewardState } from "@sts2/shared/types/game-state";
 import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { CardRating } from "./card-rating";

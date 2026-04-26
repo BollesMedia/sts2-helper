@@ -12,6 +12,12 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "../../packages/shared/choice-detection/**/*.test.{ts,tsx}",
+      "../../packages/shared/evaluation/**/*.test.{ts,tsx}",
+      "../../packages/shared/lib/**/*.test.{ts,tsx}",
+      "../../packages/shared/tier-sources/**/*.test.{ts,tsx}",
+    ],
   },
 });

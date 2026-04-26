@@ -12,7 +12,6 @@ import {
   getPlayer,
   hasRun,
   type GameState,
-  type BattlePlayer,
   type ShopState,
   type MapState,
 } from "@sts2/shared/types/game-state";

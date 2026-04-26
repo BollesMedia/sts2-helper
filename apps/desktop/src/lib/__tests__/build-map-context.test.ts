@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildMapContext } from "../build-map-context";
-import { createMapState, TEST_NODES, TEST_BOSS } from "../../__tests__/fixtures/map-state";
+import { createMapState, TEST_BOSS } from "../../__tests__/fixtures/map-state";
 
 describe("buildMapContext", () => {
   describe("hasEliteAhead", () => {
