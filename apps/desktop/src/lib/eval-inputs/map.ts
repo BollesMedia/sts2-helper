@@ -114,7 +114,10 @@ export { computeMapContentKey } from "@sts2/shared/evaluation/map-content-key";
  *     existing ones, e.g. `Rest` ↔ `RestSite`) before this mapping is updated.
  *     A throw here would break the entire scorer pipeline for any user on a
  *     newer build; the `"unknown"` token lets path enumeration continue and
- *     the scorer simply treats unmapped nodes as neutral.
+ *     the scorer treats unmapped nodes as event-equivalent (bucketed with
+ *     `event` in `score-paths.ts:countUnknowns` and rendered as "Event" in
+ *     `derive-branches.ts:nodeLabel`) — they're counted toward path-risk
+ *     but not filtered out.
  *   - Repair-time tolerance: when this fed `repair-macro-path.ts`, the repair
  *     pass needed to accept partially-known maps without aborting — the
  *     `"unknown"` value is a recognised schema member (see `nodeTypeEnum`)
