@@ -10,10 +10,11 @@ interface LastEvaluation {
   allRankings: { itemId: string; itemName: string; tier: string; recommendation: string }[];
   evalType: string;
   /**
-   * Full raw evaluation payload for consumers that need more than the
-   * reduced-for-choice-tracking summary above. Phase-2 calibration reads
-   * this to recover the coach's full reasoning/branches/callouts for map
-   * evals where `allRankings` is intrinsically empty. See #78.
+   * Map-only: full raw evaluation payload (reasoning / branches / callouts /
+   * scoredPaths). The map choice-logging path reads this into
+   * `rankingsSnapshot` because `allRankings` is intrinsically empty for map
+   * evals. See #78. Other eval types must not set this — `allRankings` is
+   * the canonical choice-tracker shape for ranked evaluations.
    */
   raw?: unknown;
 }

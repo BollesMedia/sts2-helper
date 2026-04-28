@@ -209,6 +209,7 @@ function seedRun(
       maxEnergy: 3,
       relics: [{ id: "burning_blood", name: "Burning Blood", description: "Heal 6 at end of combat." }],
       potions: [],
+      potionSlotCap: null,
       cardRemovalCost: 75,
     }),
   );

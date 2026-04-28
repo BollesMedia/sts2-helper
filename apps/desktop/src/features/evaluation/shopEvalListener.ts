@@ -108,7 +108,6 @@ export function setupShopEvalListener() {
               )?.breakdown ?? null,
           })),
           evalType: "shop",
-          raw: data, // #98
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: data }));
