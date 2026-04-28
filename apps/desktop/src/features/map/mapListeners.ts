@@ -404,7 +404,7 @@ export function setupMapEvalListener() {
       listenerApi.dispatch(mapEvalUpdated({ ...preEval, bestPathNodes: preEval.recommendedNodes }));
 
       try {
-        const { prompt: mapPrompt, runState, compliance: mapCompliance } = buildMapPrompt({
+        const { prompt: mapPrompt, compliance: mapCompliance } = buildMapPrompt({
           context: ctx,
           state: mapState,
           cardRemovalCost: player?.cardRemovalCost ?? null,
