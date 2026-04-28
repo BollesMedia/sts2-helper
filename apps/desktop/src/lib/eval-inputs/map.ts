@@ -100,6 +100,33 @@ export function computeMapEvalKey(options: MapNextOption[]): string {
 
 export { computeMapContentKey } from "@sts2/shared/evaluation/map-content-key";
 
+/**
+ * Map a raw STS2 node `type` string to the lowercase token the scorer +
+ * map-coach schema use (see `nodeTypeEnum` in
+ * `packages/shared/evaluation/map-coach-schema.ts`).
+ *
+ * The `default` branch silently falls through to `"unknown"` rather than
+ * throwing. This logic originated in the now-deleted `repair-macro-path.ts`
+ * LLM-drift repair pipeline (referenced in the file header above) and the
+ * silent fallback is intentional:
+ *
+ *   - Game-data drift: STS2 may introduce new node `type` strings (or rename
+ *     existing ones, e.g. `Rest` ↔ `RestSite`) before this mapping is updated.
+ *     A throw here would break the entire scorer pipeline for any user on a
+ *     newer build; the `"unknown"` token lets path enumeration continue and
+ *     the scorer treats unmapped nodes as event-equivalent (bucketed with
+ *     `event` in `score-paths.ts:countUnknowns` and rendered as "Event" in
+ *     `derive-branches.ts:nodeLabel`) — they're counted toward path-risk
+ *     but not filtered out.
+ *   - Repair-time tolerance: when this fed `repair-macro-path.ts`, the repair
+ *     pass needed to accept partially-known maps without aborting — the
+ *     `"unknown"` value is a recognised schema member (see `nodeTypeEnum`)
+ *     specifically so it round-trips cleanly through validation.
+ *
+ * If you need visibility into unmapped types, add an entry to
+ * `REPAIR_REASON_KINDS` in `packages/shared/evaluation/map/compliance-report.ts`
+ * and surface it via the compliance block rather than throwing here.
+ */
 function mapNodeTypeToToken(type: string): CandidatePath["nodes"][number]["type"] {
   switch (type) {
     case "Monster":
