@@ -155,7 +155,6 @@ export function setupRestSiteEvalListener() {
             recommendation: r.recommendation,
           })),
           evalType: "rest_site",
-          raw: evaluation, // #98
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: evaluation }));

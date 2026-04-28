@@ -9,13 +9,6 @@ interface LastEvaluation {
   reasoning: string;
   allRankings: { itemId: string; itemName: string; tier: string; recommendation: string }[];
   evalType: string;
-  /**
-   * Full raw evaluation payload for consumers that need more than the
-   * reduced-for-choice-tracking summary above. Phase-2 calibration reads
-   * this to recover the coach's full reasoning/branches/callouts for map
-   * evals where `allRankings` is intrinsically empty. See #78.
-   */
-  raw?: unknown;
 }
 
 const registry = new Map<string, LastEvaluation>();
