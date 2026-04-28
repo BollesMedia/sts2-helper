@@ -48,10 +48,11 @@ describe("shouldEvaluateMap — triggers", () => {
     expect(shouldEvaluateMap(base({ isStartOfAct: true, ancientHealResolved: true }))).toBe(true);
   });
 
-  it("does NOT trigger off-path when the next row is forced (single option)", () => {
-    // Previously condition fired here and produced a useless re-plan because
-    // the next move is determined; issue #115 defers to the next fork.
-    expect(shouldEvaluateMap(base({ isOnRecommendedPath: false }))).toBe(false);
+  it("triggers off-path even when the next row is forced (single option)", () => {
+    // Off-path deviation is a first-class trigger: re-plan immediately so the
+    // recommendation reflects the player's actual position rather than waiting
+    // for the next meaningful fork.
+    expect(shouldEvaluateMap(base({ isOnRecommendedPath: false }))).toBe(true);
   });
 
   it("triggers off-path when the next row is a meaningful fork", () => {
