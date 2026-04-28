@@ -111,7 +111,6 @@ export function setupEventEvalListener() {
             recommendation: r.recommendation,
           })),
           evalType: "event",
-          raw: evaluation, // #98
         });
 
         listenerApi.dispatch(evalSucceeded({ evalType: EVAL_TYPE, evalKey, result: evaluation }));

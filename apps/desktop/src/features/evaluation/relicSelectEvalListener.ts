@@ -87,7 +87,6 @@ export function setupRelicSelectEvalListener() {
               recommendation: r.recommendation,
             })),
             evalType: "boss_relic",
-            raw: evaluation, // #98
           });
         }
 

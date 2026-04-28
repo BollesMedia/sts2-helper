@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-// The desktop listener registers the full parsed evaluate response via
-// `registerLastEvaluation("map", { raw: parsed, ... })`, and the
-// choice-logging path reads that raw payload into `rankingsSnapshot`
-// on /api/choice writes. Task 8 stashes `scoredPaths` in the
-// `compliance` field of the response; this test pins the shape so a
-// future schema change can't silently drop the telemetry.
+// Task 8 stashes `scoredPaths` in the `compliance` field of the map
+// evaluate response. This test pins the shape so a future schema change
+// can't silently drop the telemetry — the scorer breakdown is recoverable
+// from JSONL dev-session logs even though it no longer flows through the
+// in-memory `LastEvaluation` registry.
 
 describe("map_node choice telemetry", () => {
   it("stashes scoredPaths inside the raw response payload", () => {

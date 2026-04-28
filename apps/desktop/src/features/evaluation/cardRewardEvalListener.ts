@@ -140,10 +140,6 @@ export function setupCardRewardEvalListener() {
               )?.breakdown ?? null,
           })),
           evalType: "card_reward",
-          // #98: preserve the full coaching block for phase-2 calibration.
-          // `allRankings` is the reduced shape the choice tracker needs;
-          // `raw` carries reasoning / headline / tradeoffs / callouts.
-          raw: data,
         });
 
         // Backfill: if user acted before eval completed, upsert recommendation data
