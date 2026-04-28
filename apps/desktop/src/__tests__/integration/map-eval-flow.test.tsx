@@ -33,7 +33,7 @@ import type { MapState, MultiplayerFields } from "@sts2/shared/types/game-state"
 // We capture calls and return a canned `mapCoachOutputSchema`-shaped payload
 // for `/api/evaluate`; everything else returns a benign empty 200 so
 // non-target endpoints (logChoice, etc.) don't blow up on `res.json()`.
-const { apiFetchMock, mapEvaluatePayload } = vi.hoisted(() => {
+const { apiFetchMock } = vi.hoisted(() => {
   const mapEvaluatePayload = {
     reasoning: {
       risk_capacity: "Moderate HP buffer; can take one elite this floor.",
@@ -67,7 +67,7 @@ const { apiFetchMock, mapEvaluatePayload } = vi.hoisted(() => {
       json: async () => ({}),
     } as unknown as Response;
   });
-  return { apiFetchMock, mapEvaluatePayload };
+  return { apiFetchMock };
 });
 
 vi.mock("@sts2/shared/lib/api-client", () => ({
