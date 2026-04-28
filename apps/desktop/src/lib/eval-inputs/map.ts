@@ -195,9 +195,14 @@ function enumerateAllPaths(
 /**
  * Build the map evaluation prompt — run-state facts block + reasoning scaffold.
  *
- * Returns both the prompt string and the computed `RunState` so the caller can
- * forward the snapshot to `/api/evaluate` (for echo into the response) and
- * ultimately to `/api/choice` for persistence in `choices.run_state_snapshot`.
+ * Returns the prompt string, the computed `RunState`, and the full
+ * `MapComplianceInputs` bundle. The caller forwards the snapshot to
+ * `/api/evaluate` (for echo into the response) and ultimately to
+ * `/api/choice` for persistence — since #79 the persisted shape in
+ * `choices.run_state_snapshot` is the full `MapComplianceInputs` bundle
+ * (not bare `RunState`), so `apps/web/scripts/map-coach-backtest.ts` can
+ * re-run `scorePaths` on historical rows to evaluate v2 vs v1 vs the
+ * user's actual pick.
  */
 export function buildMapPrompt(params: {
   context: EvaluationContext;

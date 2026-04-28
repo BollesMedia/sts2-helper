@@ -146,6 +146,9 @@ async function main() {
   let replayable = 0;
   let unreplayableLegacy = 0;
   let unreplayableMissingId = 0;
+  // Snapshot defect — winner had no `nodeId`. Tracked separately from
+  // `scorerError` so a real scorer regression isn't drowned in noise.
+  let unreplayableMissingNodeId = 0;
   let scorerError = 0;
 
   for (const row of typedRows) {
@@ -162,6 +165,9 @@ async function main() {
     const snap = row.run_state_snapshot;
     let v2Recommendation: string | null = null;
     try {
+      // `MapComplianceInputs.cardRemovalCost` is `number` (non-nullable),
+      // so persisted bundles always carry a real value. The `?? 75` is
+      // defensive in case a row was hand-edited; should never fire.
       const scored = scorePaths(snap.enrichedPaths, snap.runState, {
         cardRemovalCost: snap.cardRemovalCost ?? 75,
       });
@@ -177,7 +183,11 @@ async function main() {
     }
 
     if (!v2Recommendation) {
-      scorerError++;
+      // Distinct from `scorerError` — the scorer ran cleanly, the winner
+      // just lacked a `nodeId`. Astronomically unlikely on real data
+      // (`enumerateAllPaths` always sets it); flagging it separately so
+      // a real scorer regression isn't drowned in noise.
+      unreplayableMissingNodeId++;
       continue;
     }
 
@@ -213,7 +223,8 @@ async function main() {
     `| Replayed (v2 score ran) | ${replayable} | ${replayPct}% |`,
     `| Unreplayable — legacy persistence (no \`enrichedPaths\`) | ${unreplayableLegacy} | ${((unreplayableLegacy / totalRows) * 100).toFixed(1)}% |`,
     `| Unreplayable — missing \`chosen_item_id\` | ${unreplayableMissingId} | ${((unreplayableMissingId / totalRows) * 100).toFixed(1)}% |`,
-    `| Scorer error / null winner | ${scorerError} | ${((scorerError / totalRows) * 100).toFixed(1)}% |`,
+    `| Unreplayable — winner had no \`nodeId\` (snapshot defect) | ${unreplayableMissingNodeId} | ${((unreplayableMissingNodeId / totalRows) * 100).toFixed(1)}% |`,
+    `| Scorer error | ${scorerError} | ${((scorerError / totalRows) * 100).toFixed(1)}% |`,
     ``,
     `## v2 buckets (over replayed rows)`,
     ``,
