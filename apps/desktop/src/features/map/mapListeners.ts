@@ -45,6 +45,16 @@ const EVAL_TYPE = "map" as const;
  * at when they decided). Good enough for phase 1 persistence; a tighter
  * guarantee would require pairing the snapshot with the evalKey.
  */
+/**
+ * Cache of the per-run compliance bundle (runState + enrichedPaths +
+ * candidate-set fingerprints) used to populate `runStateSnapshot` on
+ * `/api/choice`. Persisting the full compliance — not just the RunState —
+ * is what makes #79's backtest replay possible: with `enrichedPaths`
+ * captured at choice time, `scorePaths` can re-run on historical rows.
+ *
+ * Type is `unknown` to keep the listener decoupled from the eval-inputs
+ * type surface; runtime shape is `MapComplianceInputs`.
+ */
 const lastMapRunState = new Map<string, unknown>();
 
 /**
@@ -140,7 +150,10 @@ export function setupMapEvalListener() {
               state: mapState,
               cardRemovalCost: eagerPlayer?.cardRemovalCost ?? null,
             });
-            lastMapRunState.set(activeRunIdForEagerCache, eagerRunState);
+            // #79: persist the full compliance bundle (not just runState)
+            // so `enrichedPaths` survive into `choices.run_state_snapshot`
+            // for backtest replay.
+            lastMapRunState.set(activeRunIdForEagerCache, eagerComplianceData);
             eagerCompliance = { runState: eagerRunState, compliance: eagerComplianceData };
           }
         } catch {
@@ -391,16 +404,18 @@ export function setupMapEvalListener() {
       listenerApi.dispatch(mapEvalUpdated({ ...preEval, bestPathNodes: preEval.recommendedNodes }));
 
       try {
-        const { prompt: mapPrompt, runState, compliance: mapCompliance } = buildMapPrompt({
+        const { prompt: mapPrompt, compliance: mapCompliance } = buildMapPrompt({
           context: ctx,
           state: mapState,
           cardRemovalCost: player?.cardRemovalCost ?? null,
         });
 
-        // Cache the computed run-state for the map_node choice write path.
+        // Cache the full compliance bundle for the map_node choice write
+        // path. Using the bundle (not just runState) means enrichedPaths
+        // survive into the persisted snapshot — required for #79 replay.
         const activeRunIdForCache = state.run.activeRunId;
         if (activeRunIdForCache) {
-          lastMapRunState.set(activeRunIdForCache, runState);
+          lastMapRunState.set(activeRunIdForCache, mapCompliance);
         }
 
         logDevEvent("eval", "map_api_request", {
@@ -558,7 +573,8 @@ export function setupMapEvalListener() {
               chosenItemId: pendingMapNode.chosenItemId,
               offeredItemIds: [],
               userId: getUserId(),
-              runStateSnapshot: runState,
+              // #79: persist full compliance (incl. enrichedPaths) for backtest replay.
+              runStateSnapshot: mapCompliance,
             })
           );
 
