@@ -41,9 +41,8 @@ export function toCardRewardEvaluation(
     };
   });
 
-  // `spending_plan` only exists when `includeShopPlan` was passed to
-  // `buildCardRewardSchema`. Use a runtime check rather than narrowing
-  // through a discriminated union to keep the adapter small.
+  // `spending_plan` is shop-only — null on card_reward responses. Runtime
+  // check rather than schema-level discrimination keeps the adapter small.
   const spendingPlan =
     "spending_plan" in parsed && typeof parsed.spending_plan === "string"
       ? parsed.spending_plan

@@ -32,12 +32,36 @@ describe("scoreShopNonCards", () => {
     expect(act2[0].tier).toBe("S");
   });
 
-  it("ranks potions as B when slots are open, F when full", () => {
+  it("ranks potions as B when slots are open, F when full (default cap = 2)", () => {
     const items = [item({ itemName: "Strength Potion", description: "Gain strength" })];
     const open = scoreShopNonCards({ items, act: 1, goldBudget: 200, potionCount: 0 });
-    const full = scoreShopNonCards({ items, act: 1, goldBudget: 200, potionCount: 3 });
+    const full = scoreShopNonCards({ items, act: 1, goldBudget: 200, potionCount: 2 });
     expect(open[0].tier).toBe("B");
     expect(full[0].tier).toBe("F");
+  });
+
+  it("respects an explicit potionSlotCap higher than the baseline (expansion relics)", () => {
+    const items = [item({ itemName: "Strength Potion", description: "Gain strength" })];
+    // potionCount=2 is full at baseline cap=2 → F. With expansion relic
+    // raising cap to 4, two filled slots leave headroom → B.
+    const expanded = scoreShopNonCards({
+      items,
+      act: 1,
+      goldBudget: 200,
+      potionCount: 2,
+      potionSlotCap: 4,
+    });
+    expect(expanded[0].tier).toBe("B");
+  });
+
+  it("breaks ties by lifting on-sale items above same-tier full-price ones", () => {
+    const items = [
+      item({ itemIndex: 1, itemName: "Strength Potion", description: "Gain strength", cost: 50 }),
+      item({ itemIndex: 2, itemName: "Block Potion", description: "Gain block", cost: 30, onSale: true }),
+    ];
+    const result = scoreShopNonCards({ items, act: 1, goldBudget: 200, potionCount: 0 });
+    expect(result[0].itemName).toBe("Block Potion");
+    expect(result[0].reasoning).toContain("on sale");
   });
 
   it("forces F tier and affordable=false when the cost exceeds the gold budget", () => {

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { cardRewardCoachingSchema } from "./card-reward-coach-schema";
 
 /**
  * Zod schemas for AI eval responses, shared between the web route handler
@@ -150,38 +149,46 @@ export const cardRewardRankingSchema = z.object({
 });
 export type CardRewardRankingRaw = z.infer<typeof cardRewardRankingSchema>;
 
-interface CardRewardItem {
-  name: string;
-}
+/**
+ * Coaching block surfaced by the card-pick UI alongside the per-card
+ * rankings. The LLM-produced variant is no longer emitted (PR #106 retired
+ * that path), but the field is still consumed by `card-pick-view` to gate
+ * legacy summary vs. coaching display, and inlined here so the type stays
+ * stable for downstream consumers + future scorer-emitted coaching.
+ */
+const cardRewardCoachingShape = z.object({
+  reasoning: z.object({
+    deck_state: z.string().min(1),
+    commitment: z.string().min(1),
+  }),
+  headline: z.string().min(1),
+  confidence: z.number(),
+  key_tradeoffs: z.array(
+    z.object({
+      position: z.number(),
+      upside: z.string(),
+      downside: z.string(),
+    }),
+  ),
+  teaching_callouts: z.array(
+    z.object({
+      pattern: z.string(),
+      explanation: z.string(),
+    }),
+  ),
+});
 
 /**
- * Per-call schema for card_reward and shop evals. Embeds exact item position
- * labels in the `rankings` description (mirroring the inline tool schema at
- * `route.ts:479-507`). Does NOT enforce count at the schema level — see the
- * "strict-fail count enforcement" note in the header.
+ * Static schema for card_reward + shop eval responses. Replaces the
+ * dynamically-built per-call factory removed when the LLM card-reward path
+ * was retired (#106). Count enforcement and shop-vs-card discrimination
+ * happen post-parse in the route handler.
  */
-export function buildCardRewardSchema(items: CardRewardItem[], includeShopPlan: boolean) {
-  const baseShape = {
-    rankings: z
-      .array(cardRewardRankingSchema)
-      .describe(
-        `Exactly ${items.length} ranking objects, one per offered item. ` +
-          `Use position values 1 through ${items.length} in this EXACT order: ${items
-            .map((it, i) => `${i + 1}=${it.name}`)
-            .join(", ")}. ` +
-          `Do NOT add placeholder entries. Do NOT include a position 0 summary entry. ` +
-          `If skipping all, still return one ranking per item with the skip reason in each \`reasoning\`.`,
-      ),
-    skip_recommended: z.boolean(),
-    skip_reasoning: z.string().nullish(),
-    coaching: cardRewardCoachingSchema.optional(),
-  };
-
-  return includeShopPlan
-    ? z.object({
-        ...baseShape,
-        spending_plan: z.string().nullish(),
-      })
-    : z.object(baseShape);
-}
-export type CardRewardEvalRaw = z.infer<ReturnType<typeof buildCardRewardSchema>>;
+export const cardRewardEvalSchema = z.object({
+  rankings: z.array(cardRewardRankingSchema),
+  skip_recommended: z.boolean(),
+  skip_reasoning: z.string().nullish(),
+  spending_plan: z.string().nullish(),
+  coaching: cardRewardCoachingShape.optional(),
+});
+export type CardRewardEvalRaw = z.infer<typeof cardRewardEvalSchema>;

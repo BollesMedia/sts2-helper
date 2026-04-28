@@ -297,6 +297,7 @@ interface EvaluateRequest {
     type?: string;
     rarity?: string;
     keywords?: string[];
+    on_sale?: boolean;
   }[];
   mapPrompt?: string;
   runNarrative?: string | null;
@@ -1094,10 +1095,12 @@ export const POST = withAuth(async (request) => {
         cost: it.cost ?? 0,
         description: it.description ?? "",
         kind: mapItemTypeToKind(it.type),
+        onSale: it.on_sale ?? false,
       })),
       act: shopAct,
       goldBudget,
       potionCount,
+      potionSlotCap: context.potionSlotCap,
     });
 
     type MergedEntry = {
@@ -1174,6 +1177,25 @@ export const POST = withAuth(async (request) => {
             tier: o.tier,
             tierValue: o.tierValue,
             breakdown: o.breakdown,
+          })),
+          // Shop non-card items (potions, relics, removal) lack a modifier
+          // stack but still need a breakdown so phase-6 calibration can
+          // learn from them. Synthesize a no-modifier breakdown carrying
+          // the deterministic kind/affordability reasoning from the
+          // non-card scorer; without this, ~half the shop offer space
+          // logs as `breakdown: null` in `choices.rankings_snapshot`.
+          ...nonCardScored.map((o, i) => ({
+            itemId: o.itemId,
+            rank: cardScored.offers.length + i + 1,
+            tier: o.tier,
+            tierValue: o.tierValue,
+            breakdown: {
+              baseTier: o.tier,
+              modifiers: [],
+              adjustedTier: o.tier,
+              tierValue: o.tierValue,
+              topReason: o.reasoning,
+            },
           })),
         ],
       },

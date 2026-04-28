@@ -13,6 +13,7 @@ export interface TrackedPlayer {
   maxEnergy: number;
   relics: { id: string; name: string; description: string }[];
   potions: { name: string; description: string }[];
+  potionSlotCap: number | null;
   cardRemovalCost: number | null;
 }
 

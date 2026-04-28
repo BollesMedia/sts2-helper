@@ -132,6 +132,12 @@ export function setupCardRewardEvalListener() {
             itemName: r.itemName,
             tier: r.tier,
             recommendation: r.recommendation,
+            // #108: persist the phase-5 scorer breakdown into the choice
+            // log so phase-6 calibration can learn modifier weights.
+            breakdown:
+              data.compliance?.scoredOffers?.find(
+                (o: { itemId: string }) => o.itemId === r.itemId,
+              )?.breakdown ?? null,
           })),
           evalType: "card_reward",
           // #98: preserve the full coaching block for phase-2 calibration.
@@ -153,6 +159,11 @@ export function setupCardRewardEvalListener() {
                 itemName: r.itemName,
                 tier: r.tier,
                 recommendation: r.recommendation,
+                // #108: same breakdown enrichment as the registry path above.
+                breakdown:
+                  data.compliance?.scoredOffers?.find(
+                    (o: { itemId: string }) => o.itemId === r.itemId,
+                  )?.breakdown ?? null,
               })),
             },
             pending

@@ -22,6 +22,7 @@ const baseContext: EvaluationContext = {
   curseNames: [],
   relics: [],
   potionNames: [],
+  potionSlotCap: 2,
   upgradeCount: 3,
   deckMaturity: 0.5,
   relicCount: 1,

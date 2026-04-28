@@ -13,6 +13,11 @@ export const MODIFIER_DELTAS = {
   winRatePickStrong: 1,
   winRateSkipStrong: -1,
   actThreeOffArchetype: -1,
+  // Sized larger than the off-archetype penalty so a scaling card whose
+  // payoff is unreachable in the current deck (e.g. a strength scaler with
+  // no strength gain) tiers below a neutral off-archetype card at the same
+  // base community tier.
+  deadCard: -2,
 } as const;
 
 export const WIN_RATE_MIN_N = 20;
@@ -24,7 +29,8 @@ export type ModifierKind =
   | "duplicate"
   | "winRateDelta"
   | "actTiming"
-  | "keystoneOverride";
+  | "keystoneOverride"
+  | "deadCard";
 
 export interface Modifier {
   kind: ModifierKind;
@@ -83,6 +89,23 @@ function archetypeFitModifier(
     };
   }
 
+  // On-archetype hit when uncommitted but the offer fits a viable
+  // archetype. Nudges commitment forward — mirrors the on-archetype
+  // committed branch but for early-deck state where no archetype has
+  // crossed the commitment threshold yet.
+  if (!committed && viable.length > 0) {
+    const viableHit = viable.find((v) =>
+      offer.tags.fitsArchetypes.includes(v.name),
+    );
+    if (viableHit) {
+      return {
+        kind: "archetypeFit",
+        delta: MODIFIER_DELTAS.archetypeFitOn,
+        reason: `on-archetype for ${viableHit.name} (uncommitted)`,
+      };
+    }
+  }
+
   // On-archetype for committed deck.
   if (committed && offer.tags.fitsArchetypes.includes(committed)) {
     return {
@@ -110,6 +133,15 @@ function duplicateModifier(offer: TaggedOffer): Modifier | null {
     kind: "duplicate",
     delta: MODIFIER_DELTAS.duplicateNonCore,
     reason: "duplicate non-core",
+  };
+}
+
+function deadCardModifier(offer: TaggedOffer): Modifier | null {
+  if (!offer.tags.deadWithCurrentDeck) return null;
+  return {
+    kind: "deadCard",
+    delta: MODIFIER_DELTAS.deadCard,
+    reason: "dead with current deck",
   };
 }
 
@@ -188,6 +220,7 @@ export function computeModifiers(input: ComputeModifiersInput): ModifierBreakdow
     deckGapModifier(input.offer, input.deckState),
     winRateModifier(input.winRate),
     actTimingModifier(input.offer, input.deckState),
+    deadCardModifier(input.offer),
   ];
   const modifiers = candidates.filter((m): m is Modifier => m !== null);
 
@@ -195,8 +228,13 @@ export function computeModifiers(input: ComputeModifiersInput): ModifierBreakdow
   const adjustedValue = Math.max(1, Math.min(6, baseValue + totalDelta));
   const adjustedTier = valueToTier(adjustedValue);
 
+  // `>=` so later entries in the candidates array win on absolute-delta ties.
+  // The `deadCard` modifier (-2) is positioned LAST in `candidates` so a
+  // dead committed-keystone card (+2 keystone, -2 deadCard) reports
+  // "dead with current deck" as topReason — the more actionable signal —
+  // rather than the keystone bonus that's about to be wasted.
   const top = modifiers.reduce<Modifier | null>(
-    (best, m) => (best === null || Math.abs(m.delta) > Math.abs(best.delta) ? m : best),
+    (best, m) => (best === null || Math.abs(m.delta) >= Math.abs(best.delta) ? m : best),
     null,
   );
   const topReason = top?.reason ?? "base tier";

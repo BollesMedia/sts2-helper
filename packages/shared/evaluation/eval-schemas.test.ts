@@ -6,7 +6,7 @@ import {
   mapEvalResponseSchema,
   genericEvalSchema,
   simpleEvalSchema,
-  buildCardRewardSchema,
+  cardRewardEvalSchema,
 } from "./eval-schemas";
 import { tierExtractionSchema } from "./tier-extraction";
 import { mapCoachOutputSchema } from "./map-coach-schema";
@@ -152,12 +152,7 @@ describe("eval-schemas", () => {
     });
   });
 
-  describe("buildCardRewardSchema", () => {
-    const items = [
-      { name: "Strike" },
-      { name: "Defend" },
-      { name: "Bash" },
-    ];
+  describe("cardRewardEvalSchema", () => {
     const validRanking = (position: number) => ({
       position,
       tier: "B" as const,
@@ -166,8 +161,7 @@ describe("eval-schemas", () => {
     });
 
     it("parses a valid 3-item response", () => {
-      const schema = buildCardRewardSchema(items, false);
-      const parsed = schema.parse({
+      const parsed = cardRewardEvalSchema.parse({
         rankings: [validRanking(1), validRanking(2), validRanking(3)],
         skip_recommended: false,
       });
@@ -175,31 +169,28 @@ describe("eval-schemas", () => {
     });
 
     it("accepts wrong rankings count at schema layer — count enforcement lives in route handler post-#54", () => {
-      // Same migration as the map case above. See `sanitize-rankings.test.ts`
-      // for the count + drift-filtering coverage.
-      const schema = buildCardRewardSchema(items, false);
+      // Schema is intentionally lenient on count; downstream sanitizer
+      // enforces. See `sanitize-rankings.test.ts` for the coverage.
       expect(() =>
-        schema.parse({
-          rankings: [validRanking(1), validRanking(2)], // only 2 of 3
+        cardRewardEvalSchema.parse({
+          rankings: [validRanking(1), validRanking(2)],
           skip_recommended: false,
         }),
       ).not.toThrow();
     });
 
-    it("includes spending_plan only when includeShopPlan is true", () => {
-      const shopSchema = buildCardRewardSchema(items, true);
-      const parsed = shopSchema.parse({
+    it("accepts spending_plan when present (shop path)", () => {
+      const parsed = cardRewardEvalSchema.parse({
         rankings: [validRanking(1), validRanking(2), validRanking(3)],
         skip_recommended: false,
         spending_plan: "Buy Bash",
       });
-      expect("spending_plan" in parsed).toBe(true);
+      expect(parsed.spending_plan).toBe("Buy Bash");
     });
 
     it("requires skip_recommended", () => {
-      const schema = buildCardRewardSchema(items, false);
       expect(() =>
-        schema.parse({
+        cardRewardEvalSchema.parse({
           rankings: [validRanking(1), validRanking(2), validRanking(3)],
         }),
       ).toThrow();
@@ -286,14 +277,7 @@ describe("eval-schemas", () => {
       ["mapEvalResponseSchema", mapEvalResponseSchema],
       ["genericEvalSchema", genericEvalSchema],
       ["simpleEvalSchema", simpleEvalSchema],
-      ["buildCardRewardSchema(items=3, shop=false)", buildCardRewardSchema(
-        [{ name: "Strike" }, { name: "Defend" }, { name: "Bash" }],
-        false,
-      )],
-      ["buildCardRewardSchema(items=3, shop=true)", buildCardRewardSchema(
-        [{ name: "Strike" }, { name: "Defend" }, { name: "Bash" }],
-        true,
-      )],
+      ["cardRewardEvalSchema", cardRewardEvalSchema],
       ["tierExtractionSchema", tierExtractionSchema],
       ["mapCoachOutputSchema", mapCoachOutputSchema],
     ];

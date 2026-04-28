@@ -54,6 +54,7 @@ describe("modifier-stack constants", () => {
     expect(MODIFIER_DELTAS.winRatePickStrong).toBe(1);
     expect(MODIFIER_DELTAS.winRateSkipStrong).toBe(-1);
     expect(MODIFIER_DELTAS.actThreeOffArchetype).toBe(-1);
+    expect(MODIFIER_DELTAS.deadCard).toBe(-2);
   });
 
   it("exports win-rate thresholds", () => {
@@ -150,6 +151,147 @@ describe("computeModifiers — archetype fit", () => {
     const mod = result.modifiers.find((m) => m.kind === "keystoneOverride");
     expect(mod?.delta).toBe(2);
     expect(mod?.reason.toLowerCase()).toContain("poison");
+  });
+
+  it("adds +1 for non-keystone offer that fits a viable archetype when uncommitted", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["exhaust"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "exhaust", supportCount: 2, hasKeystone: false }], committed: null, orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod?.delta).toBe(1);
+    expect(mod?.reason.toLowerCase()).toContain("exhaust");
+    expect(mod?.reason.toLowerCase()).toContain("uncommitted");
+  });
+
+  it("does not fire the uncommitted-on-archetype branch when no viable archetype matches", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: { role: "damage", keystoneFor: null, fitsArchetypes: ["poison"], deadWithCurrentDeck: false, duplicatePenalty: false, upgradeLevel: 0 },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [{ name: "exhaust", supportCount: 2, hasKeystone: false }], committed: null, orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "archetypeFit");
+    expect(mod).toBeUndefined();
+  });
+});
+
+describe("computeModifiers — dead card", () => {
+  it("subtracts 2 when deadWithCurrentDeck is set", () => {
+    const result = computeModifiers({
+      offer: offer({
+        tags: {
+          role: "scaling",
+          keystoneFor: null,
+          fitsArchetypes: ["strength"],
+          deadWithCurrentDeck: true,
+          duplicatePenalty: false,
+          upgradeLevel: 0,
+        },
+      }),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "deadCard");
+    expect(mod?.delta).toBe(-2);
+  });
+
+  it("does not fire when deadWithCurrentDeck is false", () => {
+    const result = computeModifiers({
+      offer: offer(),
+      deckState: emptyDeckState(),
+      communityTier: null,
+      winRate: null,
+    });
+    const mod = result.modifiers.find((m) => m.kind === "deadCard");
+    expect(mod).toBeUndefined();
+  });
+
+  it("tiers a dead scaling card below a neutral off-archetype card at the same base tier", () => {
+    const baseTier = {
+      consensusTier: 4,
+      consensusTierLetter: "B" as const,
+      sourceCount: 5,
+      stddev: 0.3,
+      agreement: "strong" as const,
+      staleness: "fresh" as const,
+      mostRecentPublished: null,
+    };
+    const committedDeck = emptyDeckState({
+      archetypes: { viable: [], committed: "exhaust", orphaned: [] },
+    });
+
+    // Dead scaling card off-archetype: -1 (off-archetype committed) + -2 (deadCard) = -3 → B (4) → F (1)
+    const dead = computeModifiers({
+      offer: offer({
+        tags: {
+          role: "scaling",
+          keystoneFor: null,
+          fitsArchetypes: [],
+          deadWithCurrentDeck: true,
+          duplicatePenalty: false,
+          upgradeLevel: 0,
+        },
+      }),
+      deckState: committedDeck,
+      communityTier: baseTier,
+      winRate: null,
+    });
+
+    // Neutral off-archetype card: -1 (off-archetype committed) → B (4) → C (3)
+    const neutral = computeModifiers({
+      offer: offer({
+        tags: {
+          role: "damage",
+          keystoneFor: null,
+          fitsArchetypes: [],
+          deadWithCurrentDeck: false,
+          duplicatePenalty: false,
+          upgradeLevel: 0,
+        },
+      }),
+      deckState: committedDeck,
+      communityTier: baseTier,
+      winRate: null,
+    });
+
+    expect(dead.tierValue).toBeLessThan(neutral.tierValue);
+  });
+
+  it("wins the topReason tie-break against the keystone bonus when both apply", () => {
+    // A power_payoff committed-keystone with no scaling support in the deck:
+    // both `keystoneOverride` (+2) and `deadCard` (-2) hold, equal absolute
+    // delta. The user-actionable signal is the dead card — surfacing
+    // "keystone for X" would mask that the bonus is wasted.
+    const result = computeModifiers({
+      offer: offer({
+        tags: {
+          role: "power_payoff",
+          keystoneFor: "exhaust",
+          fitsArchetypes: ["exhaust"],
+          deadWithCurrentDeck: true,
+          duplicatePenalty: false,
+          upgradeLevel: 0,
+        },
+      }),
+      deckState: emptyDeckState({
+        archetypes: { viable: [], committed: "exhaust", orphaned: [] },
+      }),
+      communityTier: null,
+      winRate: null,
+    });
+    expect(result.topReason).toBe("dead with current deck");
   });
 });
 
