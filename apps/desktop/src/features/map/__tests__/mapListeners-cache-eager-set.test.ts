@@ -315,6 +315,10 @@ describe("setupMapEvalListener — eager run-state cache (#97)", () => {
     // leaking from prior tests in the same vitest worker.
     const runId = nextRunId();
     seedRun(store, runId);
+    // Pin the player on the recommended path so the off-path trigger doesn't
+    // force a re-eval. We're testing the single-option-row short-circuit, not
+    // off-path behavior.
+    store.dispatch(mapEvalUpdated({ bestPathNodes: ["0,0", "0,1"] }));
 
     // First map state: cold cache, position (0,0). Single-option row + seeded
     // hasPrevContext=true → shouldEvaluateMap returns false → gate 1 fires.

@@ -312,7 +312,12 @@ export function setupMapEvalListener() {
         // flips don't invalidate it. The first-node check captures
         // "player is still on track" — which is what the user experience
         // actually depends on.
-        if (!actChanged && eagerCompliance && activeRunIdForEagerCache) {
+        //
+        // Off-path skip: once the player has deviated, the narrated plan
+        // is stale by definition, even if the off-branch happens to
+        // converge back to a node on the original path. The off-path
+        // trigger in shouldEvaluateMap above must not be silenced here.
+        if (!actChanged && isOnPath && eagerCompliance && activeRunIdForEagerCache) {
           const scored = scorePaths(
             eagerCompliance.compliance.enrichedPaths,
             eagerCompliance.runState,

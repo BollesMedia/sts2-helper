@@ -25,11 +25,11 @@ function hasMeaningfulFork(input: ShouldEvaluateMapInput): boolean {
  *    a recommendation to compare against on subsequent polls.
  * 2. Start of act. First map-state of a new act; Acts 2/3 wait one tick
  *    if the ancient heal hasn't resolved yet.
- * 3. Meaningful fork. Multiple `next_options` that differ in type or in
- *    downstream subgraph fingerprint. Off-path status is factored into
- *    the eval prompt but is NOT itself a trigger — re-planning at a
- *    single-option row wastes tokens because the next move is forced;
- *    the next fork is where a fresh recommendation actually matters.
+ * 3. Off-path deviation. The player is no longer on the recommended path —
+ *    re-plan immediately so the recommendation reflects the actual position,
+ *    even at forced rows. Predictability beats token savings here.
+ * 4. Meaningful fork. Multiple `next_options` that differ in type or in
+ *    downstream subgraph fingerprint.
  */
 export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   if (input.optionCount <= 0) return false;
@@ -41,8 +41,7 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
     return true;
   }
 
-  // All remaining cases — including "player is off the recommended path" —
-  // require a meaningful fork. Forced rows produce forced plans; deferring
-  // to the next fork gives the eval a decision to actually reason about.
+  if (!input.isOnRecommendedPath) return true;
+
   return hasMeaningfulFork(input);
 }
