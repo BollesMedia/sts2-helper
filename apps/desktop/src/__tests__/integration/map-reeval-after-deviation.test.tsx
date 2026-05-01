@@ -298,8 +298,12 @@ function buildPostFirstHopMapState(): MapState & MultiplayerFields {
 }
 
 describe("map re-eval after off-path deviation (#134)", () => {
+  // The dirty-payload test below replaces `mockImplementation`; reset (not
+  // just clear) so each test starts with the canned happy-path implementation.
+  const defaultImpl = apiFetchMock.getMockImplementation();
   beforeEach(() => {
-    apiFetchMock.mockClear();
+    apiFetchMock.mockReset();
+    if (defaultImpl) apiFetchMock.mockImplementation(defaultImpl);
     clearEvaluationRegistry();
     localStorage.clear();
   });
@@ -376,13 +380,15 @@ describe("map re-eval after off-path deviation (#134)", () => {
     expect(finalMapEval?.recommendedPath?.[0]).toEqual({ col: 2, row: 1 });
   });
 
-  it("re-evals on deviation even when the prior LLM macroPath included the deviation node (LLM-multi-floor defense)", async () => {
-    // Repro for an LLM-output edge case: if the previous eval's macroPath
-    // contained MULTIPLE entries for the same floor (a tree-shaped output
-    // instead of a strict per-floor recommendation), `bestPathNodes` would
-    // include the deviation node, making `isOnRecommendedPath` evaluate to
-    // true and silently suppress the re-eval. Expected: the listener still
-    // re-evals after a real deviation.
+  it("re-evals on deviation when the prior macroPath had duplicate floors (schema-bypass defense)", async () => {
+    // The server's `assembleMapResponse` builds `macro_path.floors` from the
+    // scorer's winner (one node per floor by construction), so this exact
+    // payload shape can't reach the desktop today. The test exists as a
+    // regression net: if a future server refactor or replay path produces
+    // multiple entries for the same floor, `bestPathNodes` would include
+    // every alternative on each floor, `isOnRecommendedPath` would evaluate
+    // to true, and the off-path trigger would silently no-op. The listener's
+    // dedup keeps the invariant intact.
     //
     // This test installs a one-shot apiFetch that returns a macroPath
     // containing BOTH options at row 1 (`0,1` and `2,1`) for the first
