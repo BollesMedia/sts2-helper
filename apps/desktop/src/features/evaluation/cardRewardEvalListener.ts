@@ -4,7 +4,6 @@ import { evaluationApi } from "../../services/evaluationApi";
 import {
   evalStarted,
   evalSucceeded,
-  evalPreviewReady,
   evalFailed,
   evalRetryRequested,
 } from "./evaluationSlice";
@@ -20,7 +19,6 @@ import { buildBackfillPayload } from "@sts2/shared/choice-detection/build-backfi
 import {
   computeCardRewardEvalKey,
   buildCardRewardRequest,
-  buildCardRewardPreview,
 } from "../../lib/eval-inputs/card-reward";
 import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
 import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
@@ -100,24 +98,16 @@ export function setupCardRewardEvalListener() {
 
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
 
-      // Deterministic preview — show rankings + top pick before the API
-      // roundtrip lands. Community-tier and win-rate signals come from the
-      // server response and refine the tiers in `evalSucceeded` below.
-      const previewMaxHp = player?.maxHp ?? 0;
-      const previewCurrentHp = player?.hp ??
-        (previewMaxHp > 0 ? Math.round(ctx.hpPercent * previewMaxHp) : 0);
-      const preview = buildCardRewardPreview({
-        context: ctx,
-        cards,
-        deckCards,
-        relics: player?.relics ?? [],
-        hp: { current: previewCurrentHp, max: previewMaxHp },
-      });
-      if (preview) {
-        listenerApi.dispatch(
-          evalPreviewReady({ evalType: EVAL_TYPE, evalKey, result: preview })
-        );
-      }
+      // No client-side preview for card_reward (#136): scoreCardOffers's
+      // tier assignment is dominated by the community-tier signal, which
+      // is DB-backed and only lives server-side. Without it the preview
+      // pinned every card at a "C" base tier and the player saw stale
+      // ratings flash before the real server response landed. The
+      // card_reward server response is fully deterministic and fast, so
+      // we just wait for it. Cards still render immediately in the UI
+      // without rating badges. Map preview is unaffected because the map
+      // scorer is pure (no DB dep) — the local eagerWinner equals the
+      // server's path.
 
       try {
         const cardRewardRequest = buildCardRewardRequest({
