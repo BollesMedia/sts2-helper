@@ -98,15 +98,16 @@ export function setupCardRewardEvalListener() {
 
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
 
-      // No client-side preview for card_reward (#136): the scorer's tier
-      // assignment is dominated by the community-tier signal which only
-      // lives server-side. Without it, the preview defaulted every card
-      // to a "C" base tier and the resulting ratings showed up as stale
-      // until the real server response landed. The card_reward server
-      // response is fully deterministic and fast, so we just wait for it.
-      // The cards still render immediately in the UI without rating
-      // badges. Map preview is unaffected (its scorer doesn't need DB
-      // data) and remains in mapListeners.
+      // No client-side preview for card_reward (#136): scoreCardOffers's
+      // tier assignment is dominated by the community-tier signal, which
+      // is DB-backed and only lives server-side. Without it the preview
+      // pinned every card at a "C" base tier and the player saw stale
+      // ratings flash before the real server response landed. The
+      // card_reward server response is fully deterministic and fast, so
+      // we just wait for it. Cards still render immediately in the UI
+      // without rating badges. Map preview is unaffected because the map
+      // scorer is pure (no DB dep) — the local eagerWinner equals the
+      // server's path.
 
       try {
         const cardRewardRequest = buildCardRewardRequest({

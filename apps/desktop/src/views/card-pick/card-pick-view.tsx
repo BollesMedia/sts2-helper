@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import type { CardRewardState } from "@sts2/shared/types/game-state";
 import type { CardRewardEvaluation } from "@sts2/shared/evaluation/types";
 import { CardRating } from "./card-rating";
@@ -32,7 +31,7 @@ export function CardPickView({ state }: CardPickViewProps) {
   const dispatch = useAppDispatch();
   const player = useAppSelector(selectActivePlayer);
   const rawEvaluation = useAppSelector(selectCardRewardResult);
-  const isLoading = useAppSelector(selectCardRewardLoading);
+  const sliceLoading = useAppSelector(selectCardRewardLoading);
   const error = useAppSelector(selectCardRewardError);
   const storedEvalKey = useAppSelector(selectCardRewardEvalKey);
   const cards = state.card_reward.cards;
@@ -40,9 +39,15 @@ export function CardPickView({ state }: CardPickViewProps) {
   // Discard any stored eval that doesn't match the current cards. When a
   // new card_reward arrives, the slice still holds the previous eval until
   // the listener fires `evalStarted`; without this guard the prior result
-  // would render against the new cards by id/name collision (#136).
-  const currentCardsKey = useMemo(() => computeCardRewardEvalKey(cards), [cards]);
-  const evaluation = storedEvalKey === currentCardsKey ? rawEvaluation : null;
+  // would render against the new cards by id/name collision (#136). Three
+  // string ops over three cards each render — no need to memoize.
+  const currentCardsKey = computeCardRewardEvalKey(cards);
+  const evalIsCurrent = storedEvalKey === currentCardsKey;
+  const evaluation = evalIsCurrent ? rawEvaluation : null;
+  // Bridge the gap between gameStateReceived and the listener's evalStarted
+  // dispatch — during that window sliceLoading is whatever the previous eval
+  // left behind. Treat "stored eval is for prior cards" as still loading.
+  const isLoading = sliceLoading || !evalIsCurrent;
 
   // Single source of truth for top pick — drives both badge and summary text
   const topPickResult = evaluation?.rankings
