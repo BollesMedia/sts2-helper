@@ -499,7 +499,31 @@ export function setupMapEvalListener() {
         // future floor). Convert `node_id` ("col,row") back to coordinates
         // for UI highlighting and deviation detection. Malformed entries are
         // dropped so a mis-formatted LLM response degrades gracefully.
-        const coachPath: { col: number; row: number }[] = parsed.macroPath.floors
+        //
+        // Defensive dedup by floor: the LLM is supposed to return one entry
+        // per floor (a single strategic path), but the schema doesn't enforce
+        // uniqueness. A tree-shaped output (multiple entries per floor) would
+        // poison `bestPathNodes` with every alternative on each floor, which
+        // makes `isOnRecommendedPath` a no-op for the off-path trigger and
+        // silently suppresses re-eval after a deviation (#134). Keep the
+        // first entry per floor — that's the LLM's primary recommendation.
+        const seenFloors = new Set<number>();
+        const dedupedFloors = parsed.macroPath.floors.filter((f) => {
+          if (seenFloors.has(f.floor)) return false;
+          seenFloors.add(f.floor);
+          return true;
+        });
+        if (dedupedFloors.length !== parsed.macroPath.floors.length) {
+          logDevEvent("eval", "map_macropath_dedup", {
+            originalCount: parsed.macroPath.floors.length,
+            dedupedCount: dedupedFloors.length,
+            originalFloors: parsed.macroPath.floors.map((f) => ({
+              floor: f.floor,
+              nodeId: f.nodeId,
+            })),
+          });
+        }
+        const coachPath: { col: number; row: number }[] = dedupedFloors
           .map((f) => parseNodeId(f.nodeId))
           .filter((p): p is { col: number; row: number } => p !== null);
 
