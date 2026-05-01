@@ -499,9 +499,43 @@ export function setupMapEvalListener() {
         // future floor). Convert `node_id` ("col,row") back to coordinates
         // for UI highlighting and deviation detection. Malformed entries are
         // dropped so a mis-formatted LLM response degrades gracefully.
-        const coachPath: { col: number; row: number }[] = parsed.macroPath.floors
-          .map((f) => parseNodeId(f.nodeId))
-          .filter((p): p is { col: number; row: number } => p !== null);
+        //
+        // Defensive dedup by floor: the server's `assembleMapResponse` builds
+        // `macro_path.floors` from the scorer's winner (one node per floor by
+        // construction), but the schema doesn't enforce uniqueness. If a
+        // future server change or replay path produces a tree-shaped payload
+        // (multiple entries per floor), every alternative would poison
+        // `bestPathNodes` and make `isOnRecommendedPath` a no-op for the
+        // off-path trigger — silently suppressing re-eval after a deviation
+        // (#134). Keep the first entry per floor; log when dedup actually
+        // fires so a misbehaving payload is visible in dev events.
+        const seenFloors = new Set<number>();
+        const dedupedFloors = parsed.macroPath.floors.filter((f) => {
+          if (seenFloors.has(f.floor)) return false;
+          seenFloors.add(f.floor);
+          return true;
+        });
+        if (dedupedFloors.length !== parsed.macroPath.floors.length) {
+          const floorCounts = new Map<number, number>();
+          for (const f of parsed.macroPath.floors) {
+            floorCounts.set(f.floor, (floorCounts.get(f.floor) ?? 0) + 1);
+          }
+          const duplicateFloors = parsed.macroPath.floors.filter(
+            (f) => (floorCounts.get(f.floor) ?? 0) > 1,
+          );
+          logDevEvent("eval", "map_macropath_dedup", {
+            originalCount: parsed.macroPath.floors.length,
+            dedupedCount: dedupedFloors.length,
+            duplicateFloors: duplicateFloors.map((f) => ({
+              floor: f.floor,
+              nodeId: f.nodeId,
+            })),
+          });
+        }
+        const coachPath: { col: number; row: number }[] = dedupedFloors.flatMap((f) => {
+          const p = parseNodeId(f.nodeId);
+          return p ? [p] : [];
+        });
 
         // Prepend current position so the highlighted range covers from where
         // the player is standing.
@@ -533,12 +567,12 @@ export function setupMapEvalListener() {
 
         // Stash the narrated path so the scorer gate can skip subsequent
         // evals whose winner is a suffix (player advanced) or identical
-        // (fork picked the same branch). Uses the server's returned
-        // macro_path, not the local scorer, so the two ends stay in sync.
+        // (fork picked the same branch). Uses the deduped server macro_path
+        // so the narrator-skip set stays consistent with `bestPathNodes`.
         const activeRunIdForNarratedStore = state.run.activeRunId;
         if (activeRunIdForNarratedStore) {
           const narratedSet = new Set<string>();
-          for (const f of parsed.macroPath.floors) narratedSet.add(f.nodeId);
+          for (const f of dedupedFloors) narratedSet.add(f.nodeId);
           lastNarratedPathByRun.set(activeRunIdForNarratedStore, narratedSet);
         }
 
