@@ -4,6 +4,7 @@ import { evaluationApi } from "../../services/evaluationApi";
 import {
   evalStarted,
   evalSucceeded,
+  evalPreviewReady,
   evalFailed,
   evalRetryRequested,
 } from "./evaluationSlice";
@@ -19,6 +20,7 @@ import { buildBackfillPayload } from "@sts2/shared/choice-detection/build-backfi
 import {
   computeCardRewardEvalKey,
   buildCardRewardRequest,
+  buildCardRewardPreview,
 } from "../../lib/eval-inputs/card-reward";
 import { getCardSelectSubType } from "../../lib/eval-inputs/card-select-type";
 import { logDevEvent, logReduxSnapshot } from "../../lib/dev-logger";
@@ -97,6 +99,25 @@ export function setupCardRewardEvalListener() {
       updateFromContext(ctx);
 
       listenerApi.dispatch(evalStarted({ evalType: EVAL_TYPE, evalKey }));
+
+      // Deterministic preview — show rankings + top pick before the API
+      // roundtrip lands. Community-tier and win-rate signals come from the
+      // server response and refine the tiers in `evalSucceeded` below.
+      const previewMaxHp = player?.maxHp ?? 0;
+      const previewCurrentHp = player?.hp ??
+        (previewMaxHp > 0 ? Math.round(ctx.hpPercent * previewMaxHp) : 0);
+      const preview = buildCardRewardPreview({
+        context: ctx,
+        cards,
+        deckCards,
+        relics: player?.relics ?? [],
+        hp: { current: previewCurrentHp, max: previewMaxHp },
+      });
+      if (preview) {
+        listenerApi.dispatch(
+          evalPreviewReady({ evalType: EVAL_TYPE, evalKey, result: preview })
+        );
+      }
 
       try {
         const cardRewardRequest = buildCardRewardRequest({

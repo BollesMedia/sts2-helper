@@ -86,6 +86,26 @@ export const evaluationSlice = createSlice({
       }
     },
 
+    /**
+     * Deterministic preview ready — stores partial result while the slow
+     * remainder (LLM narrator for map, network roundtrip for card_reward)
+     * is still in flight. `isLoading` stays true so the UI keeps showing a
+     * "loading remainder" indicator without blocking the recommendation.
+     */
+    evalPreviewReady(
+      state,
+      action: PayloadAction<{
+        evalType: EvalType;
+        evalKey: string;
+        result: unknown;
+      }>
+    ) {
+      const entry = state.evals[action.payload.evalType];
+      if (entry.evalKey === action.payload.evalKey) {
+        entry.result = action.payload.result;
+      }
+    },
+
     /** Eval failed — stores error, clears loading */
     evalFailed(
       state,
@@ -130,6 +150,7 @@ export const evaluationSlice = createSlice({
 export const {
   evalStarted,
   evalSucceeded,
+  evalPreviewReady,
   evalFailed,
   evalRetryRequested,
   evalCleared,

@@ -17,7 +17,6 @@ import { getPromptContext, updateFromContext, appendDecision } from "@sts2/share
 import { registerLastEvaluation } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { shouldEvaluateMap } from "../../lib/should-evaluate-map";
 import { computeMapEvalKey, buildMapPrompt } from "../../lib/eval-inputs/map";
-import type { RunState } from "@sts2/shared/evaluation/map/run-state";
 import { scorePaths } from "@sts2/shared/evaluation/map/score-paths";
 import { buildPreEvalPayload } from "../../lib/build-pre-eval-payload";
 import { computeSubgraphFingerprint, type FingerprintNode } from "../../lib/compute-subgraph-fingerprint";
@@ -136,9 +135,10 @@ export function setupMapEvalListener() {
       // resulting prompt is only used by the downstream eval path, which
       // still runs when un-gated. Downstream path re-reads the cache.
       const activeRunIdForEagerCache = state.run.activeRunId;
-      let eagerCompliance:
-        | { runState: RunState; compliance: ReturnType<typeof buildMapPrompt>["compliance"] }
-        | null = null;
+      // Deterministic top-ranked path computed locally so the UI can show
+      // the recommended route immediately, before the LLM narrator returns.
+      // Reused by the narrator gate below (was re-scoring on every fire).
+      let eagerWinner: ReturnType<typeof scorePaths>[number] | null = null;
       if (activeRunIdForEagerCache && options.length > 0) {
         try {
           const eagerDeckCards = selectActiveDeck(state);
@@ -154,7 +154,13 @@ export function setupMapEvalListener() {
             // so `enrichedPaths` survive into `choices.run_state_snapshot`
             // for backtest replay.
             lastMapRunState.set(activeRunIdForEagerCache, eagerComplianceData);
-            eagerCompliance = { runState: eagerRunState, compliance: eagerComplianceData };
+
+            const scored = scorePaths(
+              eagerComplianceData.enrichedPaths,
+              eagerRunState,
+              { cardRemovalCost: eagerComplianceData.cardRemovalCost },
+            );
+            eagerWinner = scored[0] ?? null;
           }
         } catch {
           // buildMapPrompt can throw on unusual state shapes; swallow so
@@ -317,16 +323,10 @@ export function setupMapEvalListener() {
         // is stale by definition, even if the off-branch happens to
         // converge back to a node on the original path. The off-path
         // trigger in shouldEvaluateMap above must not be silenced here.
-        if (!actChanged && isOnPath && eagerCompliance && activeRunIdForEagerCache) {
-          const scored = scorePaths(
-            eagerCompliance.compliance.enrichedPaths,
-            eagerCompliance.runState,
-            { cardRemovalCost: eagerCompliance.compliance.cardRemovalCost },
-          );
-          const winner = scored[0];
+        if (!actChanged && isOnPath && eagerWinner && activeRunIdForEagerCache) {
           const prevNarrated = lastNarratedPathByRun.get(activeRunIdForEagerCache);
-          if (winner && prevNarrated) {
-            const firstNodeId = winner.nodes[0]?.nodeId;
+          if (prevNarrated) {
+            const firstNodeId = eagerWinner.nodes[0]?.nodeId;
             const onTrack = typeof firstNodeId === "string" && prevNarrated.has(firstNodeId);
             if (onTrack) {
               logDevEvent("eval", "map_skip_narrator_on_track", {
@@ -404,9 +404,30 @@ export function setupMapEvalListener() {
       // API call fails, shouldEvaluateMap still detects the act change and
       // retries. The post-API dispatch sets the correct act on success.
       preEval.lastEvalContext.act = prevContext?.act ?? 0;
-      // Pre-eval: set bestPathNodes to all options — can't know best until API completes.
-      // This prevents false deviation detection during the API window.
-      listenerApi.dispatch(mapEvalUpdated({ ...preEval, bestPathNodes: preEval.recommendedNodes }));
+
+      // Pre-eval: dispatch the deterministic winner's path immediately so
+      // the UI can highlight the recommended route while the LLM narrator
+      // is still loading. Falls back to "all options' paths" only when the
+      // local scorer didn't produce a winner (e.g. eager-compute failed).
+      const eagerWinnerCoords = eagerWinner?.nodes
+        .map((n) => (n.nodeId ? parseNodeId(n.nodeId) : null))
+        .filter((p): p is { col: number; row: number } => p !== null) ?? [];
+      const currentPosForPre = mapState.map?.current_position ?? null;
+      const eagerFullPath = currentPosForPre &&
+        (eagerWinnerCoords.length === 0 ||
+          eagerWinnerCoords[0].col !== currentPosForPre.col ||
+          eagerWinnerCoords[0].row !== currentPosForPre.row)
+        ? [{ col: currentPosForPre.col, row: currentPosForPre.row }, ...eagerWinnerCoords]
+        : eagerWinnerCoords;
+      const eagerBestPathNodes = eagerWinnerCoords.length > 0
+        ? eagerFullPath.map((p) => `${p.col},${p.row}`)
+        : preEval.recommendedNodes;
+
+      listenerApi.dispatch(mapEvalUpdated({
+        ...preEval,
+        recommendedPath: eagerFullPath,
+        bestPathNodes: eagerBestPathNodes,
+      }));
 
       try {
         const { prompt: mapPrompt, compliance: mapCompliance } = buildMapPrompt({
