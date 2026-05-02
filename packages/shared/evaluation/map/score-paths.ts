@@ -21,12 +21,14 @@ export const MAP_SCORE_WEIGHTS = {
   hardPoolChainLength: -2,
   /**
    * Soft penalty for shops where projected gold falls short of
-   * `MIN_SHOP_PRICE_FLOOR`. Sums a per-shop shortfall (0..1) across the path
-   * — a fully naked shop (gold 0) contributes the full weight, a near-
-   * affordable shop contributes proportionally less. Pairs with the binary
-   * `naked_shop` disqualification: when no viable non-naked alt exists, the
-   * soft penalty still differentiates "less broke" paths from "more broke"
-   * ones, e.g. a shop at floor 5 (more accumulated gold) over floor 2.
+   * `MIN_SHOP_PRICE_FLOOR`. Per-shop shortfall is `max(0, (FLOOR - gold) /
+   * FLOOR)`; the path's penalty is `weight * Σ shortfall` summed across
+   * shops. A fully naked shop (gold 0) contributes the full weight, a
+   * near-affordable shop contributes proportionally less. Pairs with the
+   * binary `naked_shop` disqualification: when no viable non-naked alt
+   * exists, the soft penalty still differentiates "less broke" paths from
+   * "more broke" ones — e.g. a shop at floor 5 (more accumulated gold)
+   * over floor 2.
    */
   shopUnderfunded: -6,
 } as const;

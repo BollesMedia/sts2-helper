@@ -177,7 +177,7 @@ describe("scorePaths — phase 1 hard filter", () => {
   });
 
   it("disqualifies a naked-shop path when projected gold < MIN_SHOP_PRICE_FLOOR and an alternative exists", () => {
-    // Starting gold 30, ~40g per fight, shop at floor 2 so gold ≈ 30 + ~0 fights = 30 < 50.
+    // Starting gold 30, ~40g per fight, shop at floor 2 so gold ≈ 30 + ~0 fights = 30 < MIN_SHOP_PRICE_FLOOR.
     const nakedShop = makeEnriched("naked", [node("shop", 2)], { shopsTaken: 1 });
     const viable = makeEnriched(
       "viable",
@@ -515,10 +515,10 @@ describe("scorePaths — regression (user-reported failures)", () => {
   });
 
   it("0-gold player avoids an early shop with projected gold ~80 when a no-shop alt exists (#138)", () => {
-    // Repro: player at 0 gold. Shop sits 2 floors in — projected gold 80.
-    // The current MIN_SHOP_PRICE_FLOOR=50 misses this case (80 ≥ 50). Bumping
-    // the threshold so $80 is "naked" (insufficient for a card removal at full
-    // price) catches it and routes to the no-shop alternative.
+    // Player at 0 gold, shop two floors in — projected gold $80 is below the
+    // $100 threshold (insufficient for a card removal plus any incidental
+    // purchase) so the path is naked, the no-shop alternative is viable, and
+    // the scorer routes around the shop.
     const earlyShop = makeEnriched(
       "early-shop",
       [node("monster", 1), node("monster", 2), node("shop", 3), node("elite", 4)],
@@ -539,26 +539,36 @@ describe("scorePaths — regression (user-reported failures)", () => {
     expect(result[0].id).toBe("no-shop");
   });
 
-  it("0-gold player prefers a later shop over an earlier shop when neither alt avoids a shop (#138)", () => {
-    // Both paths have one shop and one elite. Path A's shop arrives at floor 2
-    // (no fights yet → 0 gold). Path B's shop arrives at floor 4 (3 fights →
-    // 120 gold). The later shop is "useful" while the earlier one isn't —
-    // ranking should put the later-shop path first.
+  it("0-gold player picks the less-broke path when every alt has a naked shop (#138)", () => {
+    // Both paths have one shop within the naked range. The disqualification
+    // rule needs a non-naked viable alt to fire — neither path has one (each
+    // is the other's "still naked" alternative), so neither is disqualified.
+    // The soft `shopUnderfunded` penalty then breaks the tie: shop at floor 2
+    // has $0 (shortfall 1.0, penalty -6); shop at floor 3 has $40 (shortfall
+    // 0.6, penalty -3.6). The path with the later shop wins by ~2.4 score —
+    // direct coverage of the soft penalty's "rank by less-broke" role.
     const earlyShop = makeEnriched(
       "early-shop",
-      [node("shop", 2), node("monster", 3), node("monster", 4), node("monster", 5), node("elite", 6)],
-      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 3 },
+      [node("shop", 2), node("monster", 3), node("elite", 4)],
+      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 1 },
     );
-    const lateShop = makeEnriched(
-      "late-shop",
-      [node("monster", 2), node("monster", 3), node("monster", 4), node("shop", 5), node("elite", 6)],
-      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 3 },
+    const midShop = makeEnriched(
+      "mid-shop",
+      [node("monster", 2), node("shop", 3), node("elite", 4)],
+      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 1 },
     );
     const result = scorePaths(
-      [earlyShop, lateShop],
+      [earlyShop, midShop],
       emptyRunState({ gold: 0 }),
       { cardRemovalCost: 75 },
     );
-    expect(result[0].id).toBe("late-shop");
+    expect(result.every((p) => !p.disqualified)).toBe(true);
+    expect(result[0].id).toBe("mid-shop");
+    // mid-shop's penalty is half the magnitude of early-shop's.
+    const earlyPenalty = result.find((p) => p.id === "early-shop")
+      ?.scoreBreakdown.shopUnderfunded ?? 0;
+    const midPenalty = result.find((p) => p.id === "mid-shop")
+      ?.scoreBreakdown.shopUnderfunded ?? 0;
+    expect(earlyPenalty).toBeLessThan(midPenalty);
   });
 });
