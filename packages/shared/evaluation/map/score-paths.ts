@@ -19,9 +19,28 @@ export const MAP_SCORE_WEIGHTS = {
   hpDipBelow15PctPenalty: -12,
   backToBackShopPairUnderGold: -3,
   hardPoolChainLength: -2,
+  /**
+   * Soft penalty for shops where projected gold falls short of
+   * `MIN_SHOP_PRICE_FLOOR`. Per-shop shortfall is `max(0, (FLOOR - gold) /
+   * FLOOR)`; the path's penalty is `weight * Σ shortfall` summed across
+   * shops. A fully naked shop (gold 0) contributes the full weight, a
+   * near-affordable shop contributes proportionally less. Pairs with the
+   * binary `naked_shop` disqualification: when no viable non-naked alt
+   * exists, the soft penalty still differentiates "less broke" paths from
+   * "more broke" ones — e.g. a shop at floor 5 (more accumulated gold)
+   * over floor 2.
+   */
+  shopUnderfunded: -6,
 } as const;
 
-export const MIN_SHOP_PRICE_FLOOR = 50;
+/**
+ * Minimum projected gold for a shop to count as "useful". Bumped from $50
+ * to $100 (#138) — at $50 a shop barely covers one common card, which
+ * doesn't justify routing through it on a tight-gold turn. $100 lines up
+ * with one card removal at full price ($75) plus a small buffer for an
+ * incidental purchase.
+ */
+export const MIN_SHOP_PRICE_FLOOR = 100;
 export const REST_HEAL_PCT = 0.3;
 
 const ELITE_MULTIPLIER = 1.5;
@@ -104,6 +123,23 @@ function findNakedShopFloors(path: EnrichedPath, startGold: number): number[] {
     if (goldAtShop < MIN_SHOP_PRICE_FLOOR) nakedFloors.push(n.floor);
   }
   return nakedFloors;
+}
+
+/**
+ * Sum of per-shop shortfalls (0..1) for shops in the path. Each shop where
+ * projected gold sits below `MIN_SHOP_PRICE_FLOOR` contributes
+ * `(threshold - goldAtShop) / threshold`. A path with no shops, or shops
+ * whose projected gold meets the threshold, returns 0.
+ */
+function shopShortfallTotal(path: EnrichedPath, startGold: number): number {
+  let total = 0;
+  for (const n of path.nodes) {
+    if (n.type !== "shop") continue;
+    const goldAtShop = estimateGoldAtFloor(path, n.floor, startGold);
+    if (goldAtShop >= MIN_SHOP_PRICE_FLOOR) continue;
+    total += (MIN_SHOP_PRICE_FLOOR - goldAtShop) / MIN_SHOP_PRICE_FLOOR;
+  }
+  return total;
 }
 
 // Detectors in path-patterns.ts return first-hit / longest-run for narrator signals.
@@ -267,6 +303,9 @@ export function scorePaths(
     breakdown.backToBackShopPairUnderGold =
       MAP_SCORE_WEIGHTS.backToBackShopPairUnderGold *
       countBackToBackShopPairsUnderGold(p, runState.gold, options.cardRemovalCost);
+
+    breakdown.shopUnderfunded =
+      MAP_SCORE_WEIGHTS.shopUnderfunded * shopShortfallTotal(p, runState.gold);
 
     const hardPoolApplies = runState.act >= 2;
     breakdown.hardPoolChainLength = hardPoolApplies
