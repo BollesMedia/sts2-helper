@@ -48,9 +48,10 @@ describe("scorePaths constants", () => {
     expect(MAP_SCORE_WEIGHTS.hpDipBelow15PctPenalty).toBe(-12);
     expect(MAP_SCORE_WEIGHTS.backToBackShopPairUnderGold).toBe(-3);
     expect(MAP_SCORE_WEIGHTS.hardPoolChainLength).toBe(-2);
+    expect(MAP_SCORE_WEIGHTS.shopUnderfunded).toBe(-6);
   });
   it("exports the shop-floor constant in gold", () => {
-    expect(MIN_SHOP_PRICE_FLOOR).toBe(50);
+    expect(MIN_SHOP_PRICE_FLOOR).toBe(100);
   });
   it("exports the rest-heal ratio used by the post-rest projection", () => {
     expect(REST_HEAL_PCT).toBe(0.3);
@@ -315,6 +316,48 @@ describe("scorePaths — phase 2 weighted sum", () => {
     expect(result[0].scoreBreakdown.backToBackShopPairUnderGold).toBe(-3);
   });
 
+  it("applies a continuous shopUnderfunded penalty proportional to the gold shortfall (#138)", () => {
+    // Shop at floor 1 with 0 starting gold → gold-at-shop = 0, shortfall = 1.
+    // Penalty = -6 * 1 = -6.
+    const fullyNaked = makeEnriched("naked", [node("shop", 1)], { shopsTaken: 1 });
+    const result1 = scorePaths(
+      [fullyNaked],
+      emptyRunState({ gold: 0 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result1[0].scoreBreakdown.shopUnderfunded).toBeCloseTo(-6, 5);
+
+    // Shop at floor 2 with 0 starting gold and 1 monster before → gold = 40,
+    // shortfall = (100 - 40) / 100 = 0.6. Penalty = -6 * 0.6 = -3.6.
+    const halfNaked = makeEnriched(
+      "half",
+      [node("monster", 1), node("shop", 2)],
+      { shopsTaken: 1, monstersTaken: 1 },
+    );
+    const result2 = scorePaths(
+      [halfNaked],
+      emptyRunState({ gold: 0 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result2[0].scoreBreakdown.shopUnderfunded).toBeCloseTo(-3.6, 5);
+
+    // Shop at floor 3 with enough fights ahead → gold = 80 + 40 = 120 ≥ 100.
+    // No penalty.
+    const wellFunded = makeEnriched(
+      "ok",
+      [node("monster", 1), node("monster", 2), node("monster", 3), node("shop", 4)],
+      { shopsTaken: 1, monstersTaken: 3 },
+    );
+    const result3 = scorePaths(
+      [wellFunded],
+      emptyRunState({ gold: 0 }),
+      { cardRemovalCost: 75 },
+    );
+    // toBeCloseTo guards against the `-0` vs `+0` Object.is quirk when the
+    // shortfall is exactly zero (negative weight × +0 = -0 in JS).
+    expect(result3[0].scoreBreakdown.shopUnderfunded ?? 0).toBeCloseTo(0, 5);
+  });
+
   it("does not penalize a back-to-back shop pair if gold at shop #2 >= cardRemovalCost", () => {
     // Gold at shop #2 = 30 + 2×40 = 110 >= 75.
     const p = makeEnriched(
@@ -469,5 +512,53 @@ describe("scorePaths — regression (user-reported failures)", () => {
       { cardRemovalCost: 75 },
     );
     expect(result[0].id).toBe("safe");
+  });
+
+  it("0-gold player avoids an early shop with projected gold ~80 when a no-shop alt exists (#138)", () => {
+    // Repro: player at 0 gold. Shop sits 2 floors in — projected gold 80.
+    // The current MIN_SHOP_PRICE_FLOOR=50 misses this case (80 ≥ 50). Bumping
+    // the threshold so $80 is "naked" (insufficient for a card removal at full
+    // price) catches it and routes to the no-shop alternative.
+    const earlyShop = makeEnriched(
+      "early-shop",
+      [node("monster", 1), node("monster", 2), node("shop", 3), node("elite", 4)],
+      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 2 },
+    );
+    const noShop = makeEnriched(
+      "no-shop",
+      [node("monster", 1), node("monster", 2), node("rest", 3), node("elite", 4)],
+      { elitesTaken: 1, monstersTaken: 2, restsTaken: 1 },
+    );
+    const result = scorePaths(
+      [earlyShop, noShop],
+      emptyRunState({ gold: 0 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result.find((p) => p.id === "early-shop")?.disqualified).toBe(true);
+    expect(result.find((p) => p.id === "early-shop")?.disqualifyReasons).toContain("naked_shop");
+    expect(result[0].id).toBe("no-shop");
+  });
+
+  it("0-gold player prefers a later shop over an earlier shop when neither alt avoids a shop (#138)", () => {
+    // Both paths have one shop and one elite. Path A's shop arrives at floor 2
+    // (no fights yet → 0 gold). Path B's shop arrives at floor 4 (3 fights →
+    // 120 gold). The later shop is "useful" while the earlier one isn't —
+    // ranking should put the later-shop path first.
+    const earlyShop = makeEnriched(
+      "early-shop",
+      [node("shop", 2), node("monster", 3), node("monster", 4), node("monster", 5), node("elite", 6)],
+      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 3 },
+    );
+    const lateShop = makeEnriched(
+      "late-shop",
+      [node("monster", 2), node("monster", 3), node("monster", 4), node("shop", 5), node("elite", 6)],
+      { shopsTaken: 1, elitesTaken: 1, monstersTaken: 3 },
+    );
+    const result = scorePaths(
+      [earlyShop, lateShop],
+      emptyRunState({ gold: 0 }),
+      { cardRemovalCost: 75 },
+    );
+    expect(result[0].id).toBe("late-shop");
   });
 });
