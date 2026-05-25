@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::{Conflict, ConflictSeverity, InstalledMod, RequiredModStatus};
 
-pub const STS2MCP_REQUIRED_VERSION: &str = "0.3.2";
+pub const STS2MCP_REQUIRED_VERSION: &str = "0.4.0";
 
 /// Scan the mods directory and return all installed mods.
 pub fn list_installed_mods(mods_dir: &Path) -> Vec<InstalledMod> {
