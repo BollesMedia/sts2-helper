@@ -88,10 +88,9 @@ export function parseNodeId(nodeId: string): { col: number; row: number } | null
  * Map evaluation listener.
  *
  * Watches game state changes on the map. Decides whether to evaluate
- * (via shouldEvaluateMap — three structural triggers: new map, moved
- * onto off-path node, or fork with distinct downstream subgraphs), then
- * owns the full eval pipeline: API call, path derivation, recommended
- * nodes, and Redux persistence.
+ * (via shouldEvaluateMap — see its JSDoc for the full trigger list),
+ * then owns the full eval pipeline: API call, path derivation,
+ * recommended nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
   let prevMapPosition: { col: number; row: number } | null = null;
