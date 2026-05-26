@@ -11,6 +11,8 @@ function base(overrides: Partial<Parameters<typeof shouldEvaluateMap>[0]> = {}) 
     isOnRecommendedPath: true,
     nextOptions: [{ col: 0, row: 2, type: "monster" }],
     nextOptionSubgraphFingerprints: ["x"],
+    currentPosUnchanged: false,
+    floorsSinceLastEvalPosition: null as number | null,
     ...overrides,
   };
 }
@@ -95,5 +97,48 @@ describe("shouldEvaluateMap — triggers", () => {
 
   it("no-op when none of the triggers fire (single forced option, on-path)", () => {
     expect(shouldEvaluateMap(base())).toBe(false);
+  });
+
+  describe("on-path suppression", () => {
+    it("suppresses re-eval when the player hasn't moved since the last eval", () => {
+      // Repeated poll on the ancient row: same currentPosition, on-path,
+      // meaningful fork ahead. The initial eval already analyzed it.
+      expect(
+        shouldEvaluateMap(twoTypeFork({ currentPosUnchanged: true })),
+      ).toBe(false);
+    });
+
+    it("suppresses re-eval on the first on-path move (one floor advance)", () => {
+      // Drew's stated repro: player just picked the recommended first-floor
+      // node. The initial eval already analyzed this fork.
+      expect(
+        shouldEvaluateMap(twoTypeFork({ floorsSinceLastEvalPosition: 1 })),
+      ).toBe(false);
+    });
+
+    it("still re-evals on a meaningful fork after multiple on-path floors", () => {
+      // Backstop: if several floors elapsed without a re-eval, a fresh fork
+      // analysis is useful.
+      expect(
+        shouldEvaluateMap(twoTypeFork({ floorsSinceLastEvalPosition: 3 })),
+      ).toBe(true);
+    });
+
+    it("off-path beats the standing-still guard", () => {
+      // Off-path is a first-class trigger and runs before the new guards.
+      expect(
+        shouldEvaluateMap(
+          twoTypeFork({ isOnRecommendedPath: false, currentPosUnchanged: true }),
+        ),
+      ).toBe(true);
+    });
+
+    it("does not suppress when floorsSinceLastEvalPosition is null", () => {
+      // Null means no prior eval position recorded — fall through to the
+      // existing fork logic so we don't lose the backstop.
+      expect(
+        shouldEvaluateMap(twoTypeFork({ floorsSinceLastEvalPosition: null })),
+      ).toBe(true);
+    });
   });
 });

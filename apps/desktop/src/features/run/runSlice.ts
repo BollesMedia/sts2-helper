@@ -27,6 +27,8 @@ export interface MapEvalState {
     act: number;
     gold: number;
     ascension: number;
+    /** Player's map position when this eval ran. Used to suppress on-path re-eval. */
+    position: { col: number; row: number } | null;
   } | null;
   nodePreferences: {
     monster: number;

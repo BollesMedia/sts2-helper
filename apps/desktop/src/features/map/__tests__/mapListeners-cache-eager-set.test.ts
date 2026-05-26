@@ -221,6 +221,7 @@ function seedRun(
         act: 1,
         gold: 99,
         ascension: 0,
+        position: null,
       },
     }),
   );
@@ -474,6 +475,7 @@ describe("setupMapEvalListener — eager run-state cache (#97)", () => {
           act: 1,
           gold: 99,
           ascension: 0,
+          position: null,
         },
       }),
     );

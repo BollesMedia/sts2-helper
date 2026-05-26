@@ -325,4 +325,116 @@ describe("map-eval flow — listener → /api/evaluate → adapter → slice →
     );
     expect(bestBadges).toHaveLength(1);
   });
+
+  describe("on-path re-eval suppression (#143)", () => {
+    /** Drain microtasks + a few macrotasks so the listener effect runs to completion. */
+    const settle = () => new Promise<void>((r) => setTimeout(r, 50));
+
+    /** Build a state in which the player has moved to the given option node. */
+    function buildPostMoveMapState(
+      pos: { col: number; row: number; type: "Elite" | "Shop" },
+      nextOption: { col: number; row: number; type: "RestSite" | "Monster" },
+    ): MapState & MultiplayerFields {
+      const startCol = 1, startRow = 0;
+      return {
+        state_type: "map",
+        player: { character: "Ironclad", hp: 70, max_hp: 80, gold: 99 },
+        map: {
+          current_position: pos,
+          visited: [
+            { col: startCol, row: startRow, type: "Monster" },
+            { col: pos.col, row: pos.row, type: pos.type },
+          ],
+          next_options: [
+            {
+              index: 0,
+              col: nextOption.col,
+              row: nextOption.row,
+              type: nextOption.type,
+              leads_to: [{ col: 1, row: 3, type: "Boss" }],
+            },
+          ],
+          nodes: TEST_NODES,
+          boss: TEST_BOSS,
+        },
+        run: { act: 1, floor: pos.row + 1, ascension: 0 },
+      };
+    }
+
+    it("does not re-eval on a repeat poll with identical state (standing still)", async () => {
+      const store = createIntegrationStore();
+      setupMapEvalListener();
+      seedRun(store);
+
+      const mapState = buildHappyPathMapState();
+      store.dispatch(gameStateReceived(mapState));
+      await waitFor(() => {
+        expect(selectEvals(store.getState()).map.result).not.toBeNull();
+      });
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+
+      // Second poll, exact same state — the player hasn't moved.
+      store.dispatch(gameStateReceived(mapState));
+      await settle();
+
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+    });
+
+    it("does not re-eval when the player picks the recommended on-path node (first move)", async () => {
+      const store = createIntegrationStore();
+      setupMapEvalListener();
+      seedRun(store);
+
+      store.dispatch(gameStateReceived(buildHappyPathMapState()));
+      await waitFor(() => {
+        expect(selectEvals(store.getState()).map.result).not.toBeNull();
+      });
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+
+      // Player advances to the recommended Elite at (0,1).
+      const postMove = buildPostMoveMapState(
+        { col: 0, row: 1, type: "Elite" },
+        { col: 0, row: 2, type: "RestSite" },
+      );
+      store.dispatch(gameStateReceived(postMove));
+      await settle();
+
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+    });
+
+    it("DOES re-eval when the player goes off the recommended path (regression on #131)", async () => {
+      const store = createIntegrationStore();
+      setupMapEvalListener();
+      seedRun(store);
+
+      store.dispatch(gameStateReceived(buildHappyPathMapState()));
+      await waitFor(() => {
+        expect(selectEvals(store.getState()).map.result).not.toBeNull();
+      });
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+
+      // Player picks the Shop at (2,1) — not on the recommended path.
+      const offPath = buildPostMoveMapState(
+        { col: 2, row: 1, type: "Shop" },
+        { col: 2, row: 2, type: "Monster" },
+      );
+      store.dispatch(gameStateReceived(offPath));
+
+      await waitFor(() => {
+        expect(
+          apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+        ).toHaveLength(2);
+      });
+    });
+  });
 });

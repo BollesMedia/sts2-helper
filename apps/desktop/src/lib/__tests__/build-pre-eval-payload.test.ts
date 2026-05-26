@@ -44,6 +44,7 @@ const baseParams = {
   maxHp: 80,
   currentRemovalCost: 75,
   nodePreferences: null,
+  currentPosition: { col: 1, row: 0 },
 };
 
 describe("buildPreEvalPayload", () => {
@@ -77,6 +78,7 @@ describe("buildPreEvalPayload", () => {
       act: 2,
       gold: 50,
       ascension: 5,
+      position: { col: 1, row: 0 },
     });
   });
 

@@ -24,15 +24,24 @@ export function buildPreEvalPayload(params: {
   maxHp: number;
   currentRemovalCost: number;
   nodePreferences: NodePreferences | null;
+  currentPosition: { col: number; row: number } | null;
 }): {
   recommendedNodes: string[];
-  lastEvalContext: { hpPercent: number; deckSize: number; act: number; gold: number; ascension: number };
+  lastEvalContext: {
+    hpPercent: number;
+    deckSize: number;
+    act: number;
+    gold: number;
+    ascension: number;
+    position: { col: number; row: number } | null;
+  };
 } {
   const {
     options, allNodes, bossPos,
     hpPercent, gold, act, deckSize,
     ascension, maxHp, currentRemovalCost,
     nodePreferences,
+    currentPosition,
   } = params;
 
   const recommendedNodes = new Set<string>();
@@ -59,6 +68,13 @@ export function buildPreEvalPayload(params: {
 
   return {
     recommendedNodes: [...recommendedNodes],
-    lastEvalContext: { hpPercent, deckSize, act, gold, ascension },
+    lastEvalContext: {
+      hpPercent,
+      deckSize,
+      act,
+      gold,
+      ascension,
+      position: currentPosition,
+    },
   };
 }
