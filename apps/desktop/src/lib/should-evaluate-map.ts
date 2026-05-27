@@ -7,6 +7,10 @@ export interface ShouldEvaluateMapInput {
   isOnRecommendedPath: boolean;
   nextOptions: { col: number; row: number; type: string }[];
   nextOptionSubgraphFingerprints: string[];
+  /** True when currentPosition matches the position recorded at the last eval. */
+  currentPosUnchanged: boolean;
+  /** Rows advanced since the last eval, or null if no prior eval position is known. */
+  floorsSinceLastEvalPosition: number | null;
 }
 
 function hasMeaningfulFork(input: ShouldEvaluateMapInput): boolean {
@@ -28,8 +32,13 @@ function hasMeaningfulFork(input: ShouldEvaluateMapInput): boolean {
  * 3. Off-path deviation. The player is no longer on the recommended path —
  *    re-plan immediately so the recommendation reflects the actual position,
  *    even at forced rows. Predictability beats token savings here.
- * 4. Meaningful fork. Multiple `next_options` that differ in type or in
- *    downstream subgraph fingerprint.
+ * 4. On-path suppression. Skip re-eval when the player is on-path AND
+ *    either (a) hasn't moved since the last eval, or (b) just advanced
+ *    one floor along the recommended path. The initial eval already
+ *    analyzed this fork — no new information to add.
+ * 5. Meaningful fork (backstop). Multiple `next_options` that differ in
+ *    type or in downstream subgraph fingerprint, when several on-path
+ *    floors have elapsed without a fresh analysis.
  */
 export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   if (input.optionCount <= 0) return false;
@@ -42,6 +51,12 @@ export function shouldEvaluateMap(input: ShouldEvaluateMapInput): boolean {
   }
 
   if (!input.isOnRecommendedPath) return true;
+
+  // On-path: the initial eval already analyzed the full downstream tree
+  // from the last-eval position. Suppress re-eval until the player has
+  // advanced far enough that a fresh analysis adds information.
+  if (input.currentPosUnchanged) return false;
+  if (input.floorsSinceLastEvalPosition === 1) return false;
 
   return hasMeaningfulFork(input);
 }

@@ -88,10 +88,9 @@ export function parseNodeId(nodeId: string): { col: number; row: number } | null
  * Map evaluation listener.
  *
  * Watches game state changes on the map. Decides whether to evaluate
- * (via shouldEvaluateMap — three structural triggers: new map, moved
- * onto off-path node, or fork with distinct downstream subgraphs), then
- * owns the full eval pipeline: API call, path derivation, recommended
- * nodes, and Redux persistence.
+ * (via shouldEvaluateMap — see its JSDoc for the full trigger list),
+ * then owns the full eval pipeline: API call, path derivation,
+ * recommended nodes, and Redux persistence.
  */
 export function setupMapEvalListener() {
   let prevMapPosition: { col: number; row: number } | null = null;
@@ -286,6 +285,14 @@ export function setupMapEvalListener() {
           computeSubgraphFingerprint(allNodesForFp, { col: o.col, row: o.row }, bossRow - 1),
         );
 
+        const lastPos = prevContext?.position ?? null;
+        const currentPosUnchanged = !!(
+          lastPos && currentPos &&
+          lastPos.col === currentPos.col && lastPos.row === currentPos.row
+        );
+        const floorsSinceLastEvalPosition =
+          lastPos && currentPos ? currentPos.row - lastPos.row : null;
+
         const input = {
           optionCount: options.length,
           hasPrevContext: !!prevContext,
@@ -295,6 +302,8 @@ export function setupMapEvalListener() {
           isOnRecommendedPath: isOnPath,
           nextOptions: options.map((o) => ({ col: o.col, row: o.row, type: o.type.toLowerCase() })),
           nextOptionSubgraphFingerprints: fingerprints,
+          currentPosUnchanged,
+          floorsSinceLastEvalPosition,
         };
 
         const shouldEval = shouldEvaluateMap(input);
@@ -399,6 +408,12 @@ export function setupMapEvalListener() {
         maxHp: mapPlayer?.max_hp ?? 80,
         currentRemovalCost: player?.cardRemovalCost ?? 75,
         nodePreferences: storedPrefs,
+        currentPosition: mapState.map?.current_position
+          ? {
+              col: mapState.map.current_position.col,
+              row: mapState.map.current_position.row,
+            }
+          : null,
       });
       // Preserve the PREVIOUS act in the pre-eval context so that if the
       // API call fails, shouldEvaluateMap still detects the act change and
@@ -594,6 +609,7 @@ export function setupMapEvalListener() {
             act,
             gold: mapPlayer?.gold ?? 0,
             ascension: run.ascension,
+            position: currentPos ? { col: currentPos.col, row: currentPos.row } : null,
           },
         }));
         logReduxSnapshot(listenerApi as unknown as { getState: () => unknown }, "after_map_eval");
