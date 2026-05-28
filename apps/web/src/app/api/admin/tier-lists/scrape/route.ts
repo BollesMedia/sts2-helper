@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { resolveAdapter } from "@sts2/shared/tier-sources";
+import { resolveAdapter, type ScrapedSection } from "@sts2/shared/tier-sources";
 import {
   fetchAndHashAll,
   filenameHint,
@@ -53,66 +53,64 @@ const scrapeSchema = z.object({
 // Kept separate so the character filter still includes neutral cards.
 const NEUTRAL_COLORS = ["colorless", "curse"] as const;
 
+type CharacterParam =
+  | "ironclad"
+  | "silent"
+  | "defect"
+  | "regent"
+  | "necrobinder"
+  | null
+  | undefined;
+
 interface CardWithHash {
   id: string;
   name: string;
   hash: string;
 }
 
-export const POST = withAdmin(async (request) => {
-  const body = await request.json();
-  const parsed = scrapeSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid request body", detail: parsed.error.format() },
-      { status: 400 },
-    );
-  }
-  const { url, html, character } = parsed.data;
+type CardRow = { id: string; name: string; color: string | null; phash: string | null };
 
-  const adapter = resolveAdapter(url);
-  if (!adapter) {
-    return NextResponse.json(
-      { error: `No tier-list adapter supports ${url}` },
-      { status: 400 },
-    );
-  }
+type MatchedCard = {
+  externalId?: string;
+  tier: string;
+  imageUrl: string;
+  name: string;
+  cardId: string | null;
+  confidence: number;
+  source: "alt" | "filename" | "phash" | "none";
+  distance: number | null;
+  error?: string;
+};
 
-  const scraped = adapter.parse(html, url);
-  if (scraped.cards.length === 0) {
-    return NextResponse.json(
-      {
-        error: "No cards found in pasted HTML",
-        warnings: scraped.warnings,
-      },
-      { status: 422 },
-    );
-  }
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  const supabase = createServiceClient();
+// When all matchers miss, preserve the strongest name hint we have so the
+// admin sees something actionable in the preview rather than an empty
+// combobox. Priority: adapter-declared name > filename-derived hint.
+const unmatchedName = (card: { name?: string; imageUrl: string }) =>
+  card.name && card.name.trim().length > 0 ? card.name : filenameHint(card.imageUrl);
 
-  const { data: cardsData, error: cardsError } = await supabase
-    .from("cards")
-    .select("id, name, color, phash");
-  if (cardsError) {
-    console.error("[Tier Lists Scrape] Card fetch failed:", cardsError);
-    return NextResponse.json({ error: "Card fetch failed" }, { status: 500 });
-  }
-
-  type CardRow = { id: string; name: string; color: string | null; phash: string | null };
-  const cards = (cardsData ?? []) as CardRow[];
-
-  const cardIdMap: Record<string, string> = {};
-  for (const c of cards) cardIdMap[c.name] = c.id;
-
-  const allowedColors = character
-    ? new Set<string>([character, ...NEUTRAL_COLORS])
-    : null;
+/**
+ * Run candidate matching for a single section. The section's detectedCharacter
+ * is used as the primary scope hint; fallbackCharacter (the request param) is
+ * used only when the section doesn't declare one.
+ */
+async function matchSection(
+  section: ScrapedSection,
+  fallbackCharacter: CharacterParam,
+  candidates: CardRow[],
+  scrapeHost: string,
+): Promise<{ matched: MatchedCard[]; warnings: string[] }> {
+  const sectionCharacter = section.detectedCharacter ?? fallbackCharacter ?? null;
 
   // Character-scoped candidate pool. Filename + hash matchers both draw
   // from this same pool so cross-character collisions (e.g. a Silent card's
   // hash happening to match an Ironclad card) are eliminated up front.
-  const scopedCards = cards.filter(
+  const allowedColors = sectionCharacter
+    ? new Set<string>([sectionCharacter, ...NEUTRAL_COLORS])
+    : null;
+
+  const scopedCards = candidates.filter(
     (c) => !allowedColors || (c.color !== null && allowedColors.has(c.color)),
   );
 
@@ -122,21 +120,23 @@ export const POST = withAdmin(async (request) => {
   }));
 
   const hashCandidates: CardWithHash[] = scopedCards
-    .filter((c): c is { id: string; name: string; color: string | null; phash: string } =>
-      typeof c.phash === "string" && c.phash.length > 0,
+    .filter(
+      (c): c is { id: string; name: string; color: string | null; phash: string } =>
+        typeof c.phash === "string" && c.phash.length > 0,
     )
     .map((c) => ({ id: c.id, name: c.name, hash: c.phash }));
+
+  // Build a normalized name → candidate lookup for fast alt-text matches.
+  // Drops apostrophes/punctuation so "Pact's End" → "pactsend" collides
+  // with source variants like "Pacts End".
+  const normalizedNameLookup = new Map<string, NamedCandidate>();
+  for (const c of nameCandidates) normalizedNameLookup.set(normName(c.name), c);
 
   // Fetch + hash every scraped card image in parallel. The filename matcher
   // catches ~everything for tiermaker's doubled-name convention; hashes are
   // a fallback for adapters whose filenames aren't reliable.
-  // Adapter owns the host allowlist: only URLs matching the same site that
-  // handled the scrape are eligible. Tightening this from the route would
-  // couple us to adapter internals; the adapter sets it via canHandle's host.
-  // Extract the scrape URL's host as the allowlist entry.
-  const { hostname: scrapeHost } = new URL(url);
   const hashResults = await fetchAndHashAll(
-    scraped.cards.map((c) => c.imageUrl),
+    section.cards.map((c) => c.imageUrl),
     8,
     {
       allowedHosts: [scrapeHost],
@@ -145,32 +145,7 @@ export const POST = withAdmin(async (request) => {
     },
   );
 
-  type MatchedCard = {
-    externalId?: string;
-    tier: string;
-    imageUrl: string;
-    name: string;
-    cardId: string | null;
-    confidence: number;
-    source: "alt" | "filename" | "phash" | "none";
-    distance: number | null;
-    error?: string;
-  };
-
-  // Build a normalized name → candidate lookup for fast alt-text matches.
-  // Drops apostrophes/punctuation so "Pact's End" → "pactsend" collides
-  // with source variants like "Pacts End".
-  const normalizedNameLookup = new Map<string, NamedCandidate>();
-  const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  for (const c of nameCandidates) normalizedNameLookup.set(normName(c.name), c);
-
-  // When all matchers miss, preserve the strongest name hint we have so the
-  // admin sees something actionable in the preview rather than an empty
-  // combobox. Priority: adapter-declared name > filename-derived hint.
-  const unmatchedName = (card: { name?: string; imageUrl: string }) =>
-    card.name && card.name.trim().length > 0 ? card.name : filenameHint(card.imageUrl);
-
-  const matched: MatchedCard[] = scraped.cards.map((card, i) => {
+  const matched: MatchedCard[] = section.cards.map((card, i) => {
     // Tier 0: adapter-declared alt/name — the strongest signal when present.
     if (card.name) {
       const byAlt = normalizedNameLookup.get(normName(card.name));
@@ -243,43 +218,79 @@ export const POST = withAdmin(async (request) => {
     };
   });
 
-  // Collapse into the same `tiers[]` shape the existing preview UI consumes.
-  const tiersByLabel = new Map<string, MatchedCard[]>();
-  for (const m of matched) {
-    const bucket = tiersByLabel.get(m.tier) ?? [];
-    bucket.push(m);
-    tiersByLabel.set(m.tier, bucket);
+  const warnings = matched
+    .filter((m) => m.error)
+    .map((m) => `${m.imageUrl}: ${m.error}`);
+
+  return { matched, warnings };
+}
+
+export const POST = withAdmin(async (request) => {
+  const body = await request.json();
+  const parsed = scrapeSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request body", detail: parsed.error.format() },
+      { status: 400 },
+    );
   }
-  const tiers = Array.from(tiersByLabel.entries()).map(([label, cards]) => ({
-    label,
-    cards: cards.map((c) => ({ name: c.name, confidence: c.confidence })),
-  }));
+  const { url, html, character } = parsed.data;
+
+  const adapter = resolveAdapter(url);
+  if (!adapter) {
+    return NextResponse.json(
+      { error: `No tier-list adapter supports ${url}` },
+      { status: 400 },
+    );
+  }
+
+  const adapterResult = adapter.parse(html, url);
+  const totalCards = adapterResult.sections.reduce(
+    (sum, s) => sum + s.cards.length,
+    0,
+  );
+  if (totalCards === 0) {
+    return NextResponse.json(
+      {
+        error: "No cards found in pasted HTML",
+        warnings: adapterResult.warnings,
+      },
+      { status: 422 },
+    );
+  }
+
+  const supabase = createServiceClient();
+
+  const { data: cardsData, error: cardsError } = await supabase
+    .from("cards")
+    .select("id, name, color, phash");
+  if (cardsError) {
+    console.error("[Tier Lists Scrape] Card fetch failed:", cardsError);
+    return NextResponse.json({ error: "Card fetch failed" }, { status: 500 });
+  }
+
+  const candidates = (cardsData ?? []) as CardRow[];
+
+  // Adapter owns the host allowlist: only URLs matching the same site that
+  // handled the scrape are eligible.
+  const { hostname: scrapeHost } = new URL(url);
+
+  const sectionsOut = await Promise.all(
+    adapterResult.sections.map(async (section) => {
+      const result = await matchSection(section, character, candidates, scrapeHost);
+      return {
+        detectedCharacter: section.detectedCharacter,
+        scaleType: section.scaleType,
+        scaleConfig: section.scaleConfig ?? null,
+        matched: result.matched,
+        unmatched: result.matched.filter((m) => !m.cardId),
+        warnings: [...section.warnings, ...result.warnings],
+      };
+    }),
+  );
 
   return NextResponse.json({
-    adapterId: scraped.adapterId,
-    sourceUrl: url,
-    imageUrl: null,
-    ingestionMethod: "scraped" as const,
-    scaleType: scraped.scaleType,
-    scaleConfig: scraped.scaleConfig ?? null,
-    detectedCharacter: scraped.detectedCharacter,
-    extraction: {
-      tiers,
-      warnings: [
-        ...scraped.warnings,
-        ...matched
-          .filter((m) => m.error)
-          .map((m) => `${m.imageUrl}: ${m.error}`),
-      ],
-    },
-    cardIdMap,
-    // Per-card metadata for the preview UI: lets us show the tiermaker image
-    // alongside the matched card (or empty combobox) for visual verification.
-    scrapedCards: matched,
-    stats: {
-      total: matched.length,
-      matched: matched.filter((m) => m.cardId).length,
-      unmatched: matched.filter((m) => !m.cardId).length,
-    },
+    sections: sectionsOut,
+    warnings: adapterResult.warnings,
   });
 });
