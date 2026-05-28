@@ -36,13 +36,18 @@ describe("resolveAdapter", () => {
 describe("tiermakerAdapter.parse", () => {
   const result = tiermakerAdapter.parse(FIXTURE_HTML, FIXTURE_URL);
 
+  it("returns single section", () => {
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].cards.length).toBeGreaterThan(0);
+  });
+
   it("extracts tier rows in top-to-bottom order", () => {
-    const tierOrder = [...new Set(result.cards.map((c) => c.tier))];
+    const tierOrder = [...new Set(result.sections[0].cards.map((c) => c.tier))];
     expect(tierOrder).toEqual(["S", "A", "B", "C"]);
   });
 
   it("extracts every card's imageUrl and externalId", () => {
-    const sCards = result.cards.filter((c) => c.tier === "S");
+    const sCards = result.sections[0].cards.filter((c) => c.tier === "S");
     expect(sCards).toHaveLength(6);
     expect(sCards[0]).toEqual({
       tier: "S",
@@ -53,15 +58,15 @@ describe("tiermakerAdapter.parse", () => {
   });
 
   it("decodes HTML entities in src attributes", () => {
-    for (const card of result.cards) {
+    for (const card of result.sections[0].cards) {
       expect(card.imageUrl).not.toContain("&quot;");
       expect(card.imageUrl).toMatch(/^https:\/\//);
     }
   });
 
   it("returns letter_6 scale with no 7-letter override for this fixture", () => {
-    expect(result.scaleType).toBe("letter_6");
-    expect(result.scaleConfig).toBeUndefined();
+    expect(result.sections[0].scaleType).toBe("letter_6");
+    expect(result.sections[0].scaleConfig).toBeUndefined();
   });
 
   it("applies 7-letter override when E and F are both present", () => {
@@ -71,18 +76,18 @@ describe("tiermakerAdapter.parse", () => {
        <div class="tier-row"><div class="label-holder"><span class="label">F</span></div><div class="tier sort"><div class="character" id="3"><img src="/c.png"></div></div></div>`,
       FIXTURE_URL,
     );
-    expect(sevenLetter.scaleConfig?.map.S).toBe(6);
-    expect(sevenLetter.scaleConfig?.map.E).toBeGreaterThan(1);
-    expect(sevenLetter.scaleConfig?.map.F).toBe(1);
+    expect(sevenLetter.sections[0].scaleConfig?.map.S).toBe(6);
+    expect(sevenLetter.sections[0].scaleConfig?.map.E).toBeGreaterThan(1);
+    expect(sevenLetter.sections[0].scaleConfig?.map.F).toBe(1);
   });
 
   it("warns when no tier rows are found", () => {
     const empty = tiermakerAdapter.parse("<p>not a tier list</p>", FIXTURE_URL);
-    expect(empty.cards).toHaveLength(0);
-    expect(empty.warnings.length).toBeGreaterThan(0);
+    expect(empty.sections[0].cards).toHaveLength(0);
+    expect(empty.sections[0].warnings.length).toBeGreaterThan(0);
   });
 
   it("always returns null detectedCharacter (admin sets via form)", () => {
-    expect(result.detectedCharacter).toBeNull();
+    expect(result.sections[0].detectedCharacter).toBeNull();
   });
 });

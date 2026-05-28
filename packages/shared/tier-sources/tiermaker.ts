@@ -66,11 +66,16 @@ export const tiermakerAdapter: TierListSourceAdapter = {
 
     return {
       adapterId: "tiermaker",
-      scaleType: "letter_6",
-      scaleConfig,
-      detectedCharacter: null,
-      cards,
-      warnings,
+      sections: [
+        {
+          detectedCharacter: null,
+          scaleType: "letter_6",
+          ...(scaleConfig ? { scaleConfig } : {}),
+          cards,
+          warnings,
+        },
+      ],
+      warnings: [],
     };
   },
 };

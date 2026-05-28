@@ -86,10 +86,15 @@ export const slaythetierlistAdapter: TierListSourceAdapter = {
 
     return {
       adapterId: "slaythetierlist",
-      scaleType: "letter_6",
-      detectedCharacter,
-      cards,
-      warnings,
+      sections: [
+        {
+          detectedCharacter,
+          scaleType: "letter_6",
+          cards,
+          warnings,
+        },
+      ],
+      warnings: [],
     };
   },
 };

@@ -67,10 +67,15 @@ export const sts2companionAdapter: TierListSourceAdapter = {
       );
       return {
         adapterId: "sts2companion",
-        scaleType: "letter_6",
-        detectedCharacter,
-        cards,
-        warnings,
+        sections: [
+          {
+            detectedCharacter,
+            scaleType: "letter_6",
+            cards,
+            warnings,
+          },
+        ],
+        warnings: [],
       };
     }
 
@@ -104,10 +109,15 @@ export const sts2companionAdapter: TierListSourceAdapter = {
 
     return {
       adapterId: "sts2companion",
-      scaleType: "letter_6",
-      detectedCharacter,
-      cards,
-      warnings,
+      sections: [
+        {
+          detectedCharacter,
+          scaleType: "letter_6",
+          cards,
+          warnings,
+        },
+      ],
+      warnings: [],
     };
   },
 };

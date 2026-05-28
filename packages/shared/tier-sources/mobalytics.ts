@@ -78,10 +78,15 @@ export const mobalyticsAdapter: TierListSourceAdapter = {
 
     return {
       adapterId: "mobalytics",
-      scaleType: "letter_6",
-      detectedCharacter: null,
-      cards,
-      warnings,
+      sections: [
+        {
+          detectedCharacter: null,
+          scaleType: "letter_6",
+          cards,
+          warnings,
+        },
+      ],
+      warnings: [],
     };
   },
 };

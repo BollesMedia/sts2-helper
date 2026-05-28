@@ -30,23 +30,32 @@ describe("resolveAdapter", () => {
 describe("mobalyticsAdapter.parse", () => {
   const result = mobalyticsAdapter.parse(FIXTURE_HTML, FIXTURE_URL);
 
+  it("parses single-character section into sections[0]", () => {
+    expect(result.adapterId).toBe("mobalytics");
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].detectedCharacter).toBe(null);
+    expect(result.sections[0].scaleType).toBe("letter_6");
+    expect(result.sections[0].cards.length).toBeGreaterThan(0);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("buckets each image under its preceding tier label", () => {
-    const sCards = result.cards.filter((c) => c.tier === "S");
-    const aCards = result.cards.filter((c) => c.tier === "A");
-    const dCards = result.cards.filter((c) => c.tier === "D");
+    const sCards = result.sections[0].cards.filter((c) => c.tier === "S");
+    const aCards = result.sections[0].cards.filter((c) => c.tier === "A");
+    const dCards = result.sections[0].cards.filter((c) => c.tier === "D");
     expect(sCards).toHaveLength(3);
     expect(aCards).toHaveLength(2);
     expect(dCards).toHaveLength(2);
   });
 
   it("derives a human-readable name hint from the slug", () => {
-    const wlp = result.cards.find((c) => c.name === "Well Laid Plans");
+    const wlp = result.sections[0].cards.find((c) => c.name === "Well Laid Plans");
     expect(wlp?.tier).toBe("S");
     expect(wlp?.imageUrl).toContain("well-laid-plans.webp");
   });
 
   it("keeps raw CDN URLs (so the preview can render the thumbnail)", () => {
-    for (const c of result.cards) {
+    for (const c of result.sections[0].cards) {
       expect(c.imageUrl).toMatch(/^https:\/\/cdn\.mobalytics\.gg/);
     }
   });
@@ -58,13 +67,14 @@ describe("mobalyticsAdapter.parse", () => {
        <img src="https://cdn.mobalytics.gg/ok.webp">`,
       FIXTURE_URL,
     );
-    expect(extra.cards).toHaveLength(1);
-    expect(extra.cards[0].imageUrl).toContain("cdn.mobalytics.gg");
+    expect(extra.sections).toHaveLength(1);
+    expect(extra.sections[0].cards).toHaveLength(1);
+    expect(extra.sections[0].cards[0].imageUrl).toContain("cdn.mobalytics.gg");
   });
 
   it("warns when no mobalytics images are present", () => {
     const empty = mobalyticsAdapter.parse("<div>nope</div>", FIXTURE_URL);
-    expect(empty.cards).toHaveLength(0);
-    expect(empty.warnings.length).toBeGreaterThan(0);
+    expect(empty.sections[0].cards).toHaveLength(0);
+    expect(empty.sections[0].warnings.length).toBeGreaterThan(0);
   });
 });
