@@ -71,7 +71,8 @@ function findCharacterSections(root: HTMLElement): Array<{
     const text = h.text.trim();
     const m = text.match(CHARACTER_HEADER_RE);
     if (!m) continue;
-    // Walk up to the nearest <section> ancestor.
+    // Walk up to the nearest <section> ancestor. Mobalytics wraps each character's
+    // tier list in a <section>; ascend to isolate it.
     let cur: HTMLElement | null = h as HTMLElement;
     while (cur && cur.tagName !== "SECTION") {
       cur = cur.parentNode as HTMLElement | null;
@@ -98,7 +99,9 @@ export const mobalyticsAdapter: TierListSourceAdapter = {
 
   parse(html) {
     const root = parseHtml(html);
-    const characterSections = findCharacterSections(root as unknown as HTMLElement);
+    // parseHtml returns the document root; cast to HTMLElement is safe because
+    // we only call querySelectorAll and parentNode traversal on it.
+    const characterSections = findCharacterSections(root as HTMLElement);
 
     if (characterSections.length > 0) {
       const sections = characterSections.map(({ character, rootEl }) => {
