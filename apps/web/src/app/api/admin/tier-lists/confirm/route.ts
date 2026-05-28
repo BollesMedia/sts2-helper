@@ -299,6 +299,8 @@ export const POST = withAdmin(async (request) => {
     success: true,
     inserted,
     // Legacy single-section convenience fields (backwards-compat for existing callers)
+    // Backwards-compat legacy single-section response. These fields reflect
+    // inserted[0] only — multi-section callers should read `inserted` instead.
     tier_list_id: inserted[0]?.listId ?? null,
     entry_count: inserted[0]?.entryCount ?? 0,
     refreshWarning,
