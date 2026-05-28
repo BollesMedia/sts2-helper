@@ -535,7 +535,7 @@ describe("normalizeCharacter", () => {
     expect(normalizeCharacter("  The Ironclad  ")).toBe("ironclad");
   });
 
-  it("excludes card when time-based staleness is excluded (>365 days)", async () => {
+  it("excludes card when time-based staleness is excluded (>84 days)", async () => {
     const supabase = makeSupabaseMock({
       consensusRows: [
         {

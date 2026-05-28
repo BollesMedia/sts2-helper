@@ -204,7 +204,7 @@ export function classifyByTime(
   const ageDays = (now - published) / DAY_MS;
   if (ageDays < AGING_DAYS) return "fresh";
   if (ageDays < STALE_DAYS) return "aging";
-  return "excluded"; // > 365 days: excluded
+  return "excluded"; // > 84 days (STALE_DAYS): excluded
 }
 
 export function classifyByVersion(
