@@ -44,6 +44,17 @@ function deriveSourceId(author: string, sourceType: SourceType): string {
   return `${slug || "unknown"}-${sourceType}`;
 }
 
+// Thresholds intentionally inlined (mirrors AGING_DAYS/STALE_DAYS from
+// shared/evaluation/community-tier.ts). Keeps the UI free of cross-package
+// runtime imports for a 4-line helper.
+function classifyRowStaleness(publishedAt: string): "fresh" | "aging" | "excluded" {
+  const ageDays = (Date.now() - new Date(publishedAt).getTime()) / 86_400_000;
+  if (Number.isNaN(ageDays)) return "fresh";
+  if (ageDays < 28) return "fresh";
+  if (ageDays < 84) return "aging";
+  return "excluded";
+}
+
 interface ExtractedCard {
   name: string;
   tier: string;
@@ -767,6 +778,22 @@ function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => vo
   const visible = lists
     .filter((l) => (showInactive ? true : l.is_active))
     .filter((l) => !authorFilter || l.source.author === authorFilter);
+
+  const sortedRows = useMemo(() => {
+    const rank: Record<"fresh" | "aging" | "excluded", number> = {
+      excluded: 0,
+      aging: 1,
+      fresh: 2,
+    };
+    return [...visible].sort((a, b) => {
+      const sa = rank[classifyRowStaleness(a.published_at)];
+      const sb = rank[classifyRowStaleness(b.published_at)];
+      if (sa !== sb) return sa - sb;
+      // Tiebreaker: most-recently-ingested first
+      return new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime();
+    });
+  }, [visible]);
+
   const activeCount = lists.filter((l) => l.is_active).length;
   const inactiveCount = lists.length - activeCount;
 
@@ -816,7 +843,7 @@ function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => vo
         <div className="px-4 py-6 text-sm text-red-400">
           Failed to load: {error instanceof Error ? error.message : String(error)}
         </div>
-      ) : !isLoading && visible.length === 0 ? (
+      ) : !isLoading && sortedRows.length === 0 ? (
         <div className="px-4 py-6 text-sm text-zinc-500">
           No tier lists ingested yet.
         </div>
@@ -838,7 +865,7 @@ function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => vo
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900">
-              {visible.map((row) => (
+              {sortedRows.map((row) => (
                 <tr
                   key={row.id}
                   className={`${row.is_active ? "text-zinc-200" : "text-zinc-600"} hover:bg-zinc-900/40 transition-colors`}
@@ -860,7 +887,24 @@ function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => vo
                   <Td className="text-zinc-500">{row.source.source_type}</Td>
                   <Td>{row.character ?? "any"}</Td>
                   <Td className="text-zinc-500">{row.game_version ?? "—"}</Td>
-                  <Td className="text-zinc-500">{formatDate(row.published_at)}</Td>
+                  <Td className="text-zinc-500">
+                    <div className="flex items-center gap-2">
+                      {formatDate(row.published_at)}
+                      {(() => {
+                        const status = classifyRowStaleness(row.published_at);
+                        const chipClasses = {
+                          fresh: "bg-emerald-900/40 text-emerald-300",
+                          aging: "bg-amber-900/40 text-amber-300",
+                          excluded: "bg-rose-900/40 text-rose-300",
+                        }[status];
+                        return (
+                          <span className={`inline-block rounded px-1.5 py-0.5 text-xs ${chipClasses}`}>
+                            {status}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </Td>
                   <Td className="text-right font-mono">{row.entry_count}</Td>
                   <Td className="text-right font-mono text-zinc-500">
                     {row.source.trust_weight.toFixed(1)}
