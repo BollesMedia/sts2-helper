@@ -316,6 +316,14 @@ function TierListContent() {
         return { ...s, include: true, cardIdMap };
       });
 
+      // Check if scrape adapter found any sections — empty response means
+      // the adapter couldn't extract the tier list.
+      if (sections.length === 0) {
+        setError("No tier list data found. Check the URL and HTML.");
+        setSubmitting(false);
+        return;
+      }
+
       setPreviewSections(sections);
       setActiveSectionIdx(0);
       // Keep extractResult minimal for scrape — imageUrl comes from the
@@ -332,8 +340,9 @@ function TierListContent() {
       setCards([]);
 
       // Pre-populate tier mapping from the first section's scale type.
-      // tierMapping is global — per-section mapping is a follow-up improvement.
       // TODO: make tierMapping per-section so mixed-scale lists map correctly.
+      // (cardIdMap is already per-section by necessity — each PreviewSection has
+      // its own matched[] pool, so the lookup table is built per-section.)
       if (sections.length > 0) {
         const firstSection = sections[0];
         const orderedLabels = Array.from(
@@ -473,7 +482,9 @@ function TierListContent() {
     // Build scale_config.map from the admin's tier mapping. Merges with any
     // adapter-provided scale_config (e.g. tiermaker's 7-letter override) so
     // both descriptive-label and letter-scale cases co-exist.
-    // TODO: per-section tierMapping for mixed-scale lists.
+    // TODO: make tierMapping per-section so mixed-scale lists map correctly.
+    // (cardIdMap is already per-section by necessity — each PreviewSection has
+    // its own matched[] pool, so the lookup table is built per-section.)
     const mappingEntries = Object.entries(tierMapping);
     const adapterMap = extractResult.scaleConfig?.map ?? {};
     const mergedMap: Record<string, number> = { ...adapterMap };
