@@ -26,6 +26,11 @@ interface SourceMeta {
   published_at: string;
 }
 
+interface RefreshContext {
+  sourceId: string;
+  sourceMeta: SourceMeta;
+}
+
 /**
  * Derive a stable source_id slug from author + source_type.
  * Same author + type always maps to the same row, so re-uploads hit
@@ -54,6 +59,36 @@ interface ScrapedCardInfo {
   imageUrl: string;
   name?: string;
   source?: "alt" | "filename" | "phash" | "none";
+}
+
+/** Card entry from the scrape route's sections[].matched[] response. */
+interface MatchedCard {
+  externalId?: string;
+  tier: string;
+  imageUrl: string;
+  name: string;
+  cardId: string | null;
+  confidence: number;
+  source: "alt" | "filename" | "phash" | "none";
+  distance: number | null;
+  error?: string;
+}
+
+/** One character/section from the scrape response, enriched for preview UI. */
+interface PreviewSection {
+  detectedCharacter: string | null;
+  scaleType: ScaleType;
+  scaleConfig?: { map: Record<string, number> } | null;
+  matched: MatchedCard[];
+  unmatched: MatchedCard[];
+  warnings: string[];
+  /** Per-section opt-out checkbox state, default true. */
+  include: boolean;
+  /**
+   * Name → cardId map rebuilt from matched[]. Used by confirm to resolve
+   * entries and by the inline combobox to look up IDs.
+   */
+  cardIdMap: Record<string, string>;
 }
 
 interface ExtractResult {
@@ -205,10 +240,17 @@ function TierListContent() {
   const [tierMapping, setTierMapping] = useState<Record<string, LetterOption>>(
     draft?.tierMapping ?? {},
   );
+  // Multi-section preview state (populated from scrape sections[] response).
+  // Image-upload path creates a single synthetic PreviewSection from the
+  // vision-LLM ExtractResult so the same confirm logic handles both modes.
+  const [previewSections, setPreviewSections] = useState<PreviewSection[]>([]);
+  const [activeSectionIdx, setActiveSectionIdx] = useState(0);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
   const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<RefreshContext | null>(null);
 
   // ── Step 1: Extract ─────────────────────────────────────────────────────────
 
@@ -217,8 +259,8 @@ function TierListContent() {
     setSubmitting(true);
     setError(null);
 
-    let result: ExtractResult;
     if (ingestMode === "scrape") {
+      // ── Scrape path: API returns sections[] ─────────────────────────────────
       if (!scrapeUrl || !scrapeHtml) {
         setError("Paste the source URL and the tier list HTML before extracting.");
         setSubmitting(false);
@@ -253,8 +295,62 @@ function TierListContent() {
         setSubmitting(false);
         return;
       }
-      result = data as ExtractResult;
+
+      // Build PreviewSection[] from API sections. Each section's cardIdMap is
+      // reconstructed from matched[].cardId so confirm can resolve entries
+      // without a global cardIdMap.
+      const sections: PreviewSection[] = (
+        data.sections as Array<{
+          detectedCharacter: string | null;
+          scaleType: ScaleType;
+          scaleConfig?: { map: Record<string, number> } | null;
+          matched: MatchedCard[];
+          unmatched: MatchedCard[];
+          warnings: string[];
+        }>
+      ).map((s) => {
+        const cardIdMap: Record<string, string> = {};
+        for (const m of s.matched) {
+          if (m.cardId) cardIdMap[m.name] = m.cardId;
+        }
+        return { ...s, include: true, cardIdMap };
+      });
+
+      setPreviewSections(sections);
+      setActiveSectionIdx(0);
+      // Keep extractResult minimal for scrape — imageUrl comes from the
+      // section cards, not a top-level upload. We only need imageUrl=null
+      // and ingestionMethod for the confirm payload.
+      setExtractResult({
+        imageUrl: null,
+        extraction: { tiers: [], detected_scale: null, detected_character: null, warnings: [] },
+        cardIdMap: {},
+        ingestionMethod: "scraped",
+        sourceUrl: scrapeUrl,
+      });
+      // Scrape cards are held in previewSections; clear the legacy cards state.
+      setCards([]);
+
+      // Pre-populate tier mapping from the first section's scale type.
+      // tierMapping is global — per-section mapping is a follow-up improvement.
+      // TODO: make tierMapping per-section so mixed-scale lists map correctly.
+      if (sections.length > 0) {
+        const firstSection = sections[0];
+        const orderedLabels = Array.from(
+          new Set(firstSection.matched.map((m) => m.tier)),
+        );
+        const nonStandard = orderedLabels.filter(
+          (l) => !isStandardTierLabel(l, firstSection.scaleType),
+        );
+        if (nonStandard.length > 0) {
+          setTierMapping((prev) => ({
+            ...inferLetterMapping(orderedLabels),
+            ...prev,
+          }));
+        }
+      }
     } else {
+      // ── Image path: vision LLM returns old ExtractResult shape ──────────────
       if (!imageFile) {
         setSubmitting(false);
         return;
@@ -279,58 +375,87 @@ function TierListContent() {
         setSubmitting(false);
         return;
       }
-      result = data as ExtractResult;
-    }
-    setExtractResult(result);
+      const result = data as ExtractResult;
+      setExtractResult(result);
 
-    // Build a normalized lookup so we can auto-match common variants
-    // (case differences, trailing "+", whitespace) without bothering the admin.
-    const normalizedLookup = new Map<string, string>();
-    for (const canonical of Object.keys(result.cardIdMap)) {
-      normalizedLookup.set(normalizeCardName(canonical), canonical);
-    }
-
-    // Flatten tiers → card rows. Auto-populate matchedName for fuzzy matches
-    // so the admin only has to resolve truly unknown cards. For scraped lists,
-    // zip in per-card source metadata (sourceImageUrl) so the preview can
-    // render a thumbnail next to each row.
-    const flat: ExtractedCard[] = [];
-    let sourceIdx = 0;
-    for (const tier of result.extraction.tiers ?? []) {
-      for (const card of tier.cards) {
-        const matched = resolveExtractedName(card.name, result.cardIdMap, normalizedLookup);
-        const scraped = result.scrapedCards?.[sourceIdx];
-        flat.push({
-          name: card.name,
-          tier: tier.label,
-          confidence: card.confidence,
-          matchedName: matched && matched !== card.name ? matched : undefined,
-          sourceImageUrl: scraped?.imageUrl,
-        });
-        sourceIdx++;
+      // Build a normalized lookup so we can auto-match common variants
+      // (case differences, trailing "+", whitespace) without bothering the admin.
+      const normalizedLookup = new Map<string, string>();
+      for (const canonical of Object.keys(result.cardIdMap)) {
+        normalizedLookup.set(normalizeCardName(canonical), canonical);
       }
-    }
-    setCards(flat);
 
-    // Detect non-standard tier labels and pre-populate a letter mapping so
-    // the confirm payload can set source.scale_config.map. Keeps descriptive
-    // scales like "Premium / Want in most decks / Bad" first-class.
-    const orderedLabels: string[] = [];
-    const seen = new Set<string>();
-    for (const tier of result.extraction.tiers ?? []) {
-      if (!seen.has(tier.label)) {
-        seen.add(tier.label);
-        orderedLabels.push(tier.label);
+      // Flatten tiers → card rows. Auto-populate matchedName for fuzzy matches
+      // so the admin only has to resolve truly unknown cards.
+      const flat: ExtractedCard[] = [];
+      let sourceIdx = 0;
+      for (const tier of result.extraction.tiers ?? []) {
+        for (const card of tier.cards) {
+          const matched = resolveExtractedName(card.name, result.cardIdMap, normalizedLookup);
+          const scraped = result.scrapedCards?.[sourceIdx];
+          flat.push({
+            name: card.name,
+            tier: tier.label,
+            confidence: card.confidence,
+            matchedName: matched && matched !== card.name ? matched : undefined,
+            sourceImageUrl: scraped?.imageUrl,
+          });
+          sourceIdx++;
+        }
       }
-    }
-    const nonStandard = orderedLabels.filter(
-      (l) => !isStandardTierLabel(l, meta.scale_type),
-    );
-    if (nonStandard.length > 0) {
-      setTierMapping((prev) => ({
-        ...inferLetterMapping(orderedLabels),
-        ...prev, // preserve any admin overrides already in the draft
-      }));
+      setCards(flat);
+
+      // Detect non-standard tier labels and pre-populate a letter mapping.
+      const orderedLabels: string[] = [];
+      const seen = new Set<string>();
+      for (const tier of result.extraction.tiers ?? []) {
+        if (!seen.has(tier.label)) {
+          seen.add(tier.label);
+          orderedLabels.push(tier.label);
+        }
+      }
+      const nonStandard = orderedLabels.filter(
+        (l) => !isStandardTierLabel(l, meta.scale_type),
+      );
+      if (nonStandard.length > 0) {
+        setTierMapping((prev) => ({
+          ...inferLetterMapping(orderedLabels),
+          ...prev, // preserve any admin overrides already in the draft
+        }));
+      }
+
+      // Wrap the image extraction result into a single synthetic PreviewSection
+      // so the confirm path is uniform across both ingest modes.
+      const imageSection: PreviewSection = {
+        detectedCharacter: result.extraction.detected_character ?? null,
+        scaleType: meta.scale_type,
+        scaleConfig: result.scaleConfig ?? null,
+        matched: flat.map((c) => ({
+          tier: c.tier,
+          imageUrl: c.sourceImageUrl ?? result.imageUrl ?? "",
+          name: c.matchedName ?? c.name,
+          cardId: result.cardIdMap[c.matchedName ?? c.name] ?? null,
+          confidence: c.confidence,
+          source: "none" as const,
+          distance: null,
+        })),
+        unmatched: flat
+          .filter((c) => !result.cardIdMap[c.matchedName ?? c.name])
+          .map((c) => ({
+            tier: c.tier,
+            imageUrl: c.sourceImageUrl ?? result.imageUrl ?? "",
+            name: c.matchedName ?? c.name,
+            cardId: null,
+            confidence: c.confidence,
+            source: "none" as const,
+            distance: null,
+          })),
+        warnings: result.extraction.warnings ?? [],
+        include: true,
+        cardIdMap: result.cardIdMap,
+      };
+      setPreviewSections([imageSection]);
+      setActiveSectionIdx(0);
     }
 
     setStep("preview");
@@ -340,37 +465,15 @@ function TierListContent() {
   // ── Step 2: Confirm ─────────────────────────────────────────────────────────
 
   const handleConfirm = async () => {
-    if (!extractResult) return;
+    if (!extractResult || previewSections.length === 0) return;
 
     setSubmitting(true);
     setError(null);
 
-    const { cardIdMap, imageUrl } = extractResult;
-    const skipped: string[] = [];
-
-    const entries = cards
-      .map((c) => {
-        const resolvedName = c.matchedName ?? c.name;
-        const card_id = cardIdMap[resolvedName];
-        if (!card_id) {
-          skipped.push(c.name);
-          return null;
-        }
-        return {
-          card_id,
-          raw_tier: c.tier,
-          extraction_confidence: c.confidence,
-        };
-      })
-      .filter((e): e is NonNullable<typeof e> => e !== null);
-
-    if (skipped.length > 0) {
-      console.warn("[TierListIngestion] Skipped unresolved cards:", skipped);
-    }
-
     // Build scale_config.map from the admin's tier mapping. Merges with any
     // adapter-provided scale_config (e.g. tiermaker's 7-letter override) so
     // both descriptive-label and letter-scale cases co-exist.
+    // TODO: per-section tierMapping for mixed-scale lists.
     const mappingEntries = Object.entries(tierMapping);
     const adapterMap = extractResult.scaleConfig?.map ?? {};
     const mergedMap: Record<string, number> = { ...adapterMap };
@@ -380,11 +483,54 @@ function TierListContent() {
     const scaleConfig =
       Object.keys(mergedMap).length > 0 ? { map: mergedMap } : null;
 
+    // Build sections payload from checked sections only.
+    const includedSections = previewSections.filter((s) => s.include);
+    if (includedSections.length === 0) {
+      setError("Select at least one section to confirm.");
+      setSubmitting(false);
+      return;
+    }
+
+    const skipped: string[] = [];
+    const sectionsPayload = includedSections.map((section) => {
+      const entries = section.matched
+        .map((m) => {
+          if (!m.cardId) {
+            skipped.push(m.name);
+            return null;
+          }
+          return {
+            card_id: m.cardId,
+            raw_tier: m.tier,
+            extraction_confidence: m.confidence,
+          };
+        })
+        .filter((e): e is NonNullable<typeof e> => e !== null);
+
+      return {
+        list: {
+          // Use section's detected character; fall back to wizard meta when
+          // the section didn't detect one (single-section paste, user selected
+          // character explicitly in the wizard).
+          character:
+            section.detectedCharacter ??
+            (meta.character === "any" ? null : meta.character),
+          game_version: meta.game_version || null,
+          published_at: meta.published_at,
+        },
+        entries,
+      };
+    });
+
+    if (skipped.length > 0) {
+      console.warn("[TierListIngestion] Skipped unresolved cards:", skipped);
+    }
+
     const body = {
-      imageUrl,
+      imageUrl: extractResult.imageUrl,
       ingestionMethod: extractResult.ingestionMethod ?? "vision_llm",
       source: {
-        id: deriveSourceId(meta.author, meta.source_type),
+        id: refreshing ? refreshing.sourceId : deriveSourceId(meta.author, meta.source_type),
         author: meta.author,
         source_type: meta.source_type,
         source_url: meta.source_url || extractResult.sourceUrl || null,
@@ -393,12 +539,7 @@ function TierListContent() {
         scale_config: scaleConfig,
         notes: null,
       },
-      list: {
-        game_version: meta.game_version || null,
-        published_at: meta.published_at,
-        character: meta.character === "any" ? null : meta.character,
-      },
-      entries,
+      sections: sectionsPayload,
     };
 
     const res = await fetch("/api/admin/tier-lists/confirm", {
@@ -415,10 +556,12 @@ function TierListContent() {
       return;
     }
 
-    setSavedCount(data.entry_count ?? entries.length);
+    const totalEntries = sectionsPayload.reduce((s, sec) => s + sec.entries.length, 0);
+    setSavedCount(data.entry_count ?? totalEntries);
     setRefreshWarning(data.refreshWarning ?? null);
     setStep("success");
     setSubmitting(false);
+    setRefreshing(null);
     clearDraft();
   };
 
@@ -434,9 +577,45 @@ function TierListContent() {
     setExtractResult(null);
     setCards([]);
     setTierMapping({});
+    setPreviewSections([]);
+    setActiveSectionIdx(0);
     setError(null);
     setSavedCount(0);
     setRefreshWarning(null);
+    setRefreshing(null);
+    clearDraft();
+  };
+
+  // ── Refresh: pre-fill wizard from an existing ingested row ──────────────────
+
+  const beginRefresh = (row: IngestedRow) => {
+    const ctx: RefreshContext = {
+      sourceId: row.source.id,
+      sourceMeta: {
+        author: row.source.author,
+        source_type: row.source.source_type,
+        source_url: row.source.source_url ?? "",
+        trust_weight: row.source.trust_weight,
+        scale_type: row.source.scale_type,
+        character: (row.character as Character) ?? "any",
+        game_version: row.game_version ?? "",
+        published_at: row.published_at,
+      },
+    };
+    setRefreshing(ctx);
+    setMeta(ctx.sourceMeta);
+    setIngestMode(row.source.source_type === "image" ? "image" : "scrape");
+    if (row.source.source_url) {
+      setScrapeUrl(row.source.source_url);
+    }
+    // Reset any leftover extraction state so the wizard starts fresh
+    setExtractResult(null);
+    setCards([]);
+    setTierMapping({});
+    setPreviewSections([]);
+    setActiveSectionIdx(0);
+    setError(null);
+    setStep("upload");
     clearDraft();
   };
 
@@ -477,7 +656,7 @@ function TierListContent() {
 
         {step === "upload" && (
           <>
-            <IngestedListsTable />
+            <IngestedListsTable onRefresh={beginRefresh} />
             <UploadStep
               meta={meta}
               ingestMode={ingestMode}
@@ -485,6 +664,8 @@ function TierListContent() {
               scrapeUrl={scrapeUrl}
               scrapeHtml={scrapeHtml}
               submitting={submitting}
+              sourceLocked={refreshing !== null}
+              refreshingAuthor={refreshing?.sourceMeta.author ?? null}
               onMetaChange={setMeta}
               onIngestModeChange={setIngestMode}
               onImageChange={setImageFile}
@@ -495,15 +676,19 @@ function TierListContent() {
           </>
         )}
 
-        {step === "preview" && extractResult && (
+        {step === "preview" && extractResult && previewSections.length > 0 && (
           <PreviewStep
             meta={meta}
             result={extractResult}
             cards={cards}
             tierMapping={tierMapping}
+            previewSections={previewSections}
+            activeSectionIdx={activeSectionIdx}
             submitting={submitting}
             onCardsChange={setCards}
             onTierMappingChange={setTierMapping}
+            onSectionsChange={setPreviewSections}
+            onActiveSectionChange={setActiveSectionIdx}
             onBack={() => setStep("upload")}
             onDiscard={handleReset}
             onConfirm={handleConfirm}
@@ -536,6 +721,8 @@ interface IngestedRow {
     source_type: SourceType;
     source_url: string | null;
     trust_weight: number;
+    scale_type: ScaleType;
+    scale_config: Record<string, unknown> | null;
   };
 }
 
@@ -545,7 +732,7 @@ const fetcher = async (url: string): Promise<{ lists: IngestedRow[] }> => {
   return res.json();
 };
 
-function IngestedListsTable() {
+function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => void }) {
   const { data, error, isLoading, mutate } = useSWR<{ lists: IngestedRow[] }>(
     "/api/admin/tier-lists",
     fetcher,
@@ -681,13 +868,22 @@ function IngestedListsTable() {
                     )}
                   </Td>
                   <Td className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => setEditing(row)}
-                      className="text-[11px] text-zinc-400 hover:text-emerald-400 hover:underline underline-offset-2"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(row)}
+                        className="text-[11px] text-zinc-400 hover:text-emerald-400 hover:underline underline-offset-2"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRefresh(row)}
+                        className="text-[11px] text-zinc-400 hover:text-amber-400 hover:underline underline-offset-2"
+                      >
+                        Refresh
+                      </button>
+                    </div>
                   </Td>
                 </tr>
               ))}
@@ -1056,6 +1252,8 @@ function UploadStep({
   scrapeUrl,
   scrapeHtml,
   submitting,
+  sourceLocked,
+  refreshingAuthor,
   onMetaChange,
   onIngestModeChange,
   onImageChange,
@@ -1069,6 +1267,8 @@ function UploadStep({
   scrapeUrl: string;
   scrapeHtml: string;
   submitting: boolean;
+  sourceLocked: boolean;
+  refreshingAuthor: string | null;
   onMetaChange: (m: SourceMeta) => void;
   onIngestModeChange: (m: IngestMode) => void;
   onImageChange: (f: File | null) => void;
@@ -1081,6 +1281,8 @@ function UploadStep({
 
   const inputCls =
     "w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600";
+  const disabledInputCls =
+    "w-full rounded-md border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-500 placeholder-zinc-700 cursor-not-allowed opacity-60";
   const labelCls = "text-sm text-zinc-400";
 
   const canSubmit =
@@ -1090,8 +1292,15 @@ function UploadStep({
     <form onSubmit={onSubmit} className="space-y-6">
       <h2 className="text-lg font-semibold text-zinc-100">Ingest Tier List</h2>
 
+      {sourceLocked && refreshingAuthor && (
+        <div className="rounded border border-amber-500 bg-amber-950/40 p-3 text-sm text-amber-200">
+          Refreshing existing source <strong>{refreshingAuthor}</strong>.
+          Source fields are locked. Upload a new image / paste fresh HTML below.
+        </div>
+      )}
+
       {/* Mode toggle */}
-      <div className="inline-flex rounded-md border border-zinc-800 p-0.5 bg-zinc-950">
+      <div className={`inline-flex rounded-md border border-zinc-800 p-0.5 bg-zinc-950 ${sourceLocked ? "opacity-50 pointer-events-none" : ""}`}>
         <ModeTab
           active={ingestMode === "image"}
           label="Upload image"
@@ -1139,7 +1348,8 @@ function UploadStep({
                 value={scrapeUrl}
                 onChange={(e) => onScrapeUrlChange(e.target.value)}
                 placeholder="https://tiermaker.com/…"
-                className={`mt-1 ${inputCls}`}
+                disabled={sourceLocked}
+                className={`mt-1 ${sourceLocked ? disabledInputCls : inputCls}`}
               />
             </div>
             <div>
@@ -1160,8 +1370,13 @@ function UploadStep({
       </section>
 
       {/* Source metadata */}
-      <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
-        <h3 className="text-sm font-medium text-zinc-300">Source Metadata</h3>
+      <section className={`rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4 ${sourceLocked ? "opacity-70" : ""}`}>
+        <h3 className="text-sm font-medium text-zinc-300">
+          Source Metadata
+          {sourceLocked && (
+            <span className="ml-2 text-[10px] font-normal text-amber-400 uppercase tracking-wide">Locked</span>
+          )}
+        </h3>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -1172,7 +1387,8 @@ function UploadStep({
               value={meta.author}
               onChange={(e) => set("author", e.target.value)}
               placeholder="e.g. alphabetical"
-              className={`mt-1 ${inputCls}`}
+              disabled={sourceLocked}
+              className={`mt-1 ${sourceLocked ? disabledInputCls : inputCls}`}
             />
             {meta.author && (
               <p className="mt-1 text-[11px] text-zinc-600">
@@ -1185,7 +1401,8 @@ function UploadStep({
             <select
               value={meta.source_type}
               onChange={(e) => set("source_type", e.target.value as SourceType)}
-              className={`mt-1 ${inputCls}`}
+              disabled={sourceLocked}
+              className={`mt-1 ${sourceLocked ? disabledInputCls : inputCls}`}
             >
               <option value="image">Image</option>
               <option value="spreadsheet">Spreadsheet</option>
@@ -1203,7 +1420,8 @@ function UploadStep({
             value={meta.source_url}
             onChange={(e) => set("source_url", e.target.value)}
             placeholder="https://..."
-            className={`mt-1 ${inputCls}`}
+            disabled={sourceLocked}
+            className={`mt-1 ${sourceLocked ? disabledInputCls : inputCls}`}
           />
         </div>
 
@@ -1217,7 +1435,8 @@ function UploadStep({
               step={0.1}
               value={meta.trust_weight}
               onChange={(e) => set("trust_weight", parseFloat(e.target.value))}
-              className={`mt-1 ${inputCls}`}
+              disabled={sourceLocked}
+              className={`mt-1 ${sourceLocked ? disabledInputCls : inputCls}`}
             />
           </div>
           <div>
@@ -1225,7 +1444,8 @@ function UploadStep({
             <select
               value={meta.scale_type}
               onChange={(e) => set("scale_type", e.target.value as ScaleType)}
-              className={`mt-1 ${inputCls}`}
+              disabled={sourceLocked}
+              className={`mt-1 ${sourceLocked ? disabledInputCls : inputCls}`}
             >
               <option value="letter_6">Letter 6 (S/A/B/C/D/F)</option>
               <option value="letter_5">Letter 5 (S/A/B/C/D)</option>
@@ -1333,9 +1553,13 @@ function PreviewStep({
   result,
   cards,
   tierMapping,
+  previewSections,
+  activeSectionIdx,
   submitting,
   onCardsChange,
   onTierMappingChange,
+  onSectionsChange,
+  onActiveSectionChange,
   onBack,
   onDiscard,
   onConfirm,
@@ -1344,25 +1568,50 @@ function PreviewStep({
   result: ExtractResult;
   cards: ExtractedCard[];
   tierMapping: Record<string, LetterOption>;
+  previewSections: PreviewSection[];
+  activeSectionIdx: number;
   submitting: boolean;
   onCardsChange: (cards: ExtractedCard[]) => void;
   onTierMappingChange: (m: Record<string, LetterOption>) => void;
+  onSectionsChange: (sections: PreviewSection[]) => void;
+  onActiveSectionChange: (idx: number) => void;
   onBack: () => void;
   onDiscard: () => void;
   onConfirm: () => void;
 }) {
-  const { extraction, imageUrl, cardIdMap } = result;
+  // Active section drives the preview body for scrape mode (N sections).
+  // For image mode there's always exactly 1 section; we fall back to the
+  // legacy cards/cardIdMap from result so inline card edits still work.
+  const activeSection = previewSections[activeSectionIdx];
+  const isScrapeMode = result.ingestionMethod === "scraped";
+
+  // For the image-upload path we still render from the legacy cards state
+  // (supports inline card edits / combobox). For scrape, render from section.
+  const displayCards: ExtractedCard[] = isScrapeMode
+    ? (activeSection?.matched ?? []).map((m) => ({
+        name: m.name,
+        tier: m.tier,
+        confidence: m.confidence,
+        sourceImageUrl: m.imageUrl || undefined,
+        matchedName: m.cardId ? m.name : undefined,
+      }))
+    : cards;
+  const displayCardIdMap: Record<string, string> = isScrapeMode
+    ? (activeSection?.cardIdMap ?? {})
+    : result.cardIdMap;
+
+  const { extraction, imageUrl } = result;
 
   const removeCard = (idx: number) =>
-    onCardsChange(cards.filter((_, i) => i !== idx));
+    onCardsChange(displayCards.filter((_, i) => i !== idx));
 
   const updateCard = (idx: number, patch: Partial<ExtractedCard>) =>
-    onCardsChange(cards.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+    onCardsChange(displayCards.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
 
   // Group ALL cards (matched + unmatched) by tier so unmatched cards stay
   // in their extracted position — admin can match them inline while
   // comparing against the source image.
-  const allByTier = cards
+  const allByTier = displayCards
     .map((c, i) => ({ card: c, idx: i }))
     .reduce<Record<string, Array<{ card: ExtractedCard; idx: number }>>>(
       (acc, entry) => {
@@ -1373,13 +1622,23 @@ function PreviewStep({
       {},
     );
 
-  const saveableCount = cards.filter((c) => cardIdMap[c.matchedName ?? c.name]).length;
-  const unmatchedCount = cards.length - saveableCount;
-  const totalScraped = result.scrapedCards?.length ?? cards.length;
-  const droppedFromScrape = totalScraped - cards.length;
+  const saveableCount = displayCards.filter(
+    (c) => displayCardIdMap[c.matchedName ?? c.name],
+  ).length;
+  const unmatchedCount = displayCards.length - saveableCount;
+  const totalScraped = isScrapeMode
+    ? (activeSection?.matched.length ?? 0)
+    : (result.scrapedCards?.length ?? displayCards.length);
+  const droppedFromScrape = totalScraped - displayCards.length;
 
-  const detectedScale = extraction.detected_scale;
-  const detectedCharacter = extraction.detected_character;
+  // For the active section, use its detected metadata; fall back to extraction
+  // values for image-upload mode which still populates extraction.
+  const detectedScale = isScrapeMode
+    ? (activeSection?.scaleType ?? null)
+    : extraction.detected_scale;
+  const detectedCharacter = isScrapeMode
+    ? (activeSection?.detectedCharacter ?? null)
+    : extraction.detected_character;
   const scaleMismatch = detectedScale && detectedScale !== meta.scale_type;
   const characterMismatch =
     detectedCharacter &&
@@ -1392,13 +1651,14 @@ function PreviewStep({
   // shows the card's real tier instead of falling back to the first letter.
   const detectedTiers: string[] = [];
   const seenTiers = new Set<string>();
-  for (const c of cards) {
+  for (const c of displayCards) {
     if (!seenTiers.has(c.tier)) {
       seenTiers.add(c.tier);
       detectedTiers.push(c.tier);
     }
   }
-  const standardOptions = getTierOptions(meta.scale_type);
+  const sectionScaleType = isScrapeMode ? (activeSection?.scaleType ?? meta.scale_type) : meta.scale_type;
+  const standardOptions = getTierOptions(sectionScaleType);
   const tierOptions = [
     ...detectedTiers,
     ...standardOptions.filter((o) => !seenTiers.has(o)),
@@ -1406,6 +1666,14 @@ function PreviewStep({
 
   const inputCls =
     "rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500";
+
+  // Total saveable count across ALL included sections (for the confirm button).
+  const totalSaveableAllSections = previewSections
+    .filter((s) => s.include)
+    .reduce(
+      (sum, s) => sum + s.matched.filter((m) => m.cardId !== null).length,
+      0,
+    );
 
   return (
     <div className="space-y-6">
@@ -1434,23 +1702,57 @@ function PreviewStep({
           </button>
           <button
             onClick={onConfirm}
-            disabled={submitting || saveableCount === 0}
+            disabled={submitting || totalSaveableAllSections === 0}
             className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting
               ? "Saving..."
-              : `Confirm & Save (${saveableCount} cards${saveableCount < cards.length ? `, ${cards.length - saveableCount} unmatched` : ""})`}
+              : `Confirm & Save (${totalSaveableAllSections} cards)`}
           </button>
         </div>
       </div>
+
+      {/* Section tabs — only shown when scrape returned multiple sections. */}
+      {previewSections.length > 1 && (
+        <div className="flex gap-1 border-b border-zinc-700 mb-3">
+          {previewSections.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onActiveSectionChange(i)}
+              className={
+                "px-3 py-2 text-sm flex items-center gap-2 " +
+                (i === activeSectionIdx
+                  ? "border-b-2 border-amber-400 text-amber-200"
+                  : "text-zinc-400 hover:text-zinc-200")
+              }
+            >
+              <span className="capitalize">{s.detectedCharacter ?? "Unknown"}</span>
+              <input
+                type="checkbox"
+                checked={s.include}
+                onChange={(e) =>
+                  onSectionsChange(
+                    previewSections.map((p, j) =>
+                      j === i ? { ...p, include: e.target.checked } : p,
+                    ),
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Include ${s.detectedCharacter ?? "section"} in confirm`}
+              />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tier label mapping — only shown when a raw tier label isn't a
           standard letter/number, e.g. "Premium", "Want in most decks", "Bad".
           Auto-inferred by position; admin can override. */}
       {(() => {
-        const rawLabels = Array.from(new Set(cards.map((c) => c.tier)));
+        const rawLabels = Array.from(new Set(displayCards.map((c) => c.tier)));
         const nonStandard = rawLabels.filter(
-          (l) => !isStandardTierLabel(l, meta.scale_type),
+          (l) => !isStandardTierLabel(l, sectionScaleType),
         );
         if (nonStandard.length === 0) return null;
         return (
@@ -1466,7 +1768,7 @@ function PreviewStep({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {rawLabels.map((raw) => {
-                const isStd = isStandardTierLabel(raw, meta.scale_type);
+                const isStd = isStandardTierLabel(raw, sectionScaleType);
                 const value = isStd
                   ? (raw.toUpperCase() as LetterOption)
                   : (tierMapping[raw] ?? "C");
@@ -1504,19 +1806,25 @@ function PreviewStep({
         );
       })()}
 
-      {/* Warnings */}
-      {extraction.warnings && extraction.warnings.length > 0 && (
-        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 space-y-1">
-          <p className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
-            Extraction Warnings
-          </p>
-          {extraction.warnings.map((w, i) => (
-            <p key={i} className="text-sm text-yellow-300">
-              {w}
+      {/* Warnings — use active section's warnings for scrape, extraction for image */}
+      {(() => {
+        const warnings = isScrapeMode
+          ? (activeSection?.warnings ?? [])
+          : (extraction.warnings ?? []);
+        if (warnings.length === 0) return null;
+        return (
+          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 space-y-1">
+            <p className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
+              Extraction Warnings
             </p>
-          ))}
-        </div>
-      )}
+            {warnings.map((w, i) => (
+              <p key={i} className="text-sm text-yellow-300">
+                {w}
+              </p>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Scale / character mismatch notices */}
       {(scaleMismatch || characterMismatch) && (
@@ -1581,7 +1889,7 @@ function PreviewStep({
             </p>
             <p>
               <span className="text-zinc-400">Total extracted:</span>{" "}
-              {cards.length} cards
+              {displayCards.length} cards
             </p>
             {droppedFromScrape > 0 && (
               <p className="text-orange-400">
@@ -1621,7 +1929,7 @@ function PreviewStep({
               <div className="divide-y divide-zinc-900">
                 {entries.map(({ card, idx }) => {
                   const resolvedName = card.matchedName ?? card.name;
-                  const isMatched = !!cardIdMap[resolvedName];
+                  const isMatched = !!displayCardIdMap[resolvedName];
                   return (
                     <div
                       key={`${tier}-${idx}`}
@@ -1660,7 +1968,7 @@ function PreviewStep({
                             <span className="text-xs text-orange-500/60 shrink-0">→</span>
                             <CardCombobox
                               value={card.matchedName ?? ""}
-                              cardIdMap={cardIdMap}
+                              cardIdMap={displayCardIdMap}
                               defaultQuery={card.name}
                               onChange={(name) =>
                                 updateCard(idx, { matchedName: name ?? undefined })
@@ -1707,7 +2015,7 @@ function PreviewStep({
             </div>
           ))}
 
-          {cards.length === 0 && (
+          {displayCards.length === 0 && (
             <div className="rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-8 text-center">
               <p className="text-sm text-zinc-500">No cards remaining.</p>
             </div>
