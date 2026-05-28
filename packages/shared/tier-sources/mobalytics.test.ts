@@ -9,6 +9,10 @@ const FIXTURE_HTML = readFileSync(
   join(__dirname, "__fixtures__/mobalytics-silent.html"),
   "utf8",
 );
+const ALL_CHARS_FIXTURE = readFileSync(
+  join(__dirname, "__fixtures__/mobalytics-all-characters.html"),
+  "utf8",
+);
 
 describe("mobalyticsAdapter.canHandle", () => {
   it("accepts mobalytics.gg URLs", () => {
@@ -76,5 +80,27 @@ describe("mobalyticsAdapter.parse", () => {
     const empty = mobalyticsAdapter.parse("<div>nope</div>", FIXTURE_URL);
     expect(empty.sections[0].cards).toHaveLength(0);
     expect(empty.sections[0].warnings.length).toBeGreaterThan(0);
+  });
+});
+
+describe("mobalyticsAdapter.parse — multi-character", () => {
+  it("splits a multi-character page into one section per character", () => {
+    const result = mobalyticsAdapter.parse(
+      ALL_CHARS_FIXTURE,
+      "https://mobalytics.gg/slay-the-spire-2/tier-lists/cards",
+    );
+    expect(result.sections).toHaveLength(5);
+    const chars = result.sections.map((s) => s.detectedCharacter).sort();
+    expect(chars).toEqual(["defect", "ironclad", "necrobinder", "regent", "silent"]);
+    for (const section of result.sections) {
+      expect(section.cards.length).toBeGreaterThan(2);
+      expect(section.scaleType).toBe("letter_6");
+    }
+  });
+
+  it("single-section HTML still parses as one section with character=null", () => {
+    const result = mobalyticsAdapter.parse(FIXTURE_HTML, FIXTURE_URL);
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].detectedCharacter).toBe(null);
   });
 });
