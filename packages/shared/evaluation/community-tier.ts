@@ -23,8 +23,8 @@ export interface GameVersionMeta {
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
-const AGING_DAYS = 180;
-const STALE_DAYS = 365;
+const AGING_DAYS = 28;
+const STALE_DAYS = 84;
 
 /**
  * Load community tier signals for the given card IDs and character.

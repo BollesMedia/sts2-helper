@@ -204,28 +204,20 @@ describe("classifyByTime", () => {
     expect(classifyByTime(daysAgo(0))).toBe("fresh");
   });
 
-  it("published 100 days ago → 'fresh'", () => {
-    expect(classifyByTime(daysAgo(100))).toBe("fresh");
+  it("published 27 days ago → 'fresh' (just under AGING_DAYS threshold)", () => {
+    expect(classifyByTime(daysAgo(27))).toBe("fresh");
   });
 
-  it("published 179 days ago → 'fresh' (just under AGING_DAYS threshold)", () => {
-    expect(classifyByTime(daysAgo(179))).toBe("fresh");
+  it("published 28 days ago → 'aging'", () => {
+    expect(classifyByTime(daysAgo(28))).toBe("aging");
   });
 
-  it("published 200 days ago → 'aging'", () => {
-    expect(classifyByTime(daysAgo(200))).toBe("aging");
+  it("published 83 days ago → 'aging' (just under STALE_DAYS threshold)", () => {
+    expect(classifyByTime(daysAgo(83))).toBe("aging");
   });
 
-  it("published 364 days ago → 'aging' (just under STALE_DAYS threshold)", () => {
-    expect(classifyByTime(daysAgo(364))).toBe("aging");
-  });
-
-  it("published 400 days ago → 'excluded'", () => {
-    expect(classifyByTime(daysAgo(400))).toBe("excluded");
-  });
-
-  it("published 366 days ago → 'excluded'", () => {
-    expect(classifyByTime(daysAgo(366))).toBe("excluded");
+  it("published 84 days ago → 'excluded'", () => {
+    expect(classifyByTime(daysAgo(84))).toBe("excluded");
   });
 });
 
@@ -451,7 +443,7 @@ describe("computeStaleness", () => {
   });
 
   it("time aging + version fresh → 'aging'", () => {
-    const row = makeRow({ most_recent_published: daysAgo(200) });
+    const row = makeRow({ most_recent_published: daysAgo(50) });
     expect(computeStaleness(row, null, emptyMeta)).toBe("aging");
   });
 
@@ -472,7 +464,7 @@ describe("getCommunityTierSignals – end-to-end", () => {
 
   it("full flow: character-specific wins, version-aware staleness applied", async () => {
     const versionDate = daysAgo(10);
-    const listDate = daysAgo(90);
+    const listDate = daysAgo(20);
 
     const supabase = makeSupabaseMock({
       consensusRows: [
