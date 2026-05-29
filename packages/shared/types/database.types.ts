@@ -1043,11 +1043,87 @@ export type Database = {
           },
         ]
       }
+      tier_list_refresh_logs: {
+        Row: {
+          error_detail: Json | null
+          finished_at: string | null
+          id: string
+          rejected_snapshot: Json | null
+          sections_applied: number
+          sections_attempted: number
+          sections_queued: number
+          source_id: string
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          error_detail?: Json | null
+          finished_at?: string | null
+          id?: string
+          rejected_snapshot?: Json | null
+          sections_applied?: number
+          sections_attempted?: number
+          sections_queued?: number
+          source_id: string
+          started_at?: string
+          status: string
+          trigger: string
+        }
+        Update: {
+          error_detail?: Json | null
+          finished_at?: string | null
+          id?: string
+          rejected_snapshot?: Json | null
+          sections_applied?: number
+          sections_attempted?: number
+          sections_queued?: number
+          source_id?: string
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_list_refresh_logs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "tier_list_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tier_list_refresh_runs: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          id: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          id: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       tier_list_sources: {
         Row: {
           author: string
+          auto_refresh_enabled: boolean
+          consecutive_failures: number
+          consecutive_queue_only: number
           created_at: string
+          dormant: boolean
           id: string
+          last_failure_reason: string | null
+          last_refresh_attempted_at: string | null
+          last_refresh_succeeded_at: string | null
+          next_refresh_at: string | null
           notes: string | null
           scale_config: Json | null
           scale_type: string
@@ -1058,8 +1134,16 @@ export type Database = {
         }
         Insert: {
           author: string
+          auto_refresh_enabled?: boolean
+          consecutive_failures?: number
+          consecutive_queue_only?: number
           created_at?: string
+          dormant?: boolean
           id: string
+          last_failure_reason?: string | null
+          last_refresh_attempted_at?: string | null
+          last_refresh_succeeded_at?: string | null
+          next_refresh_at?: string | null
           notes?: string | null
           scale_config?: Json | null
           scale_type: string
@@ -1070,8 +1154,16 @@ export type Database = {
         }
         Update: {
           author?: string
+          auto_refresh_enabled?: boolean
+          consecutive_failures?: number
+          consecutive_queue_only?: number
           created_at?: string
+          dormant?: boolean
           id?: string
+          last_failure_reason?: string | null
+          last_refresh_attempted_at?: string | null
+          last_refresh_succeeded_at?: string | null
+          next_refresh_at?: string | null
           notes?: string | null
           scale_config?: Json | null
           scale_type?: string
@@ -1087,11 +1179,13 @@ export type Database = {
           character: string | null
           entry_count: number
           game_version: string | null
+          gate_failure_reasons: Json | null
           id: string
           ingested_at: string
           ingestion_method: string
           is_active: boolean
           published_at: string
+          review_status: string
           source_id: string
           source_image_url: string | null
         }
@@ -1099,11 +1193,13 @@ export type Database = {
           character?: string | null
           entry_count?: number
           game_version?: string | null
+          gate_failure_reasons?: Json | null
           id?: string
           ingested_at?: string
           ingestion_method: string
           is_active?: boolean
           published_at: string
+          review_status?: string
           source_id: string
           source_image_url?: string | null
         }
@@ -1111,11 +1207,13 @@ export type Database = {
           character?: string | null
           entry_count?: number
           game_version?: string | null
+          gate_failure_reasons?: Json | null
           id?: string
           ingested_at?: string
           ingestion_method?: string
           is_active?: boolean
           published_at?: string
+          review_status?: string
           source_id?: string
           source_image_url?: string | null
         }
