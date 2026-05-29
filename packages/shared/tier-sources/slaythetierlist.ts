@@ -20,6 +20,7 @@ const KNOWN_CHARACTERS = new Set([
 export const slaythetierlistAdapter: TierListSourceAdapter = {
   id: "slaythetierlist",
   label: "slaythetierlist.com",
+  supportsAutoRefresh: false,
 
   canHandle(url) {
     try {

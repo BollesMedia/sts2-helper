@@ -41,6 +41,7 @@ interface CompanionCard {
 export const sts2companionAdapter: TierListSourceAdapter = {
   id: "sts2companion",
   label: "sts2companion.com",
+  supportsAutoRefresh: false,
 
   canHandle(url) {
     try {

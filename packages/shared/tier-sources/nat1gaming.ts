@@ -18,6 +18,7 @@ const SEVEN_LETTER_MAP: Record<string, number> = {
 export const nat1gamingAdapter: TierListSourceAdapter = {
   id: "nat1gaming",
   label: "nat1gaming.com",
+  supportsAutoRefresh: false,
 
   canHandle(url) {
     try {

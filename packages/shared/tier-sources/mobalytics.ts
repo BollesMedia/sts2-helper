@@ -87,6 +87,7 @@ function findCharacterSections(root: HTMLElement): Array<{
 export const mobalyticsAdapter: TierListSourceAdapter = {
   id: "mobalytics",
   label: "mobalytics.gg",
+  supportsAutoRefresh: true,
 
   canHandle(url) {
     try {
