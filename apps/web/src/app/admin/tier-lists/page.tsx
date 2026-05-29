@@ -749,6 +749,14 @@ interface IngestedRow {
     trust_weight: number;
     scale_type: ScaleType;
     scale_config: Record<string, unknown> | null;
+    auto_refresh_enabled: boolean;
+    dormant: boolean;
+    next_refresh_at: string | null;
+    last_refresh_attempted_at: string | null;
+    last_refresh_succeeded_at: string | null;
+    consecutive_failures: number;
+    consecutive_queue_only: number;
+    last_failure_reason: string | null;
   };
 }
 
@@ -783,6 +791,45 @@ const fetcher = async (url: string): Promise<{ lists: IngestedRow[] }> => {
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 };
+
+// Three-state auto-refresh indicator for a source row:
+//   dormant  → rose "!"  (backoff exhausted; cron skips it)
+//   enabled  → emerald ✓ (scheduled for auto refresh)
+//   disabled → grey dot  (manual-only)
+// Mirrors the staleness-chip palette used on the Published column.
+function AutoRefreshBadge({
+  source,
+}: {
+  source: IngestedRow["source"];
+}) {
+  const { auto_refresh_enabled, dormant } = source;
+  const { classes, glyph, title } = dormant
+    ? {
+        classes: "bg-rose-900/40 text-rose-300",
+        glyph: "!",
+        title: `Auto-refresh dormant — ${source.consecutive_failures} consecutive failure(s)${source.last_failure_reason ? ` (${source.last_failure_reason})` : ""}`,
+      }
+    : auto_refresh_enabled
+      ? {
+          classes: "bg-emerald-900/40 text-emerald-300",
+          glyph: "✓",
+          title: `Auto-refresh on${source.next_refresh_at ? ` — next ${formatRelative(source.next_refresh_at)}` : ""}`,
+        }
+      : {
+          classes: "bg-zinc-800 text-zinc-500",
+          glyph: "•",
+          title: "Auto-refresh off (manual only)",
+        };
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold leading-none ${classes}`}
+    >
+      {glyph}
+    </span>
+  );
+}
 
 function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => void }) {
   const { data, error, isLoading, mutate } = useSWR<{ lists: IngestedRow[] }>(
@@ -933,6 +980,7 @@ function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => vo
                           </span>
                         );
                       })()}
+                      <AutoRefreshBadge source={row.source} />
                     </div>
                   </Td>
                   <Td className="text-right font-mono">{row.entry_count}</Td>
@@ -1448,6 +1496,7 @@ interface EditFormState {
   trust_weight: number;
   scale_type: ScaleType;
   notes: string;
+  auto_refresh_enabled: boolean;
   // List-level fields (apply only to this snapshot)
   is_active: boolean;
   character: string;
@@ -1474,6 +1523,7 @@ function EditListModal({
     // the form to letter_6 so the select renders something sane.
     scale_type: "letter_6",
     notes: "",
+    auto_refresh_enabled: row.source.auto_refresh_enabled,
     is_active: row.is_active,
     character: row.character ?? "any",
     game_version: row.game_version ?? "",
@@ -1485,6 +1535,43 @@ function EditListModal({
 
   const set = <K extends keyof EditFormState>(k: K, v: EditFormState[K]) =>
     setForm((prev) => ({ ...prev, [k]: v }));
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<{
+    status: RefreshLogStatus;
+    reason?: string;
+  } | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  // Manual "Refresh now" — POSTs the single-source refresh route, which may
+  // run for a while (image hashing) but always returns HTTP 200; inspect the
+  // body's `status` rather than the HTTP code. On resolve, revalidate the list
+  // table and the activity panel so both reflect the new attempt.
+  const handleRefreshNow = async () => {
+    setRefreshing(true);
+    setRefreshResult(null);
+    setRefreshError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/tier-lists/refresh/${row.source.id}`,
+        { method: "POST" },
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        setRefreshError(data?.error || `Refresh failed (${res.status})`);
+        return;
+      }
+      setRefreshResult({ status: data.status, reason: data.reason });
+    } catch (e) {
+      setRefreshError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshing(false);
+      // Revalidate the list table + the recent-activity feed regardless of
+      // outcome — even a failed attempt writes a refresh_log row.
+      void globalMutate("/api/admin/tier-lists");
+      void globalMutate("/api/admin/tier-lists/refresh-logs");
+    }
+  };
 
   const handleSave = async () => {
     setSubmitting(true);
@@ -1500,9 +1587,12 @@ function EditListModal({
         source_type: form.source_type,
         source_url: form.source_url.trim() ? form.source_url.trim() : null,
         trust_weight: form.trust_weight,
+        auto_refresh_enabled: form.auto_refresh_enabled,
         // scale_type intentionally omitted — we don't surface it in the form
         // because the IngestedRow shape doesn't include the source's current
         // value. Editing scale requires a follow-up server endpoint.
+        // next_refresh_at intentionally omitted — a DB trigger derives it from
+        // auto_refresh_enabled, so the client must not send it.
       },
       list: {
         is_active: form.is_active,
@@ -1640,6 +1730,111 @@ function EditListModal({
                 placeholder="https://…"
                 className={`mt-1 ${inputCls}`}
               />
+            </div>
+          </section>
+
+          {/* Auto-refresh — source-level scheduling + status + manual run */}
+          <section className="space-y-3 rounded-md border border-zinc-800/80 bg-zinc-900/30 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
+                Auto-refresh
+              </h4>
+              <AutoRefreshBadge source={row.source} />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.auto_refresh_enabled}
+                onChange={(e) => set("auto_refresh_enabled", e.target.checked)}
+                className="rounded border-zinc-700 bg-zinc-900"
+              />
+              Enable scheduled refresh for this source
+            </label>
+
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-500">Dormant</dt>
+                <dd
+                  className={
+                    row.source.dormant ? "text-rose-400" : "text-zinc-300"
+                  }
+                >
+                  {row.source.dormant ? "yes" : "no"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-500">Failures</dt>
+                <dd className="font-mono text-zinc-300">
+                  {row.source.consecutive_failures}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-500">Last attempted</dt>
+                <dd className="text-zinc-300">
+                  {row.source.last_refresh_attempted_at
+                    ? formatRelative(row.source.last_refresh_attempted_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-500">Queue-only</dt>
+                <dd className="font-mono text-zinc-300">
+                  {row.source.consecutive_queue_only}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-500">Last succeeded</dt>
+                <dd className="text-zinc-300">
+                  {row.source.last_refresh_succeeded_at
+                    ? formatRelative(row.source.last_refresh_succeeded_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-zinc-500">Next run</dt>
+                <dd className="text-zinc-300">
+                  {row.source.next_refresh_at
+                    ? formatRelative(row.source.next_refresh_at)
+                    : "—"}
+                </dd>
+              </div>
+              <div className="col-span-2 flex justify-between gap-2">
+                <dt className="text-zinc-500">Last failure</dt>
+                <dd className="text-right text-zinc-300 break-words">
+                  {row.source.last_failure_reason ?? "—"}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleRefreshNow}
+                disabled={refreshing}
+                className="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:border-amber-500 hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {refreshing ? "Refreshing…" : "Refresh now"}
+              </button>
+              {refreshError ? (
+                <span className="text-[11px] text-rose-400">{refreshError}</span>
+              ) : refreshResult ? (
+                <span
+                  className={`text-[11px] ${
+                    refreshResult.status === "failed"
+                      ? "text-rose-400"
+                      : refreshResult.status === "applied"
+                        ? "text-emerald-400"
+                        : "text-amber-400"
+                  }`}
+                >
+                  {refreshResult.status}
+                  {refreshResult.reason ? ` — ${refreshResult.reason}` : ""}
+                </span>
+              ) : (
+                <span className="text-[11px] text-zinc-600">
+                  Fetches + re-hashes images; may take a moment.
+                </span>
+              )}
             </div>
           </section>
 

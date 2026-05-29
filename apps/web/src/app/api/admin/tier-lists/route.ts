@@ -34,7 +34,15 @@ export const GET = withAdmin(async () => {
          source_url,
          trust_weight,
          scale_type,
-         scale_config
+         scale_config,
+         auto_refresh_enabled,
+         dormant,
+         next_refresh_at,
+         last_refresh_attempted_at,
+         last_refresh_succeeded_at,
+         consecutive_failures,
+         consecutive_queue_only,
+         last_failure_reason
        )`,
     )
     .order("ingested_at", { ascending: false })
