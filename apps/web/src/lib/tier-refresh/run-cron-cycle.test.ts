@@ -131,7 +131,7 @@ describe("runCronCycle", () => {
         source_url: null,
       });
 
-      const { supabase, recorded } = makeSupabase({
+      const { supabase } = makeSupabase({
         dueSources: { data: [mobalytics, tiermaker, noUrl], error: null },
       });
 
@@ -290,7 +290,7 @@ describe("runCronCycle", () => {
 
     it("includes refreshWarning if rpc fails", async () => {
       const src = makeSource({ id: "src-1", source_url: "https://example.com/1" });
-      const { supabase, results } = makeSupabase({
+      const { supabase } = makeSupabase({
         dueSources: { data: [src], error: null },
       });
 
@@ -298,13 +298,11 @@ describe("runCronCycle", () => {
       runSourceRefresh.mockResolvedValueOnce({ status: "applied" } as RefreshResult);
 
       // Override rpc to return an error
-      const originalRpc = supabase.rpc.bind(supabase);
-      (supabase as any).rpc = (name: string) => {
-        return Promise.resolve({
+      supabase.rpc = (() =>
+        Promise.resolve({
           data: null,
           error: { message: "RPC failed: out of memory" },
-        });
-      };
+        })) as unknown as typeof supabase.rpc;
 
       const res = await runCronCycle(supabase);
       const body = await res.json();
@@ -318,7 +316,7 @@ describe("runCronCycle", () => {
       const { supabase } = makeSupabase({
         dueSources: {
           data: [] as TierListSourceRow[],
-          error: { message: "Connection failed" } as any,
+          error: { message: "Connection failed" },
         },
       });
 
