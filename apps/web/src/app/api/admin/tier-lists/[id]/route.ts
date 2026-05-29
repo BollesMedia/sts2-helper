@@ -28,6 +28,10 @@ const patchSchema = z.object({
         .optional(),
       scale_config: z.record(z.string(), z.unknown()).nullable().optional(),
       notes: z.string().nullable().optional(),
+      // Toggling this true triggers a DB trigger that sets next_refresh_at =
+      // now() on the false→true transition, so the route never touches
+      // next_refresh_at itself.
+      auto_refresh_enabled: z.boolean().optional(),
     })
     .optional(),
   list: z
@@ -127,4 +131,82 @@ export const PATCH = withAdmin(async (
   }
 
   return NextResponse.json({ success: true, refreshWarning });
+});
+
+/**
+ * Delete a tier list snapshot. General-purpose admin delete (works on any
+ * `tier_lists` row), but the primary caller is the review queue rejecting a
+ * pending auto-refresh draft.
+ *
+ * Before deleting we write an audit row to `tier_list_refresh_logs` capturing a
+ * `rejected_snapshot` so a rejected draft's summary + gate-failure reasons
+ * survive the delete. The audit write is best-effort: a logging failure must
+ * not block the delete. Entries cascade via the `tier_list_entries.tier_list_id
+ * ... on delete cascade` FK (migration 022), so we don't delete them manually.
+ */
+export const DELETE = withAdmin(async (
+  _request,
+  _auth,
+  { params }: { params: Promise<{ id: string }> },
+) => {
+  const { id } = await params;
+  const supabase = createServiceClient();
+
+  const { data: row, error: lookupError } = await supabase
+    .from("tier_lists")
+    .select(
+      "id, source_id, character, game_version, review_status, entry_count, gate_failure_reasons",
+    )
+    .eq("id", id)
+    .single();
+
+  if (lookupError || !row) {
+    return NextResponse.json({ error: "Tier list not found" }, { status: 404 });
+  }
+
+  // Audit the rejection before deleting. `status: 'failed'` + `trigger:
+  // 'manual'` is the closest valid pairing under the CHECK constraints
+  // (status IN applied|partial|queued|failed|no_data, trigger IN cron|manual):
+  // a manual rejection didn't apply, so it's "failed".
+  const now = new Date().toISOString();
+  try {
+    const { error: auditError } = await supabase
+      .from("tier_list_refresh_logs")
+      .insert({
+        source_id: row.source_id,
+        status: "failed",
+        trigger: "manual",
+        started_at: now,
+        finished_at: now,
+        sections_attempted: 0,
+        sections_applied: 0,
+        sections_queued: 0,
+        rejected_snapshot: {
+          tierListId: row.id,
+          character: row.character,
+          game_version: row.game_version,
+          entry_count: row.entry_count,
+          gate_failure_reasons: row.gate_failure_reasons,
+        } as Json,
+      });
+    if (auditError) {
+      console.error("[Tier Lists Delete] Audit insert failed:", auditError);
+    }
+  } catch (auditError) {
+    console.error("[Tier Lists Delete] Audit insert threw:", auditError);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("tier_lists")
+    .delete()
+    .eq("id", id);
+  if (deleteError) {
+    console.error("[Tier Lists Delete] Delete failed:", deleteError);
+    return NextResponse.json(
+      { error: "Delete failed", detail: deleteError.message },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ success: true });
 });
