@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAdmin } from "@/lib/api-admin-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import {
-  normalizeTier,
-  type ScaleType,
-} from "@sts2/shared/evaluation/tier-normalize";
+import { applySection } from "@/lib/tier-refresh/apply-sections";
+import type { ScaleType } from "@sts2/shared/evaluation/tier-normalize";
 import type { Json } from "@sts2/shared/types/database.types";
 
 const sectionListSchema = z.object({
@@ -116,12 +114,14 @@ export const POST = withAdmin(async (request) => {
     return NextResponse.json({ error: "Source upsert failed" }, { status: 500 });
   }
 
-  // 2–5. Per-section: deactivate prior, insert tier_lists row, dedup, insert entries.
+  // 2. Per-section: applySection deactivates the prior active list, inserts the
+  // new tier_lists row, dedupes, and inserts entries.
   //
-  // NOTE: steps 2–5 are NOT wrapped in a transaction. If step 4 fails, step 3
-  // leaves an orphan tier_lists row with entry_count > 0 but no entries, and
-  // step 2 has already deactivated the prior list. Monitor logs for partial
-  // failures and clean up manually. Moving to a single RPC is a follow-up.
+  // NOTE: applySection's steps are NOT wrapped in a transaction. If the entries
+  // insert fails, the new tier_lists row is left as an orphan (entry_count > 0,
+  // no entries) and the prior list has already been deactivated. Monitor logs
+  // for partial failures and clean up manually. Moving to a single RPC is a
+  // follow-up.
   const inserted: Array<{
     sectionIndex: number;
     listId: string;
@@ -139,62 +139,30 @@ export const POST = withAdmin(async (request) => {
     const section = sections[sectionIndex];
     const { list, entries } = section;
 
-    // 2. Mark prior active lists inactive for the SAME (source, game_version, character)
-    // scope only. Deactivating across versions would hide legitimate historical
-    // snapshots (e.g. a v0.3.5 list when uploading a v0.4.0 list).
-    {
-      let q = supabase
-        .from("tier_lists")
-        .update({ is_active: false })
-        .eq("source_id", source.id)
-        .eq("is_active", true);
-      q = list.game_version === null
-        ? q.is("game_version", null)
-        : q.eq("game_version", list.game_version);
-      q = list.character === null
-        ? q.is("character", null)
-        : q.eq("character", list.character);
-      const { error: deactivateError } = await q;
-      if (deactivateError) {
-        console.error(
-          `[Tier Lists Confirm] Deactivation failed (section ${sectionIndex}):`,
-          deactivateError,
-        );
-        return NextResponse.json(
-          {
-            error: "Failed to deactivate prior lists",
-            detail: deactivateError.message,
-            sectionIndex,
-          },
-          { status: 500 },
-        );
-      }
-    }
-
-    // 3. Insert new tier_lists row
-    const { data: newList, error: listError } = await supabase
-      .from("tier_lists")
-      .insert({
-        source_id: source.id,
-        game_version: list.game_version,
-        published_at: list.published_at,
-        character: list.character,
-        is_active: true,
-        source_image_url: imageUrl,
-        ingestion_method: ingestionMethod,
-        entry_count: entries.length,
-      })
-      .select("id")
-      .single();
-
-    if (listError || !newList) {
+    // Deactivate prior active list (same source/version/character), insert the
+    // new active row, dedupe entries, and insert them — all via the shared
+    // applySection helper (reused by the cron auto-refresh path). applySection
+    // throws Supabase errors; map them to the existing HTTP responses here.
+    try {
+      const { listId, entryCount } = await applySection(supabase, {
+        sourceId: source.id,
+        list,
+        entries,
+        imageUrl,
+        ingestionMethod,
+        queue: false,
+        scaleType: normSource.scale_type,
+        scaleConfig: normSource.scale_config,
+      });
+      inserted.push({ sectionIndex, listId, entryCount });
+    } catch (err) {
       console.error(
-        `[Tier Lists Confirm] List insert failed (section ${sectionIndex}):`,
-        listError,
+        `[Tier Lists Confirm] applySection failed (section ${sectionIndex}):`,
+        err,
       );
-      // Postgres unique_violation — same (source_id, game_version, published_at, character)
-      // tuple already exists. Tell the admin how to fix it.
-      if (listError && (listError as { code?: string }).code === "23505") {
+      // Postgres unique_violation — same (source_id, game_version, published_at,
+      // character) tuple already exists. Tell the admin how to fix it.
+      if ((err as { code?: string } | null)?.code === "23505") {
         return NextResponse.json(
           {
             error:
@@ -205,78 +173,10 @@ export const POST = withAdmin(async (request) => {
         );
       }
       return NextResponse.json(
-        { error: "List insert failed", sectionIndex },
+        { error: "Failed to apply section", sectionIndex },
         { status: 500 },
       );
     }
-
-    // 4. Normalize tiers, dedupe by card_id (scoped to this section — two sections
-    // for different characters can both have the same card_id without colliding),
-    // and insert entries. When a card appears multiple times within the same section,
-    // keep the entry with the highest extraction_confidence — ties go to the first seen.
-    type EntryRow = {
-      tier_list_id: string;
-      card_id: string;
-      raw_tier: string;
-      normalized_tier: number;
-      note: string | null;
-      extraction_confidence: number | null;
-    };
-    const byCardId = new Map<string, EntryRow>();
-    const duplicates: string[] = [];
-
-    for (const e of entries) {
-      const { normalizedTier } = normalizeTier(e.raw_tier, normSource);
-      const row: EntryRow = {
-        tier_list_id: newList.id,
-        card_id: e.card_id,
-        raw_tier: e.raw_tier,
-        normalized_tier: normalizedTier,
-        note: e.note ?? null,
-        extraction_confidence: e.extraction_confidence ?? null,
-      };
-      const existing = byCardId.get(e.card_id);
-      if (!existing) {
-        byCardId.set(e.card_id, row);
-        continue;
-      }
-      duplicates.push(e.card_id);
-      if ((row.extraction_confidence ?? 0) > (existing.extraction_confidence ?? 0)) {
-        byCardId.set(e.card_id, row);
-      }
-    }
-    const entryRows = Array.from(byCardId.values());
-
-    if (duplicates.length > 0) {
-      console.warn(
-        `[Tier Lists Confirm] Section ${sectionIndex}: collapsed duplicate card_ids (kept highest confidence):`,
-        duplicates,
-      );
-    }
-
-    const { error: entriesError } = await supabase
-      .from("tier_list_entries")
-      .insert(entryRows);
-    if (entriesError) {
-      console.error(
-        `[Tier Lists Confirm] Entries insert failed (section ${sectionIndex}):`,
-        entriesError,
-      );
-      return NextResponse.json(
-        { error: "Entries insert failed", sectionIndex },
-        { status: 500 },
-      );
-    }
-
-    // Update entry_count on the list to reflect post-dedup count
-    if (duplicates.length > 0) {
-      await supabase
-        .from("tier_lists")
-        .update({ entry_count: entryRows.length })
-        .eq("id", newList.id);
-    }
-
-    inserted.push({ sectionIndex, listId: newList.id, entryCount: entryRows.length });
   }
 
   // 5. Refresh materialized view (best-effort, once after all sections are inserted).
