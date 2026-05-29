@@ -31,41 +31,46 @@ describe("resolveAdapter", () => {
 describe("nat1gamingAdapter.parse", () => {
   const result = nat1gamingAdapter.parse(FIXTURE_HTML, FIXTURE_URL);
 
+  it("returns single section", () => {
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].cards.length).toBeGreaterThan(0);
+  });
+
   it("extracts tier rows in top-to-bottom order", () => {
-    const tierOrder = [...new Set(result.cards.map((c) => c.tier))];
+    const tierOrder = [...new Set(result.sections[0].cards.map((c) => c.tier))];
     expect(tierOrder).toEqual(["S", "A", "F"]);
   });
 
   it("extracts card name from the img alt attribute", () => {
-    const adrenaline = result.cards.find((c) => c.name === "Adrenaline");
+    const adrenaline = result.sections[0].cards.find((c) => c.name === "Adrenaline");
     expect(adrenaline).toBeDefined();
     expect(adrenaline?.tier).toBe("S");
     expect(adrenaline?.imageUrl).toMatch(/Adrenaline\.png/);
   });
 
   it("prefers data-src over placeholder SVG src for lazy-loaded images", () => {
-    const pinpoint = result.cards.find((c) => c.name === "Pinpoint");
+    const pinpoint = result.sections[0].cards.find((c) => c.name === "Pinpoint");
     expect(pinpoint?.imageUrl).toMatch(/^https:\/\/nat1gaming\.com/);
     expect(pinpoint?.imageUrl).not.toContain("data:image");
   });
 
   it("preserves underscores and hyphens in image URLs", () => {
-    const wraith = result.cards.find((c) => c.name === "Wraith Form");
+    const wraith = result.sections[0].cards.find((c) => c.name === "Wraith Form");
     expect(wraith?.imageUrl).toContain("Wraith_Form-1.png");
   });
 
   it("applies 7-letter scale override when E and F coexist with S", () => {
     // The bundled fixture has S/A/F but no E — override should NOT trigger.
-    expect(result.scaleConfig).toBeUndefined();
+    expect(result.sections[0].scaleConfig).toBeUndefined();
   });
 
   it("always returns null detectedCharacter", () => {
-    expect(result.detectedCharacter).toBeNull();
+    expect(result.sections[0].detectedCharacter).toBeNull();
   });
 
   it("warns when no tier sections are present", () => {
     const empty = nat1gamingAdapter.parse("<div>nope</div>", FIXTURE_URL);
-    expect(empty.cards).toHaveLength(0);
-    expect(empty.warnings.length).toBeGreaterThan(0);
+    expect(empty.sections[0].cards).toHaveLength(0);
+    expect(empty.sections[0].warnings.length).toBeGreaterThan(0);
   });
 });

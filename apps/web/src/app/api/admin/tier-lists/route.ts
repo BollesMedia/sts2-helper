@@ -30,7 +30,9 @@ export const GET = withAdmin(async () => {
          author,
          source_type,
          source_url,
-         trust_weight
+         trust_weight,
+         scale_type,
+         scale_config
        )`,
     )
     .order("ingested_at", { ascending: false })

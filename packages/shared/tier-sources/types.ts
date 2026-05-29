@@ -13,12 +13,19 @@ export interface ScrapedCard {
   name?: string;
 }
 
-export interface ScrapedTierList {
-  adapterId: string;
+export interface ScrapedSection {
+  /** "ironclad" | "silent" | "regent" | "necrobinder" | "defect" | null */
+  detectedCharacter: string | null;
   scaleType: ScaleType;
   scaleConfig?: { map: Record<string, number> };
-  detectedCharacter?: string | null;
   cards: ScrapedCard[];
+  warnings: string[];
+}
+
+export interface ScrapedTierList {
+  adapterId: string;
+  sections: ScrapedSection[];
+  /** Adapter-level warnings (vs section-level). */
   warnings: string[];
 }
 

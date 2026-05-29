@@ -30,17 +30,22 @@ describe("resolveAdapter", () => {
 describe("slaythetierlistAdapter.parse", () => {
   const result = slaythetierlistAdapter.parse(FIXTURE_HTML, FIXTURE_URL);
 
-  it("detects the character from the panel id", () => {
-    expect(result.detectedCharacter).toBe("silent");
+  it("returns single section", () => {
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].cards.length).toBeGreaterThan(0);
+  });
+
+  it("detects the character from the panel id in section", () => {
+    expect(result.sections[0].detectedCharacter).toBe("silent");
   });
 
   it("extracts tier rows using data-tier attribute", () => {
-    const tierOrder = [...new Set(result.cards.map((c) => c.tier))];
+    const tierOrder = [...new Set(result.sections[0].cards.map((c) => c.tier))];
     expect(tierOrder).toEqual(["S", "A", "D"]);
   });
 
   it("extracts name, slug, and imageUrl per card", () => {
-    const adrenaline = result.cards.find((c) => c.name === "Adrenaline");
+    const adrenaline = result.sections[0].cards.find((c) => c.name === "Adrenaline");
     expect(adrenaline).toMatchObject({
       tier: "S",
       name: "Adrenaline",
@@ -50,13 +55,13 @@ describe("slaythetierlistAdapter.parse", () => {
   });
 
   it("preserves hyphenated alt text (Well-Laid Plans)", () => {
-    const wlp = result.cards.find((c) => c.name === "Well-Laid Plans");
+    const wlp = result.sections[0].cards.find((c) => c.name === "Well-Laid Plans");
     expect(wlp?.imageUrl).toContain("well_laid_plans.png");
   });
 
   it("warns when no tier rows are present", () => {
     const empty = slaythetierlistAdapter.parse("<div>nope</div>", FIXTURE_URL);
-    expect(empty.cards).toHaveLength(0);
-    expect(empty.warnings.length).toBeGreaterThan(0);
+    expect(empty.sections[0].cards).toHaveLength(0);
+    expect(empty.sections[0].warnings.length).toBeGreaterThan(0);
   });
 });

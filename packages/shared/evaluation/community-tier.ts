@@ -23,8 +23,8 @@ export interface GameVersionMeta {
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
-const AGING_DAYS = 180;
-const STALE_DAYS = 365;
+const AGING_DAYS = 28;
+const STALE_DAYS = 84;
 
 /**
  * Load community tier signals for the given card IDs and character.
@@ -204,7 +204,7 @@ export function classifyByTime(
   const ageDays = (now - published) / DAY_MS;
   if (ageDays < AGING_DAYS) return "fresh";
   if (ageDays < STALE_DAYS) return "aging";
-  return "excluded"; // > 365 days: excluded
+  return "excluded"; // > 84 days (STALE_DAYS): excluded
 }
 
 export function classifyByVersion(
