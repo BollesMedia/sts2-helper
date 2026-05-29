@@ -77,8 +77,8 @@ CREATE TRIGGER tier_list_sources_auto_refresh_enable_trg
 -- RLS policies (matching 022 public-read pattern)
 -- ============================================
 
+-- Audit + claim tables are admin-only. RLS enabled with no SELECT policy:
+-- anon/authenticated (public anon key) are denied; the service-role client
+-- used by the cron + admin API routes bypasses RLS.
 ALTER TABLE tier_list_refresh_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read" ON tier_list_refresh_logs FOR SELECT USING (true);
-
 ALTER TABLE tier_list_refresh_runs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read" ON tier_list_refresh_runs FOR SELECT USING (true);
