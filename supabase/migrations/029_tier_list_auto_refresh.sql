@@ -35,7 +35,7 @@ CREATE INDEX tier_lists_pending_review_idx
 
 CREATE TABLE tier_list_refresh_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_id uuid NOT NULL REFERENCES tier_list_sources(id) ON DELETE CASCADE,
+  source_id text NOT NULL REFERENCES tier_list_sources(id) ON DELETE CASCADE,
   started_at timestamptz NOT NULL DEFAULT now(),
   finished_at timestamptz,
   status text NOT NULL CHECK (status IN ('applied','partial','queued','failed','no_data')),
