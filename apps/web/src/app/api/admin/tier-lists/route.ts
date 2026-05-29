@@ -25,6 +25,8 @@ export const GET = withAdmin(async () => {
        ingestion_method,
        ingested_at,
        entry_count,
+       review_status,
+       gate_failure_reasons,
        source:tier_list_sources!inner(
          id,
          author,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect, useMemo } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import { useAuth } from "@/features/auth/auth-provider";
 import { LoginScreen } from "@/features/auth/login-screen";
 import type { TierExtractionResult } from "@sts2/shared/evaluation/tier-extraction";
@@ -678,6 +678,8 @@ function TierListContent() {
 
         {step === "upload" && (
           <>
+            <RefreshActivityPanel />
+            <NeedsReviewSection />
             <IngestedListsTable onRefresh={beginRefresh} />
             <UploadStep
               meta={meta}
@@ -737,6 +739,8 @@ interface IngestedRow {
   ingestion_method: "vision_llm" | "manual_confirm" | "scraped";
   ingested_at: string;
   entry_count: number;
+  review_status: "none" | "pending" | null;
+  gate_failure_reasons: GateFailureReasons | null;
   source: {
     id: string;
     author: string;
@@ -745,6 +749,32 @@ interface IngestedRow {
     trust_weight: number;
     scale_type: ScaleType;
     scale_config: Record<string, unknown> | null;
+  };
+}
+
+// Shape stored in tier_lists.gate_failure_reasons for a queued (pending)
+// row. Mirrors `{ perSection, sourceLevel }` from the quality gate, where
+// `perSection` is the single section's result (not an array). Fields are
+// optional/defensive since the column is JSON and older rows may differ.
+interface GateCheck {
+  name: "match_rate" | "adapter_warnings" | "entry_count_delta" | string;
+  value: number;
+  threshold: number;
+  prior?: number;
+  current?: number;
+}
+interface GateFailureReasons {
+  perSection?: {
+    detectedCharacter?: string | null;
+    passed?: boolean;
+    checks?: GateCheck[];
+  };
+  sourceLevel?: {
+    coverage?: {
+      priorCharacters?: string[];
+      currentCharacters?: string[];
+      passed?: boolean;
+    };
   };
 }
 
@@ -957,6 +987,454 @@ function IngestedListsTable({ onRefresh }: { onRefresh: (row: IngestedRow) => vo
         />
       )}
     </section>
+  );
+}
+
+// ── Recent refresh activity ───────────────────────────────────────────────────
+
+type RefreshLogStatus = "applied" | "partial" | "queued" | "failed" | "no_data";
+
+interface RefreshLog {
+  id: string;
+  source_id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: RefreshLogStatus;
+  trigger: "cron" | "manual";
+  sections_attempted: number | null;
+  sections_applied: number | null;
+  sections_queued: number | null;
+  error_detail: unknown;
+  source: { id?: string; author: string } | null;
+}
+
+// Generic JSON fetcher for the refresh-log feeds. (The list `fetcher` above is
+// narrowly typed to `{ lists }`, so the activity/history views use this one.)
+const jsonFetcher = async <T,>(url: string): Promise<T> => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+};
+
+// Status → chip classes, matching the staleness-chip palette used elsewhere on
+// this page (emerald/amber/sky/rose with -900/40 bg + -300 text).
+function refreshStatusBadge(status: RefreshLogStatus): string {
+  switch (status) {
+    case "applied":
+      return "bg-emerald-900/40 text-emerald-300";
+    case "partial":
+      return "bg-amber-900/40 text-amber-300";
+    case "queued":
+      return "bg-sky-900/40 text-sky-300";
+    case "failed":
+    case "no_data":
+    default:
+      return "bg-rose-900/40 text-rose-300";
+  }
+}
+
+// Pull a short human-readable string out of the (untyped) error_detail blob.
+function shortReason(detail: unknown): string | null {
+  if (detail == null) return null;
+  if (typeof detail === "string") return detail;
+  if (typeof detail === "object") {
+    const d = detail as Record<string, unknown>;
+    const msg = d.message ?? d.error ?? d.reason;
+    if (typeof msg === "string") return msg;
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return null;
+    }
+  }
+  return String(detail);
+}
+
+function RefreshActivityPanel() {
+  const { data, error, isLoading } = useSWR<{ logs: RefreshLog[] }>(
+    "/api/admin/tier-lists/refresh-logs",
+    jsonFetcher,
+    { revalidateOnFocus: false },
+  );
+  const [historySourceId, setHistorySourceId] = useState<string | null>(null);
+  const [historyAuthor, setHistoryAuthor] = useState<string>("");
+
+  const logs = data?.logs ?? [];
+
+  return (
+    <section className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 gap-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-zinc-200">
+            Recent refresh activity
+          </h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {isLoading
+              ? "Loading…"
+              : "Latest auto-refresh attempts across all sources"}
+          </p>
+        </div>
+      </div>
+      {error ? (
+        <div className="px-4 py-6 text-sm text-red-400">
+          Failed to load: {error instanceof Error ? error.message : String(error)}
+        </div>
+      ) : !isLoading && logs.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-zinc-500">
+          No refresh activity yet.
+        </div>
+      ) : (
+        <ul className="divide-y divide-zinc-900">
+          {logs.map((log) => {
+            const reason =
+              log.status === "failed" || log.status === "no_data"
+                ? shortReason(log.error_detail)
+                : null;
+            const author = log.source?.author ?? "(unknown source)";
+            return (
+              <li key={log.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistorySourceId(log.source_id);
+                    setHistoryAuthor(author);
+                  }}
+                  className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-zinc-900/40 transition-colors"
+                >
+                  <span
+                    className={`inline-block rounded px-1.5 py-0.5 text-xs shrink-0 ${refreshStatusBadge(log.status)}`}
+                  >
+                    {log.status}
+                  </span>
+                  <span className="text-xs text-zinc-200 font-medium truncate">
+                    {author}
+                  </span>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider shrink-0">
+                    {log.trigger}
+                  </span>
+                  <span className="text-[11px] text-zinc-500 font-mono shrink-0">
+                    {log.sections_applied ?? 0}/{log.sections_attempted ?? 0}
+                    {(log.sections_queued ?? 0) > 0
+                      ? ` · ${log.sections_queued} queued`
+                      : ""}
+                  </span>
+                  {reason && (
+                    <span className="text-[11px] text-rose-300/80 truncate">
+                      {reason}
+                    </span>
+                  )}
+                  <span className="ml-auto text-[11px] text-zinc-500 shrink-0">
+                    {formatRelative(log.started_at)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {historySourceId && (
+        <SourceHistoryModal
+          sourceId={historySourceId}
+          author={historyAuthor}
+          onClose={() => setHistorySourceId(null)}
+        />
+      )}
+    </section>
+  );
+}
+
+// Per-source history: latest ~20 refresh rows for one source. Mirrors the
+// EditListModal overlay/header/close pattern used elsewhere on this page.
+function SourceHistoryModal({
+  sourceId,
+  author,
+  onClose,
+}: {
+  sourceId: string;
+  author: string;
+  onClose: () => void;
+}) {
+  const { data, error, isLoading } = useSWR<{ logs: RefreshLog[] }>(
+    `/api/admin/tier-lists/refresh-logs/${sourceId}`,
+    jsonFetcher,
+    { revalidateOnFocus: false },
+  );
+  const logs = data?.logs ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl">
+        <div className="sticky top-0 flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-100">
+              Refresh history
+            </h3>
+            <p className="text-[11px] text-zinc-500 mt-0.5">{author}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-200 transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-4">
+          {error ? (
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+              Failed to load history:{" "}
+              {error instanceof Error ? error.message : String(error)}
+            </div>
+          ) : isLoading ? (
+            <p className="text-xs text-zinc-500">Loading…</p>
+          ) : logs.length === 0 ? (
+            <p className="text-xs text-zinc-500">No refresh history yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {logs.map((log) => {
+                const reason =
+                  log.status === "failed" || log.status === "no_data"
+                    ? shortReason(log.error_detail)
+                    : null;
+                return (
+                  <li
+                    key={log.id}
+                    className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-block rounded px-1.5 py-0.5 text-xs ${refreshStatusBadge(log.status)}`}
+                      >
+                        {log.status}
+                      </span>
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider">
+                        {log.trigger}
+                      </span>
+                      <span className="ml-auto text-[11px] text-zinc-500">
+                        {formatRelative(log.started_at)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-zinc-500 font-mono">
+                      {log.sections_applied ?? 0} applied ·{" "}
+                      {log.sections_queued ?? 0} queued ·{" "}
+                      {log.sections_attempted ?? 0} attempted
+                    </div>
+                    {reason && (
+                      <p className="mt-1 text-[11px] text-rose-300/80 break-words">
+                        {reason}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Needs review queue ────────────────────────────────────────────────────────
+
+// Render the gate's `{ perSection, sourceLevel }` blob as readable lines, e.g.
+// "match_rate 0.78 < 0.95", "coverage: missing silent".
+function formatGateReasons(g: GateFailureReasons | null): string[] {
+  if (!g) return [];
+  const out: string[] = [];
+  for (const c of g.perSection?.checks ?? []) {
+    if (c.name === "match_rate") {
+      out.push(`match_rate ${c.value.toFixed(2)} < ${c.threshold.toFixed(2)}`);
+    } else if (c.name === "adapter_warnings") {
+      out.push(`adapter warnings: ${c.value}`);
+    } else if (c.name === "entry_count_delta") {
+      const was = c.prior;
+      const now = c.current;
+      const ctx =
+        was != null && now != null ? ` (was ${was}, now ${now})` : "";
+      out.push(
+        `entry count changed by ${c.value}${ctx}; allowed ±${Math.round(c.threshold)}`,
+      );
+    } else {
+      out.push(`${c.name}: ${c.value} (threshold ${c.threshold})`);
+    }
+  }
+  const cov = g.sourceLevel?.coverage;
+  if (cov && cov.passed === false) {
+    const current = new Set(cov.currentCharacters ?? []);
+    const missing = (cov.priorCharacters ?? []).filter((c) => !current.has(c));
+    out.push(
+      missing.length > 0
+        ? `coverage: missing ${missing.join(", ")}`
+        : "coverage: characters changed",
+    );
+  }
+  return out;
+}
+
+function NeedsReviewSection() {
+  // Shares the "/api/admin/tier-lists" SWR cache key with IngestedListsTable,
+  // so the already-loaded rows are reused (no extra request) and revalidation
+  // here refreshes the table too.
+  const { data, error, isLoading } = useSWR<{ lists: IngestedRow[] }>(
+    "/api/admin/tier-lists",
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
+  const pending = (data?.lists ?? []).filter(
+    (l) => l.review_status === "pending",
+  );
+
+  // Group pending rows by source author for a scannable layout.
+  const grouped = useMemo(() => {
+    const map = new Map<string, IngestedRow[]>();
+    for (const row of pending) {
+      const author = row.source.author || "(unknown source)";
+      const list = map.get(author) ?? [];
+      list.push(row);
+      map.set(author, list);
+    }
+    return Array.from(map.entries()).sort((a, b) =>
+      a[0].toLowerCase().localeCompare(b[0].toLowerCase()),
+    );
+  }, [pending]);
+
+  if (isLoading || error) return null; // table surfaces load state/errors
+  if (pending.length === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-amber-900/40 bg-zinc-950 overflow-hidden">
+      <div className="px-4 py-3 border-b border-amber-900/40">
+        <h2 className="text-sm font-semibold text-amber-200">
+          Needs review
+          <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-xs text-amber-300">
+            {pending.length}
+          </span>
+        </h2>
+        <p className="text-xs text-zinc-500 mt-0.5">
+          Auto-refresh drafts the quality gate couldn&apos;t apply automatically.
+        </p>
+      </div>
+      <div className="divide-y divide-zinc-900">
+        {grouped.map(([author, rows]) => (
+          <div key={author} className="px-4 py-3">
+            <h3 className="text-xs font-semibold text-zinc-300">{author}</h3>
+            <ul className="mt-2 space-y-2">
+              {rows.map((row) => (
+                <PendingRow key={row.id} row={row} />
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PendingRow({ row }: { row: IngestedRow }) {
+  const [busy, setBusy] = useState<"accept" | "reject" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Revalidate both the list (table + this queue) and the activity feed so a
+  // promotion/rejection is reflected everywhere without a manual reload.
+  const revalidate = () => {
+    void globalMutate("/api/admin/tier-lists");
+    void globalMutate("/api/admin/tier-lists/refresh-logs");
+  };
+
+  const handleAccept = async () => {
+    setBusy("accept");
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/tier-lists/accept-pending/${row.id}`, {
+        method: "POST",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error || `Accept failed (${res.status})`);
+        setBusy(null);
+        return;
+      }
+      revalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Accept failed");
+      setBusy(null);
+    }
+  };
+
+  const handleReject = async () => {
+    setBusy("reject");
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/tier-lists/${row.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json?.error || `Reject failed (${res.status})`);
+        setBusy(null);
+        return;
+      }
+      revalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reject failed");
+      setBusy(null);
+    }
+  };
+
+  const reasons = formatGateReasons(row.gate_failure_reasons);
+  const captured = row.ingested_at ?? row.published_at;
+
+  return (
+    <li className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs text-zinc-200">
+            <span className="font-medium">{row.character ?? "any"}</span>
+            <span className="text-zinc-600">·</span>
+            <span className="text-zinc-500">
+              captured {formatRelative(captured)}
+            </span>
+          </div>
+          {reasons.length > 0 ? (
+            <ul className="mt-1.5 list-disc list-inside space-y-0.5 text-[11px] text-amber-300/90">
+              {reasons.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              No gate detail recorded.
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleAccept}
+            disabled={busy !== null}
+            className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy === "accept" ? "Accepting…" : "Accept"}
+          </button>
+          <button
+            type="button"
+            onClick={handleReject}
+            disabled={busy !== null}
+            className="rounded-md border border-zinc-700 px-2.5 py-1 text-[11px] text-zinc-300 hover:border-rose-600 hover:text-rose-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy === "reject" ? "Rejecting…" : "Reject"}
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div className="mt-2 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] text-red-400">
+          {error}
+        </div>
+      )}
+    </li>
   );
 }
 
