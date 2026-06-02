@@ -415,10 +415,22 @@ export function setupMapEvalListener() {
             }
           : null,
       });
-      // Preserve the PREVIOUS act in the pre-eval context so that if the
-      // API call fails, shouldEvaluateMap still detects the act change and
-      // retries. The post-API dispatch sets the correct act on success.
-      preEval.lastEvalContext.act = prevContext?.act ?? 0;
+      // Sync `act` to the CURRENT act as soon as the eval STARTS (not just on
+      // success). buildPreEvalPayload already set it to the current act; we no
+      // longer overwrite it with the previous act.
+      //
+      // Why: `isStartOfAct` is derived from `prevContext.act !== run.act`. The
+      // old code kept the previous act here so a failed API call would re-arm
+      // the start-of-act trigger and retry. But the post-eval (which synced the
+      // act on success) is frequently starved: at ~3s poll cadence the next
+      // poll sees the stale act, re-fires `shouldEvaluateMap` via the
+      // start-of-act branch, and cancelActiveListeners() kills the in-flight
+      // LLM call before it can complete. The act then never syncs and EVERY
+      // poll/move at the start of an act re-evaluates — bypassing the on-path
+      // guards in shouldEvaluateMap (#149). Syncing on start lets standing-still
+      // / on-path polls suppress, so the in-flight eval runs to completion.
+      // On failure the eager (local-scorer) recommendation persists; natural
+      // triggers (off-path, meaningful fork) re-evaluate later.
 
       // Pre-eval: dispatch the deterministic winner's path immediately so
       // the UI can highlight the recommended route while the LLM narrator

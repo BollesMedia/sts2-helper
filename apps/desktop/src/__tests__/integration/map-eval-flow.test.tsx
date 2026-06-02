@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { configureStore, combineSlices, createListenerMiddleware } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -33,7 +33,11 @@ import type { MapState, MultiplayerFields } from "@sts2/shared/types/game-state"
 // We capture calls and return a canned `mapCoachOutputSchema`-shaped payload
 // for `/api/evaluate`; everything else returns a benign empty 200 so
 // non-target endpoints (logChoice, etc.) don't blow up on `res.json()`.
-const { apiFetchMock } = vi.hoisted(() => {
+const { apiFetchMock, evalGate } = vi.hoisted(() => {
+  // When `evalGate.promise` is set, /api/evaluate awaits it before resolving.
+  // Lets a test hold an eval "in flight" to exercise mid-flight poll behavior
+  // (#149). Default null = resolve immediately (existing tests unaffected).
+  const evalGate: { promise: Promise<void> | null } = { promise: null };
   const mapEvaluatePayload = {
     reasoning: {
       risk_capacity: "Moderate HP buffer; can take one elite this floor.",
@@ -55,6 +59,7 @@ const { apiFetchMock } = vi.hoisted(() => {
 
   const apiFetchMock = vi.fn(async (path: string) => {
     if (path === "/api/evaluate") {
+      if (evalGate.promise) await evalGate.promise;
       return {
         ok: true,
         status: 200,
@@ -67,7 +72,7 @@ const { apiFetchMock } = vi.hoisted(() => {
       json: async () => ({}),
     } as unknown as Response;
   });
-  return { apiFetchMock };
+  return { apiFetchMock, evalGate };
 });
 
 vi.mock("@sts2/shared/lib/api-client", () => ({
@@ -132,6 +137,7 @@ import {
 } from "../../features/evaluation/evaluationSlice";
 import { evaluationApi } from "../../services/evaluationApi";
 import { gameStateApi } from "../../services/gameStateApi";
+import { selectMapEvalContext, selectRecommendedPath } from "../../features/run/runSelectors";
 import { connectionSlice } from "../../features/connection/connectionSlice";
 import { clearEvaluationRegistry } from "@sts2/shared/evaluation/last-evaluation-registry";
 import { MapView } from "../../views/map/map-view";
@@ -435,6 +441,98 @@ describe("map-eval flow — listener → /api/evaluate → adapter → slice →
           apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
         ).toHaveLength(2);
       });
+    });
+  });
+
+  describe("act sync on eval start — no start-of-act re-eval storm (#149)", () => {
+    const settle = () => new Promise<void>((r) => setTimeout(r, 50));
+
+    afterEach(() => {
+      evalGate.promise = null;
+    });
+
+    it("records the current act when the eval STARTS, not only on success", async () => {
+      // Hold the coach call in flight so the post-eval (which also syncs the
+      // act) cannot run. Only the pre-eval has executed.
+      let release!: () => void;
+      evalGate.promise = new Promise<void>((r) => (release = r));
+
+      const store = createIntegrationStore();
+      setupMapEvalListener();
+      seedRun(store);
+
+      // run.act === 1 (buildHappyPathMapState). This is the initial eval.
+      store.dispatch(gameStateReceived(buildHappyPathMapState()));
+      await settle();
+
+      // Eval is in flight (one call, gate not released).
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+
+      // The bug (#149): the pre-eval wrote a STALE act (prevContext.act ?? 0),
+      // so a mid-flight poll saw isStartOfAct=true forever and re-evaluated on
+      // every poll/move, starving the coach call. The fix records the current
+      // act on start, so isStartOfAct clears once an eval is underway.
+      expect(selectMapEvalContext(store.getState())?.act).toBe(1);
+
+      release();
+      await settle();
+    });
+
+    it("does not re-eval on an on-path move while the coach call is still in flight", async () => {
+      let release!: () => void;
+      evalGate.promise = new Promise<void>((r) => (release = r));
+
+      const store = createIntegrationStore();
+      setupMapEvalListener();
+      seedRun(store);
+
+      store.dispatch(gameStateReceived(buildHappyPathMapState()));
+      await settle();
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+
+      // Follow the recommendation: move to the first node the (eager) path
+      // points at, giving it a single forced next option so the only thing
+      // that could trigger a re-eval is the start-of-act bug.
+      const path = selectRecommendedPath(store.getState());
+      const step = path[1] ?? { col: 0, row: 1 };
+      const onPathMove: MapState & MultiplayerFields = {
+        state_type: "map",
+        player: { character: "Ironclad", hp: 70, max_hp: 80, gold: 99 },
+        map: {
+          current_position: { col: step.col, row: step.row, type: "Monster" },
+          visited: [
+            { col: 1, row: 0, type: "Monster" },
+            { col: step.col, row: step.row, type: "Monster" },
+          ],
+          next_options: [
+            {
+              index: 0,
+              col: step.col,
+              row: step.row + 1,
+              type: "Monster",
+              leads_to: [{ col: 1, row: 3, type: "Boss" }],
+            },
+          ],
+          nodes: TEST_NODES,
+          boss: TEST_BOSS,
+        },
+        run: { act: 1, floor: step.row + 1, ascension: 0 },
+      };
+      store.dispatch(gameStateReceived(onPathMove));
+      await settle();
+
+      // With the fix the in-flight eval is NOT cancelled/restarted: still one
+      // call. Before the fix the move re-evaluated (startAct=true), making two.
+      expect(
+        apiFetchMock.mock.calls.filter(([p]) => p === "/api/evaluate"),
+      ).toHaveLength(1);
+
+      release();
+      await settle();
     });
   });
 });
