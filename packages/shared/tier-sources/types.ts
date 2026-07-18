@@ -32,6 +32,8 @@ export interface ScrapedTierList {
 export interface TierListSourceAdapter {
   readonly id: string;
   readonly label: string;
+  /** Whether the cron auto-refresh path may fetch + re-scrape this source. */
+  readonly supportsAutoRefresh: boolean;
   canHandle(url: string): boolean;
   parse(html: string, url: string): ScrapedTierList;
 }

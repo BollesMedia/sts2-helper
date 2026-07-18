@@ -14,6 +14,7 @@ const SEVEN_LETTER_MAP: Record<string, number> = {
 export const tiermakerAdapter: TierListSourceAdapter = {
   id: "tiermaker",
   label: "tiermaker.com",
+  supportsAutoRefresh: false,
 
   canHandle(url) {
     try {
